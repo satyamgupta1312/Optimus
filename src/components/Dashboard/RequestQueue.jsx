@@ -1,0 +1,555 @@
+import React, { useEffect, useState } from 'react';
+import { CheckCircle, XCircle, Clock, Eye, RefreshCw, FileText, ChevronDown, ChevronUp, X, Loader2, User, AlertCircle } from 'lucide-react';
+import { useWidgetContext } from '../../context/WidgetContext';
+import { useAuth } from '../../context/AuthContext';
+import { GoogleSheetService } from '../../services/GoogleSheetService';
+import toast from 'react-hot-toast';
+
+// Helper: Format relative time
+const getRelativeTime = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+};
+
+// Status Badge Component with icons and animations
+const StatusBadge = ({ status }) => {
+    const config = {
+        PENDING: {
+            bg: 'bg-amber-50',
+            border: 'border-amber-300',
+            text: 'text-amber-700',
+            icon: Clock,
+            label: 'Pending',
+            pulse: true
+        },
+        APPROVED: {
+            bg: 'bg-emerald-50',
+            border: 'border-emerald-300',
+            text: 'text-emerald-700',
+            icon: CheckCircle,
+            label: 'Approved',
+            pulse: false
+        },
+        REJECTED: {
+            bg: 'bg-red-50',
+            border: 'border-red-300',
+            text: 'text-red-700',
+            icon: XCircle,
+            label: 'Rejected',
+            pulse: false
+        }
+    };
+
+    const cfg = config[status] || config.PENDING;
+    const Icon = cfg.icon;
+
+    return (
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${cfg.bg} ${cfg.border} ${cfg.text} ${cfg.pulse ? 'animate-pulse' : ''}`}>
+            <Icon size={12} />
+            {cfg.label}
+        </span>
+    );
+};
+
+// Avatar Component
+const UserAvatar = ({ name, size = 'md' }) => {
+    const sizeClasses = {
+        sm: 'w-8 h-8 text-xs',
+        md: 'w-10 h-10 text-sm'
+    };
+    const initial = name?.charAt(0)?.toUpperCase() || '?';
+    const colors = ['bg-blue-500', 'bg-purple-500', 'bg-teal-500', 'bg-orange-500', 'bg-pink-500'];
+    const colorIndex = name ? name.charCodeAt(0) % colors.length : 0;
+
+    return (
+        <div className={`${sizeClasses[size]} ${colors[colorIndex]} rounded-full flex items-center justify-center text-white font-bold shadow-sm`}>
+            {initial}
+        </div>
+    );
+};
+
+const RequestQueue = ({ onClose, onApprove, onReject }) => {
+    const { setWidgets, setHeaderWidgets } = useWidgetContext();
+    const { user } = useAuth();
+    const [requests, setRequests] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [actionLoading, setActionLoading] = useState(null); // Track which request is being actioned
+
+    const currentUser = user || { role: 'MAKER', email: 'guest' };
+    const isMaker = currentUser.role === 'MAKER';
+
+    const [viewMode, setViewMode] = useState(isMaker ? 'HISTORY' : 'PENDING');
+    const [expandedReqs, setExpandedReqs] = useState(new Set());
+    const [selectedWidgets, setSelectedWidgets] = useState({});
+    const [selectedHeaderWidgets, setSelectedHeaderWidgets] = useState({}); // Track header widget selection
+
+    const toggleExpand = (reqId) => {
+        setExpandedReqs(prev => {
+            const next = new Set(prev);
+            if (next.has(reqId)) next.delete(reqId);
+            else next.add(reqId);
+            return next;
+        });
+    };
+
+    const toggleWidgetSelection = (reqId, index) => {
+        setSelectedWidgets(prev => {
+            const currentSet = prev[reqId] || new Set();
+            const nextSet = new Set(currentSet);
+            if (nextSet.has(index)) nextSet.delete(index);
+            else nextSet.add(index);
+            return { ...prev, [reqId]: nextSet };
+        });
+    };
+
+    const toggleHeaderWidgetSelection = (reqId, key) => {
+        setSelectedHeaderWidgets(prev => {
+            const currentSet = prev[reqId] || new Set();
+            const nextSet = new Set(currentSet);
+            if (nextSet.has(key)) nextSet.delete(key);
+            else nextSet.add(key);
+            return { ...prev, [reqId]: nextSet };
+        });
+    };
+
+    const fetchRequests = async () => {
+        setLoading(true);
+        try {
+            const data = await GoogleSheetService.getRequests();
+            let filtered = [];
+
+            if (isMaker) {
+                filtered = data.filter(r => r.user && r.user.toLowerCase() === currentUser.email.toLowerCase());
+            } else {
+                if (viewMode === 'PENDING') {
+                    filtered = data.filter(r => r.status && r.status.trim().toUpperCase() === 'PENDING');
+                } else {
+                    filtered = data;
+                }
+            }
+
+            const sorted = [...filtered].reverse();
+            setRequests(sorted);
+
+            const initialSelection = {};
+            const initialHeaderSelection = {};
+            sorted.forEach(req => {
+                if (req.widgets && req.widgets.length > 0) {
+                    initialSelection[req.id] = new Set(req.widgets.map((_, i) => i));
+                }
+                // Initialize header widgets as selected
+                const headerSet = new Set();
+                if (req.headerWidgets?.primaryMasthead && req.headerWidgets.primaryMasthead.enabled !== false) {
+                    headerSet.add('primaryMasthead');
+                }
+                if (req.headerWidgets?.secondaryMasthead && req.headerWidgets.secondaryMasthead.enabled === true) {
+                    headerSet.add('secondaryMasthead');
+                }
+                if (headerSet.size > 0) {
+                    initialHeaderSelection[req.id] = headerSet;
+                }
+            });
+            setSelectedWidgets(initialSelection);
+            setSelectedHeaderWidgets(initialHeaderSelection);
+        } catch (e) {
+            console.error("Failed to fetch requests", e);
+            toast.error('Failed to load requests');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchRequests();
+    }, [viewMode]);
+
+    const handleView = (req) => {
+        console.log('[RequestQueue] handleView - Full request:', req);
+        console.log('[RequestQueue] handleView - headerWidgets:', req.headerWidgets);
+
+        let restored = false;
+        if (req.widgets) {
+            setWidgets(req.widgets);
+            restored = true;
+        }
+        if (req.headerWidgets) {
+            console.log('[RequestQueue] Setting headerWidgets:', JSON.stringify(req.headerWidgets, null, 2));
+            setHeaderWidgets(req.headerWidgets);
+            restored = true;
+        }
+
+        if (restored) {
+            toast.success(`Previewing ${req.user}'s request`, { icon: '👁️' });
+        } else {
+            toast.error('No widget data in this request');
+        }
+    };
+
+    const handleApprove = async (req) => {
+        const selectedIndices = selectedWidgets[req.id] || new Set();
+        const selectedHeaders = selectedHeaderWidgets[req.id] || new Set();
+
+        // Check if at least one widget (regular or header) is selected
+        if (selectedIndices.size === 0 && selectedHeaders.size === 0) {
+            toast.error('Please select at least one widget to approve');
+            return;
+        }
+
+        setActionLoading(req.id);
+        try {
+            // Filter regular widgets by selection
+            const widgetsToApprove = (req.widgets || []).filter((_, i) => selectedIndices.has(i));
+
+            // Build headerWidgets with only selected ones
+            const headerWidgetsToApprove = {};
+            if (req.headerWidgets?.primaryMasthead && selectedHeaders.has('primaryMasthead')) {
+                headerWidgetsToApprove.primaryMasthead = req.headerWidgets.primaryMasthead;
+            }
+            if (req.headerWidgets?.secondaryMasthead && selectedHeaders.has('secondaryMasthead')) {
+                headerWidgetsToApprove.secondaryMasthead = req.headerWidgets.secondaryMasthead;
+            }
+
+            const result = await GoogleSheetService.approveRequest(
+                req.id,
+                widgetsToApprove,
+                Object.keys(headerWidgetsToApprove).length > 0 ? headerWidgetsToApprove : null
+            );
+
+            if (result.success) {
+                toast.success('All widgets approved successfully!', { icon: '✅', duration: 4000 });
+            } else {
+                const errorCount = result.errors?.length || 0;
+                toast.error(`Approval completed with ${errorCount} error(s)`, { icon: '⚠️', duration: 5000 });
+            }
+
+            onApprove?.(req.id);
+            fetchRequests();
+        } catch (error) {
+            console.error('Approve error:', error);
+            toast.error(`Failed to approve: ${error.message}`);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleReject = async (req) => {
+        setActionLoading(req.id);
+        try {
+            await GoogleSheetService.updateStatus(req.id, 'REJECTED');
+            toast.success('Request rejected', { icon: '❌' });
+            onReject?.(req.id);
+            fetchRequests();
+        } catch (error) {
+            toast.error('Failed to reject request');
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleDeploy = async (req) => {
+        const token = prompt("Enter CSRF Token from samaan.apnamart.in:");
+        if (!token) return;
+
+        setActionLoading(req.id);
+        const loadingToast = toast.loading('Deploying to production...');
+
+        try {
+            const { BackendSyncService } = await import('../../services/BackendSyncService');
+            const result = await BackendSyncService.deployRequest(req, { csrftoken: token });
+
+            toast.dismiss(loadingToast);
+            if (result.success) {
+                toast.success('Deployed successfully!', { icon: '🚀', duration: 4000 });
+            } else {
+                toast.error(`Deployment failed: ${result.error}`);
+            }
+        } catch (e) {
+            toast.dismiss(loadingToast);
+            toast.error(`Error: ${e.message}`);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    return (
+        <div className="fixed top-16 right-4 w-[420px] bg-white border border-slate-200 shadow-2xl rounded-xl z-[100] overflow-hidden flex flex-col max-h-[85vh]">
+            {/* ===== IMPROVED HEADER ===== */}
+            <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-5 py-4 border-b border-slate-200 shrink-0">
+                <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <h3 className="font-bold text-slate-800 text-base">
+                            {!isMaker && viewMode === 'PENDING' ? '📋 Review Queue' : '📜 History'}
+                        </h3>
+                        <span className="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[24px] text-center">
+                            {requests.length}
+                        </span>
+                        <button
+                            onClick={fetchRequests}
+                            disabled={loading}
+                            title="Refresh"
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                        >
+                            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                        </button>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg transition-all"
+                        title="Close"
+                    >
+                        <X size={18} />
+                    </button>
+                </div>
+
+                {/* Filter Tabs for Checker */}
+                {!isMaker && (
+                    <div className="flex bg-slate-200/80 p-1 rounded-lg mt-3">
+                        <button
+                            onClick={() => setViewMode('PENDING')}
+                            className={`flex-1 text-xs font-semibold py-2 rounded-md transition-all ${viewMode === 'PENDING'
+                                ? 'bg-white text-slate-800 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                        >
+                            ⏳ Pending
+                        </button>
+                        <button
+                            onClick={() => setViewMode('HISTORY')}
+                            className={`flex-1 text-xs font-semibold py-2 rounded-md transition-all ${viewMode === 'HISTORY'
+                                ? 'bg-white text-slate-800 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                        >
+                            📚 All History
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* ===== CONTENT AREA ===== */}
+            <div className="overflow-y-auto flex-1 divide-y divide-slate-100">
+                {/* Loading State */}
+                {loading && requests.length === 0 && (
+                    <div className="p-8 flex flex-col items-center justify-center text-slate-400">
+                        <Loader2 size={32} className="animate-spin mb-3" />
+                        <span className="text-sm">Loading requests...</span>
+                    </div>
+                )}
+
+                {/* Empty States */}
+                {!loading && requests.length === 0 && (
+                    <div className="p-10 text-center">
+                        {isMaker ? (
+                            <div className="flex flex-col items-center">
+                                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                                    <FileText size={28} className="text-slate-400" />
+                                </div>
+                                <h4 className="font-semibold text-slate-700 mb-1">No History Yet</h4>
+                                <p className="text-sm text-slate-500">Create your first widget to see history here</p>
+                            </div>
+                        ) : viewMode === 'PENDING' ? (
+                            <div className="flex flex-col items-center">
+                                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                                    <CheckCircle size={28} className="text-green-500" />
+                                </div>
+                                <h4 className="font-semibold text-slate-700 mb-1">All Caught Up! 🎉</h4>
+                                <p className="text-sm text-slate-500">No pending requests to review</p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center">
+                                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                                    <FileText size={28} className="text-slate-400" />
+                                </div>
+                                <h4 className="font-semibold text-slate-700 mb-1">No Requests Found</h4>
+                                <p className="text-sm text-slate-500">The request history is empty</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ===== REQUEST CARDS WITH BETTER HIERARCHY ===== */}
+                {requests.map((req) => {
+                    const isActioning = actionLoading === req.id;
+
+                    return (
+                        <div key={req.id} className="p-4 hover:bg-slate-50/50 transition-colors">
+                            {/* Card Header: Avatar + Info + Status */}
+                            <div className="flex items-start gap-3 mb-3">
+                                <UserAvatar name={req.user} />
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="font-semibold text-slate-800 truncate">{req.user}</span>
+                                        <StatusBadge status={req.status} />
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
+                                        <span className="bg-slate-100 px-2 py-0.5 rounded font-medium">{req.type}</span>
+                                        <span>•</span>
+                                        <span>{getRelativeTime(req.date)}</span>
+                                        {req.widgets && (
+                                            <>
+                                                <span>•</span>
+                                                <span>{req.widgets.length} widget{req.widgets.length !== 1 ? 's' : ''}</span>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Widget List (Expandable) - Now includes header widgets */}
+                            {((req.widgets && req.widgets.length > 0) || req.headerWidgets) && (() => {
+                                // Build combined widget list
+                                const allWidgets = [];
+
+                                // Add header widgets first
+                                if (req.headerWidgets?.primaryMasthead && req.headerWidgets.primaryMasthead.enabled !== false) {
+                                    allWidgets.push({
+                                        ...req.headerWidgets.primaryMasthead,
+                                        _type: 'header',
+                                        _key: 'primaryMasthead',
+                                        title: 'Primary Masthead',
+                                        subtitle: req.headerWidgets.primaryMasthead.slug_name || 'No slug'
+                                    });
+                                }
+                                if (req.headerWidgets?.secondaryMasthead && req.headerWidgets.secondaryMasthead.enabled === true) {
+                                    allWidgets.push({
+                                        ...req.headerWidgets.secondaryMasthead,
+                                        _type: 'header',
+                                        _key: 'secondaryMasthead',
+                                        title: 'Secondary Masthead',
+                                        subtitle: req.headerWidgets.secondaryMasthead.title || 'No title'
+                                    });
+                                }
+
+                                // Add regular widgets
+                                if (req.widgets) {
+                                    req.widgets.forEach((w, i) => {
+                                        allWidgets.push({ ...w, _type: 'widget', _index: i });
+                                    });
+                                }
+
+                                if (allWidgets.length === 0) return null;
+
+                                return (
+                                    <div className="mb-3">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); toggleExpand(req.id); }}
+                                            className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-blue-600 transition-colors mb-2"
+                                        >
+                                            {expandedReqs.has(req.id) ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                            {expandedReqs.has(req.id) ? 'Hide Widgets' : 'Show Widgets'}
+                                        </button>
+
+                                        {expandedReqs.has(req.id) && (
+                                            <div className="bg-slate-50 rounded-lg p-3 space-y-2 border border-slate-200">
+                                                {allWidgets.map((w, idx) => {
+                                                    const isHeader = w._type === 'header';
+                                                    const originalIdx = isHeader ? null : w._index;
+                                                    const headerKey = isHeader ? w._key : null;
+                                                    const isSelected = isHeader
+                                                        ? selectedHeaderWidgets[req.id]?.has(headerKey)
+                                                        : selectedWidgets[req.id]?.has(originalIdx);
+                                                    const canSelect = !isMaker && req.status === 'PENDING';
+
+                                                    return (
+                                                        <label
+                                                            key={idx}
+                                                            className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${isHeader
+                                                                ? isSelected
+                                                                    ? 'bg-gradient-to-r from-blue-100 to-purple-100 border border-blue-300'
+                                                                    : 'bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 opacity-60'
+                                                                : isSelected
+                                                                    ? 'bg-blue-50 border border-blue-200'
+                                                                    : 'bg-white border border-slate-100 hover:border-slate-200 opacity-60'
+                                                                } ${!canSelect ? 'opacity-60 cursor-default' : ''}`}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={!!isSelected}
+                                                                onChange={() => isHeader
+                                                                    ? toggleHeaderWidgetSelection(req.id, headerKey)
+                                                                    : toggleWidgetSelection(req.id, originalIdx)
+                                                                }
+                                                                disabled={!canSelect}
+                                                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                            />
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className={`font-medium text-sm ${isHeader ? 'text-blue-700' : isSelected ? 'text-slate-800' : 'text-slate-500'}`}>
+                                                                    {isHeader ? '⭐ ' : ''}{w.title || w.type || 'Untitled Widget'}
+                                                                </div>
+                                                                {w.subtitle && (
+                                                                    <div className="text-xs text-slate-400">{w.subtitle}</div>
+                                                                )}
+                                                                {w.products && (
+                                                                    <div className="text-xs text-slate-400">{w.products.length} products</div>
+                                                                )}
+                                                            </div>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+
+                            {/* ===== ACTION BUTTONS WITH BETTER FEEDBACK ===== */}
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => handleView(req)}
+                                    disabled={isActioning}
+                                    className="flex-1 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 text-xs font-semibold py-2 px-3 rounded-lg shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                >
+                                    <Eye size={14} /> Preview
+                                </button>
+
+                                {!isMaker && req.status === 'PENDING' && (
+                                    <>
+                                        <button
+                                            onClick={() => handleApprove(req)}
+                                            disabled={isActioning}
+                                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-3 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                        >
+                                            {isActioning ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                                            Approve
+                                        </button>
+                                        <button
+                                            onClick={() => handleReject(req)}
+                                            disabled={isActioning}
+                                            className="flex-1 bg-white hover:bg-red-50 text-red-600 border border-red-200 text-xs font-semibold py-2 px-3 rounded-lg shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                        >
+                                            {isActioning ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
+                                            Reject
+                                        </button>
+                                    </>
+                                )}
+
+                                {!isMaker && req.status === 'APPROVED' && (
+                                    <button
+                                        onClick={() => handleDeploy(req)}
+                                        disabled={isActioning}
+                                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-3 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                    >
+                                        {isActioning ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                                        Deploy
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+export default RequestQueue;

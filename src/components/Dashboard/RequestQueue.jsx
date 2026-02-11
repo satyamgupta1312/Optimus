@@ -37,7 +37,7 @@ const StatusBadge = ({ status }) => {
             border: 'border-emerald-300',
             text: 'text-emerald-700',
             icon: CheckCircle,
-            label: 'Approved',
+            label: 'Complete',
             pulse: false
         },
         REJECTED: {
@@ -88,7 +88,7 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
     const currentUser = user || { role: 'MAKER', email: 'guest' };
     const isMaker = currentUser.role === 'MAKER';
 
-    const [viewMode, setViewMode] = useState(isMaker ? 'HISTORY' : 'PENDING');
+    const [viewMode, setViewMode] = useState(isMaker ? 'ALL' : 'PENDING');
     const [expandedReqs, setExpandedReqs] = useState(new Set());
     const [selectedWidgets, setSelectedWidgets] = useState({});
     const [selectedHeaderWidgets, setSelectedHeaderWidgets] = useState({}); // Track header widget selection
@@ -129,7 +129,20 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
             let filtered = [];
 
             if (isMaker) {
-                filtered = data.filter(r => r.user && r.user.toLowerCase() === currentUser.email.toLowerCase());
+                // Filter by user first
+                let userRequests = data.filter(r => r.user && r.user.toLowerCase() === currentUser.email.toLowerCase());
+
+                // Then filter by status if needed
+                if (viewMode === 'PENDING') {
+                    filtered = userRequests.filter(r => r.status && r.status.trim().toUpperCase() === 'PENDING');
+                } else if (viewMode === 'APPROVED') {
+                    filtered = userRequests.filter(r => r.status && r.status.trim().toUpperCase() === 'APPROVED');
+                } else if (viewMode === 'REJECTED') {
+                    filtered = userRequests.filter(r => r.status && r.status.trim().toUpperCase() === 'REJECTED');
+                } else {
+                    // ALL - show everything
+                    filtered = userRequests;
+                }
             } else {
                 if (viewMode === 'PENDING') {
                     filtered = data.filter(r => r.status && r.status.trim().toUpperCase() === 'PENDING');
@@ -331,6 +344,48 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                                 }`}
                         >
                             📚 All History
+                        </button>
+                    </div>
+                )}
+
+                {/* Filter Tabs for Maker */}
+                {isMaker && (
+                    <div className="grid grid-cols-2 gap-1 bg-slate-200/80 p-1 rounded-lg mt-3">
+                        <button
+                            onClick={() => setViewMode('PENDING')}
+                            className={`text-xs font-semibold py-2 rounded-md transition-all ${viewMode === 'PENDING'
+                                ? 'bg-white text-slate-800 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                        >
+                            ⏳ Pending
+                        </button>
+                        <button
+                            onClick={() => setViewMode('APPROVED')}
+                            className={`text-xs font-semibold py-2 rounded-md transition-all ${viewMode === 'APPROVED'
+                                ? 'bg-white text-slate-800 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                        >
+                            ✅ Complete
+                        </button>
+                        <button
+                            onClick={() => setViewMode('REJECTED')}
+                            className={`text-xs font-semibold py-2 rounded-md transition-all ${viewMode === 'REJECTED'
+                                ? 'bg-white text-slate-800 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                        >
+                            ❌ Rejected
+                        </button>
+                        <button
+                            onClick={() => setViewMode('ALL')}
+                            className={`text-xs font-semibold py-2 rounded-md transition-all ${viewMode === 'ALL'
+                                ? 'bg-white text-slate-800 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                        >
+                            📚 All
                         </button>
                     </div>
                 )}

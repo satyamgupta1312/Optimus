@@ -1,28 +1,40 @@
-import React, { useState, useMemo } from 'react';
-import { ArrowLeft, Search } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Search, Loader2 } from 'lucide-react';
 import { useWidgetContext } from '../../context/WidgetContext';
-import { searchProduct } from '../../services/CatalogService';
+import { searchProduct, searchProductsBatch } from '../../services/CatalogService';
 
 const CategoryPage = ({ categoryData }) => {
     const { navigateTo } = useWidgetContext();
     const [selectedSubCategory, setSelectedSubCategory] = useState(0);
+    const [products, setProducts] = useState([]);
+    const [loading, setLoading] = useState(false);
 
     const heading = categoryData?.heading || 'Category';
     const subCategories = categoryData?.subCategories || [];
 
-    // Parse product codes from selected sub-category and fetch real catalog data
-    const products = useMemo(() => {
-        if (subCategories.length === 0) return [];
+    // Fetch product data asynchronously (supports both local CSV and Google Sheet)
+    useEffect(() => {
+        if (subCategories.length === 0) {
+            setProducts([]);
+            return;
+        }
         const subCat = subCategories[selectedSubCategory];
-        if (!subCat) return [];
+        if (!subCat) {
+            setProducts([]);
+            return;
+        }
 
-        // Get product codes from Global field (or any state field that has data)
         const productCodesStr = subCat.products?.global || subCat.products?.jh || subCat.products?.cg || subCat.products?.wb || '';
-        if (!productCodesStr.trim()) return [];
+        if (!productCodesStr.trim()) {
+            setProducts([]);
+            return;
+        }
 
-        const codes = productCodesStr.split(',').map(c => c.trim()).filter(Boolean);
+        // Split by comma, space, or both
+        const codes = productCodesStr.split(/[\s,]+/).map(c => c.trim()).filter(Boolean);
 
-        return codes.map(code => {
+        // First show instant results from local cache
+        const instantResults = codes.map(code => {
             const catalogItem = searchProduct(code);
             if (catalogItem) {
                 return {
@@ -37,17 +49,45 @@ const CategoryPage = ({ categoryData }) => {
                         : null
                 };
             }
-            // Fallback for products not in local catalog
-            return {
-                id: code,
-                name: `Product #${code}`,
-                brand: '',
-                image: null,
-                price: 0,
-                mrp: 0,
-                discount: null
-            };
-        }).filter(p => p.name);
+            return null;
+        });
+
+        const hasAllLocal = instantResults.every(r => r !== null);
+        if (hasAllLocal) {
+            setProducts(instantResults);
+            return;
+        }
+
+        // Some missing - show what we have and fetch the rest
+        setProducts(instantResults.map((r, i) => r || {
+            id: codes[i], name: `Loading #${codes[i]}...`, brand: '', image: null, price: 0, mrp: 0, discount: null, _loading: true
+        }));
+        setLoading(true);
+
+        // Fetch missing from Google Sheet
+        searchProductsBatch(codes).then(resultsMap => {
+            const fullResults = codes.map(code => {
+                const item = resultsMap[code.toString().trim().replace(/,/g, '')];
+                if (item) {
+                    return {
+                        id: item.itemCode,
+                        name: item.name,
+                        brand: item.brand,
+                        image: item.image,
+                        price: item.price,
+                        mrp: item.mrp,
+                        discount: item.mrp > item.price
+                            ? `₹${Math.round(item.mrp - item.price)} OFF`
+                            : null
+                    };
+                }
+                return {
+                    id: code, name: `Product #${code}`, brand: '', image: null, price: 0, mrp: 0, discount: null
+                };
+            }).filter(p => p.name);
+            setProducts(fullResults);
+            setLoading(false);
+        }).catch(() => setLoading(false));
     }, [subCategories, selectedSubCategory]);
 
     // Helper to get image src with Drive URL handling
@@ -86,8 +126,8 @@ const CategoryPage = ({ categoryData }) => {
                                     key={idx}
                                     onClick={() => setSelectedSubCategory(idx)}
                                     className={`flex flex-col items-center justify-center p-2 border-b border-orange-100 cursor-pointer transition-colors ${selectedSubCategory === idx
-                                            ? 'bg-white border-l-[3px] border-l-orange-500'
-                                            : 'hover:bg-orange-100'
+                                        ? 'bg-white border-l-[3px] border-l-orange-500'
+                                        : 'hover:bg-orange-100'
                                         }`}
                                 >
                                     {imgSrc ? (
@@ -122,6 +162,12 @@ const CategoryPage = ({ categoryData }) => {
 
                 {/* Main Content - Products */}
                 <div className="flex-1 overflow-y-auto p-2" style={{ scrollbarWidth: 'none' }}>
+                    {loading && (
+                        <div className="flex items-center justify-center py-2 text-blue-600 text-[10px] gap-1">
+                            <Loader2 size={12} className="animate-spin" />
+                            <span>Loading products...</span>
+                        </div>
+                    )}
                     {products.length > 0 ? (
                         <div className="grid grid-cols-2 gap-2">
                             {products.map((product) => (

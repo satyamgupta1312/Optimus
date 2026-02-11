@@ -4,6 +4,7 @@ import homepageResponse from '../data/homepage_response.json';
 import showToast from '../utils/toast';
 import { useUndoRedo } from './UndoRedoContext';
 import { useActivityLog } from './ActivityLogContext';
+import { useAuth } from './AuthContext';
 
 const WidgetContext = createContext();
 
@@ -19,6 +20,7 @@ export const WidgetProvider = ({ children }) => {
     console.log("DEBUG: WidgetProvider rendering");
     const undoRedo = useUndoRedo();
     const { logActivity } = useActivityLog();
+    const { user } = useAuth(); // Get current user
 
     // Load initial widgets from the API response
     const [widgets, setWidgets] = useState(() => mapApiToWidgets(homepageResponse));
@@ -213,7 +215,7 @@ export const WidgetProvider = ({ children }) => {
 
             await GoogleSheetService.createRequest({
                 id: crypto.randomUUID(),
-                user: 'satyam.gupta@apnamart.in', // Default/Current
+                user: user?.name || user?.email || 'Unknown User', // Use actual user's name
                 type: 'Homepage Update',
                 status: 'PENDING',
                 widgets: widgets,

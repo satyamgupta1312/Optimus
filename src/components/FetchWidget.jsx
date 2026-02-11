@@ -21,7 +21,7 @@ export default function FetchWidget({ onWidgetFetched }) {
         try {
             // Try fetching as a widget first
             const widgetResponse = await fetch(
-                `https://samaan.apnamart.in/api/app/widget/?slug_name=${encodeURIComponent(slugName.trim())}`
+                `/api/app/widget/?slug_name=${encodeURIComponent(slugName.trim())}`
             );
 
             if (widgetResponse.ok) {
@@ -36,7 +36,7 @@ export default function FetchWidget({ onWidgetFetched }) {
 
             // If not found as widget, try as widget item
             const itemResponse = await fetch(
-                `https://samaan.apnamart.in/api/app/widget_item/?slug_name=${encodeURIComponent(slugName.trim())}`
+                `/api/app/widget_item/?slug_name=${encodeURIComponent(slugName.trim())}`
             );
 
             if (itemResponse.ok) {
@@ -58,35 +58,128 @@ export default function FetchWidget({ onWidgetFetched }) {
     const formatWidgetData = (data) => {
         const widgetType = data.widget_type;
 
-        // Map API widget type to our internal types
+        // Map ALL API widget types to internal types
         const typeMap = {
             'carousel': 'Banner With Product Listing',
             'single_product_row': 'Single Product Row',
             'single_product_row_v2': 'Single Product Row Optimize',
-            'product_listing': 'Product Listing Page (CLP)'
+            'product_listing': 'Product Listing Page (CLP)',
+            'masthead_secondary_category_hp': 'Secondary Masthead',
+            'category': 'Category Grid',
         };
 
         return {
+            // Core identity
             type: typeMap[widgetType] || widgetType,
+            slug: data.slug_name || '',
+
+            // Headings
             title: data.heading_en || data.heading || 'Fetched Widget',
             titleHi: data.heading_hi || '',
-            slug: data.slug_name,
+            titleBg: data.heading_bg || '',
+            description: data.description || '',
+
+            // Timing
+            startTime: data.start_time || '',
+            endTime: data.end_time || '',
+
+            // Visual
             aspectRatio: data.media_aspect_ratio || '1',
-            products: [], // Will be populated from widget items
-            image: '', // Will be populated from widget items
+            image: data.image || '',
+            backgroundMultimedia: data.background_multimedia || '',
+            clearBgMedia: data.clear_bg_media || '',
+
+            // Navigation & Actions
+            masterKey: data.master_key || '',
+            viewAllActionName: data.view_all_action_name || '',
+            viewAllActionParams: data.view_all_action_params || '',
+
+            // Configuration
+            filterDict: data.filter_dict || '{}',
+            appConfigurations: data.app_configurations || '{}',
+            configurations: data.configurations || '{}',
+            deactivatedFlag: data.deactivated_flag || 'no',
+
+            // Data (items/products will come from widget_items mapping)
+            products: [],
+            items: data.items || [],
+
+            // Metadata
             _fetched: true,
             _rawData: data
         };
     };
 
     const formatWidgetItemData = (data) => {
+        // Map item_type to a displayable widget type for the canvas
+        const itemTypeMap = {
+            'carousel': 'Banner With Product Listing',
+            'sub_category': 'Product Listing Page (CLP)',
+            'item_rows': 'Single Product Row Optimize',
+        };
+
         return {
-            type: 'Widget Item',
+            // Core identity
+            type: itemTypeMap[data.item_type] || 'Widget Item',
+            itemType: data.item_type || '',
+            slug: data.slug_name || '',
+
+            // Text content
             title: data.text_en || 'Fetched Widget Item',
+            text: data.text_en || '',
             titleHi: data.text_hi || '',
-            slug: data.slug_name,
+            textHi: data.text_hi || '',
+            textBg: data.text_bg || '',
+
+            // Media
             image: data.media_en || '',
-            products: data.product_list ? data.product_list.split(',') : [],
+            mediaEn: data.media_en || '',
+            mediaHi: data.media_hi || '',
+            mediaBg: data.media_bg || '',
+            media: data.media || '',
+
+            // Products
+            productIds: data.product_list || '',
+            products: data.product_list
+                ? data.product_list.split(',').map(code => ({
+                    id: crypto.randomUUID(),
+                    itemCode: code.trim(),
+                    name: `Product ${code.trim()}`,
+                    price: '₹-',
+                    image: ''
+                }))
+                : [],
+
+            // Click & Navigation
+            itemClickAction: data.item_click_action || '',
+            clickActionParams: data.click_action_params || '{}',
+            isClickable: data.is_clickable || 'no',
+            slaveKey: data.slave_key || '',
+
+            // Filters & Properties
+            filters: data.filters || '[]',
+            filterLst: data.filter_lst || '[]',
+            propertyLst: data.property_lst || '[]',
+            plEdit: data.pl_edit || 'PL',
+            updateProductList: data.update_product_list || 'no',
+
+            // Timing
+            startTime: data.start_time || '',
+            endTime: data.end_time || '',
+
+            // Status
+            deactivatedFlag: data.deactivated_flag || 'no',
+
+            // Multimedia
+            backgroundMultimedia: data.background_multimedia || '',
+            imageMultimedia: data.image_multimedia || '',
+            secondaryImageMultimedia: data.secondary_image_multimedia || '',
+
+            // Misc
+            progressBar: data.progress_bar || '',
+            offerId: data.offer_id || '',
+
+            // Metadata
             _fetched: true,
             _rawData: data
         };

@@ -1,6 +1,6 @@
 // Node 22 has built-in fetch, no import needed
 
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyJB9YHzwKeSJj-OS6v89h6hbltnitcH6Z_X15gnLWWuPvzlY-E13KqpxyE8Hk6fctZ/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbytsbTHOLaFnoVPaoHbFcdjBD9PCDNgtsdrRA3P5N4Uc3k_OtqrkvbGmJuKjOMMeNDdkg/exec';
 
 async function runDebug() {
     console.log('1. Fetching requests...');

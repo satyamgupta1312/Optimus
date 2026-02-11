@@ -1,9 +1,75 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Settings, ChevronDown, ChevronUp, Plus, Trash2, Loader2, Upload, X, CheckCircle } from 'lucide-react';
 import { MultimediaService } from '../../services/MultimediaService';
 import { GoogleSheetService } from '../../services/GoogleSheetService';
+import { searchProduct, searchProductsBatch } from '../../services/CatalogService';
 import ColorPickerInput from '../ColorPickerInput';
 import toast from 'react-hot-toast';
+
+// Product Code Preview - shows product names below item code input
+const ProductCodePreview = ({ codesString }) => {
+    const [products, setProducts] = useState([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (!codesString || !codesString.trim()) {
+            setProducts([]);
+            return;
+        }
+
+        const codes = codesString.split(/[\s,]+/).map(c => c.trim()).filter(Boolean);
+        if (codes.length === 0) {
+            setProducts([]);
+            return;
+        }
+
+        // Instant local lookup
+        const localResults = codes.map(code => {
+            const item = searchProduct(code);
+            return item ? { code, name: item.name, found: true } : { code, name: null, found: false };
+        });
+
+        const hasMissing = localResults.some(r => !r.found);
+        if (!hasMissing) {
+            setProducts(localResults);
+            return;
+        }
+
+        // Show local results + loading for missing
+        setProducts(localResults);
+        setLoading(true);
+
+        searchProductsBatch(codes).then(resultsMap => {
+            const updated = codes.map(code => {
+                const cleanCode = code.toString().trim().replace(/,/g, '');
+                const item = resultsMap[cleanCode];
+                return item ? { code, name: item.name, found: true } : { code, name: null, found: false };
+            });
+            setProducts(updated);
+            setLoading(false);
+        }).catch(() => setLoading(false));
+    }, [codesString]);
+
+    if (products.length === 0) return null;
+
+    return (
+        <div className="flex flex-wrap gap-1 mt-1">
+            {products.map((p, i) => (
+                <span
+                    key={i}
+                    className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-medium ${p.found
+                            ? 'bg-green-50 text-green-700 border border-green-200'
+                            : 'bg-orange-50 text-orange-600 border border-orange-200'
+                        }`}
+                    title={p.found ? p.name : `Code ${p.code} not found in catalog`}
+                >
+                    {p.found ? p.name : `#${p.code}`}
+                </span>
+            ))}
+            {loading && <Loader2 size={10} className="animate-spin text-blue-500" />}
+        </div>
+    );
+};
 
 const HeaderConfiguration = ({ headerWidgets, onUpdate }) => {
     const [expandedSection, setExpandedSection] = useState('primary'); // 'primary', 'secondary', or null
@@ -927,9 +993,12 @@ const HeaderConfiguration = ({ headerWidgets, onUpdate }) => {
                                                                                     newItems[idx] = { ...newItems[idx], subCategories };
                                                                                     handleFieldChange('items', newItems);
                                                                                 }}
-                                                                                placeholder="PROD1,PROD2,PROD3"
+                                                                                placeholder="4586 4591 4592 (space or comma separated)"
                                                                                 className="flex-1 px-1.5 py-0.5 text-[9px] border border-slate-200 rounded font-mono"
                                                                             />
+                                                                            {state === 'global' && subCat.products?.global && (
+                                                                                <ProductCodePreview codesString={subCat.products.global} />
+                                                                            )}
                                                                         </div>
                                                                     ))}
                                                                 </div>

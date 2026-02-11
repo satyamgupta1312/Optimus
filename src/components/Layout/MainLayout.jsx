@@ -113,60 +113,85 @@ const MainLayout = () => {
                         <Redo2 size={16} />
                     </button>
 
+
                     <div className="h-6 w-px bg-slate-200"></div>
 
-
-
-
-                    {/* History / Queue Toggle Button */}
+                    {/* Queue Toggle Button */}
                     <button
                         onClick={() => setShowQueue(!showQueue)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs font-medium ${showQueue ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                             }`}
-                        title={user?.role === 'CHECKER' ? "Review Pending Requests" : "View Application History"}
+                        title="View Queue"
                     >
-                        {user?.role === 'CHECKER' ? <ListTodo size={14} /> : <History size={14} />}
-                        <span>{user?.role === 'CHECKER' ? 'Queue' : 'History'}</span>
+                        <ListTodo size={14} />
+                        <span>Queue</span>
                     </button>
 
-                    {/* Status Dropdown */}
-                    <div className="relative group">
-                        <select
-                            value={pageStatus}
-                            onChange={(e) => setPageStatus(e.target.value)}
-                            className={`appearance-none px-3 py-1.5 pr-8 rounded-lg text-xs font-bold border cursor-pointer outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 ${getStatusColor()}`}
-                        >
-                            <option value="DRAFT">DRAFT</option>
-                            <option value="PENDING">PENDING</option>
-                            <option value="APPROVED">COMPLETE</option>
-                        </select>
-                        <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-
-                        {/* Request Queue Popover */}
-                        {showQueue && user?.role === 'CHECKER' && (
-                            <RequestQueue
-                                onClose={() => setShowQueue(false)}
-                                onApprove={(id) => {
-                                    approvePage();
-                                    alert(`Request #${id} approved!`);
-                                    setShowQueue(false);
+                    {/* Filter buttons for Maker - Controls both page status and queue filter */}
+                    {user?.role === 'MAKER' && (
+                        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                            <button
+                                onClick={() => {
+                                    setQueueFilter('DRAFT');
+                                    setPageStatus('DRAFT');
                                 }}
-                                onReject={(id) => {
-                                    rejectPage();
-                                    alert(`Request #${id} rejected.`);
-                                    setShowQueue(false);
+                                className={`px-2.5 py-1 text-xs font-semibold rounded transition-all ${pageStatus === 'DRAFT'
+                                        ? 'bg-white text-slate-800 shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                Draft
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setQueueFilter('PENDING');
+                                    setPageStatus('PENDING');
                                 }}
-                            />
-                        )}
+                                className={`px-2.5 py-1 text-xs font-semibold rounded transition-all ${pageStatus === 'PENDING'
+                                        ? 'bg-white text-slate-800 shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                Pending
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setQueueFilter('APPROVED');
+                                    setPageStatus('APPROVED');
+                                }}
+                                className={`px-2.5 py-1 text-xs font-semibold rounded transition-all ${pageStatus === 'APPROVED'
+                                        ? 'bg-white text-slate-800 shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                Approved
+                            </button>
+                        </div>
+                    )}
 
-                        {/* Maker History view is handled by RequestQueue component internal logic now */}
-                        {showQueue && user?.role === 'MAKER' && (
-                            <RequestQueue onClose={() => setShowQueue(false)} />
-                        )}
+                    {/* Request Queue Popover */}
+                    {showQueue && user?.role === 'CHECKER' && (
+                        <RequestQueue
+                            onClose={() => setShowQueue(false)}
+                            onApprove={(id) => {
+                                // Don't call approvePage() here - it sends ALL widgets unfiltered.
+                                // The approval automation is already handled by handleApprove in RequestQueue.jsx
+                                // which only sends the selected widgets.
+                                setPageStatus('APPROVED');
+                                setShowQueue(false);
+                            }}
+                            onReject={(id) => {
+                                setPageStatus('REJECTED');
+                                setShowQueue(false);
+                            }}
+                        />
+                    )}
 
+                    {/* Maker Queue view with filter */}
+                    {showQueue && user?.role === 'MAKER' && (
+                        <RequestQueue onClose={() => setShowQueue(false)} currentFilter={queueFilter} />
+                    )}
 
-
-                    </div>
 
                     {/* Workflow Actions */}
                     {user?.role === 'MAKER' && (pageStatus === 'DRAFT' || pageStatus === 'REJECTED') && (

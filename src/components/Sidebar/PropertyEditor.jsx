@@ -1,9 +1,75 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useWidgetContext } from '../../context/WidgetContext';
-import { Plus, Trash2, GripVertical } from 'lucide-react';
+import { Plus, Trash2, GripVertical, X, Upload, CheckCircle, Loader2 } from 'lucide-react';
 import { GoogleSheetService } from '../../services/GoogleSheetService';
-import { searchProduct } from '../../services/CatalogService';
+import { searchProduct, searchProductsBatch } from '../../services/CatalogService';
 import ImageUpload from '../ImageUpload';
+import { toast } from 'react-hot-toast';
+
+// Product Code Preview - shows product names below item code input
+const ProductCodePreview = ({ codesString }) => {
+    const [products, setProducts] = useState([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (!codesString || !codesString.trim()) {
+            setProducts([]);
+            return;
+        }
+
+        const codes = codesString.split(/[\s,]+/).map(c => c.trim()).filter(Boolean);
+        if (codes.length === 0) {
+            setProducts([]);
+            return;
+        }
+
+        // Instant local lookup
+        const localResults = codes.map(code => {
+            const item = searchProduct(code);
+            return item ? { code, name: item.name, found: true } : { code, name: null, found: false };
+        });
+
+        const hasMissing = localResults.some(r => !r.found);
+        if (!hasMissing) {
+            setProducts(localResults);
+            return;
+        }
+
+        // Show local results + loading for missing
+        setProducts(localResults);
+        setLoading(true);
+
+        searchProductsBatch(codes).then(resultsMap => {
+            const updated = codes.map(code => {
+                const cleanCode = code.toString().trim().replace(/,/g, '');
+                const item = resultsMap[cleanCode];
+                return item ? { code, name: item.name, found: true } : { code, name: null, found: false };
+            });
+            setProducts(updated);
+            setLoading(false);
+        }).catch(() => setLoading(false));
+    }, [codesString]);
+
+    if (products.length === 0) return null;
+
+    return (
+        <div className="flex flex-wrap gap-1 mt-1">
+            {products.map((p, i) => (
+                <span
+                    key={i}
+                    className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-medium ${p.found
+                        ? 'bg-green-50 text-green-700 border border-green-200'
+                        : 'bg-orange-50 text-orange-600 border border-orange-200'
+                        }`}
+                    title={p.found ? p.name : `Code ${p.code} not found in catalog`}
+                >
+                    {p.found ? p.name : `#${p.code}`}
+                </span>
+            ))}
+            {loading && <Loader2 size={10} className="animate-spin text-blue-500" />}
+        </div>
+    );
+};
 
 const PropertyEditor = ({ widget }) => {
     const { updateWidget } = useWidgetContext();
@@ -37,7 +103,7 @@ const PropertyEditor = ({ widget }) => {
         updateWidget(widget.id, { products: updatedProducts });
     };
 
-    const isCategoryGrid = widget.type === 'Category Grid';
+    const isCategoryGrid = widget.type === 'Category Grid' || widget.type === 'category'; // Handle API type too
     const isSecondaryMasthead = widget.type === 'Secondary Masthead';
     const isPrimaryMasthead = widget.type === 'Primary Masthead';
     const isCLP = widget.type === 'Product Listing Page (CLP)';
@@ -140,8 +206,6 @@ const PropertyEditor = ({ widget }) => {
                                     label={isBannerPLP ? 'Banner Image (Open Link)' : 'Background Image'}
                                     currentImage={widget.image || ''}
                                     onImageSelect={(file, preview) => {
-                                        // For now, store the preview data URL
-                                        // In production, upload to server and store URL
                                         handleChange('image', preview || '');
                                     }}
                                 />
@@ -242,29 +306,36 @@ const PropertyEditor = ({ widget }) => {
 
                                             console.log('[PropertyEditor] Fetching products for IDs:', ids);
 
-                                            // Reuse Fetch Logic (Simplified)
-                                            let fetchedProducts = [];
+                                            let resultsMap = {};
+
+                                            // Use CatalogService for reliable fetching (Local + CSV Cache)
                                             try {
-                                                fetchedProducts = await GoogleSheetService.fetchProductsByItemCodes(ids);
-                                            } catch (err) { console.warn("Sheet fetch failed", err); }
+                                                console.log('[PropertyEditor] Fetching via CatalogService...');
+                                                resultsMap = await searchProductsBatch(ids);
+                                                console.log('[PropertyEditor] CatalogService returned:', Object.keys(resultsMap).length, 'products');
+                                            } catch (error) {
+                                                console.warn('[PropertyEditor] CatalogService failed:', error.message);
+                                            }
 
                                             const newProducts = ids.map(id => {
-                                                // Check Sheet results then Local Catalog
-                                                const p = fetchedProducts.find(x => x.itemCode == id || x.item_code == id) || searchProduct(id);
+                                                const cleanId = id.toString().trim().replace(/,/g, '');
+                                                const p = resultsMap[cleanId];
+
                                                 if (p) {
+                                                    console.log('[PropertyEditor] Found:', cleanId);
                                                     return {
                                                         id: crypto.randomUUID(),
-                                                        itemCode: id,
-                                                        name: p.name || p.display_name || `Product ${id}`,
-                                                        price: p.price || 0,
+                                                        itemCode: p.itemCode,
+                                                        name: p.name || p.display_name || `Product ${p.itemCode}`,
+                                                        price: p.priceDisplay || `₹${p.price}`,
                                                         image: p.image || p.main_image || '',
                                                         mrp: p.mrp || 0
                                                     };
                                                 }
                                                 return {
                                                     id: crypto.randomUUID(),
-                                                    itemCode: id,
-                                                    name: `Product ${id} (Preview)`,
+                                                    itemCode: cleanId,
+                                                    name: `Product ${cleanId} (Not Found)`,
                                                     price: 0,
                                                     image: 'https://placehold.co/150'
                                                 };
@@ -328,50 +399,43 @@ const PropertyEditor = ({ widget }) => {
 
                                     let fetchedProducts = [];
 
-                                    // Try Google Sheets first
+                                    console.log('[PropertyEditor] Processing item codes:', ids);
+
+                                    let resultsMap = {};
+
+                                    // Use CatalogService for reliable fetching (Local + CSV Cache)
                                     try {
-                                        console.log('[PropertyEditor] Attempting Google Sheets fetch...');
-                                        fetchedProducts = await GoogleSheetService.fetchProductsByItemCodes(ids);
-                                        console.log('[PropertyEditor] Google Sheets returned:', fetchedProducts.length, 'products');
+                                        console.log('[PropertyEditor] Fetching via CatalogService...');
+                                        resultsMap = await searchProductsBatch(ids);
+                                        console.log('[PropertyEditor] CatalogService returned:', Object.keys(resultsMap).length, 'products');
                                     } catch (error) {
-                                        console.warn('[PropertyEditor] Google Sheets unavailable, using local catalog:', error.message);
+                                        console.warn('[PropertyEditor] CatalogService failed:', error.message);
                                     }
 
                                     const newProducts = [];
                                     const notFound = [];
 
                                     ids.forEach(id => {
-                                        // Try fetched data first
-                                        let p = fetchedProducts.find(product =>
-                                            product.itemCode === id || product.item_code === id
-                                        );
-
-                                        // Fallback to local catalog if not found in Sheets
-                                        if (!p) {
-                                            p = searchProduct(id);
-                                            if (p) {
-                                                console.log('[PropertyEditor] Found in local catalog:', id);
-                                            }
-                                        } else {
-                                            console.log('[PropertyEditor] Found in Google Sheets:', id);
-                                        }
+                                        const cleanId = id.toString().trim().replace(/,/g, '');
+                                        const p = resultsMap[cleanId];
 
                                         if (p) {
+                                            console.log('[PropertyEditor] Found:', cleanId);
                                             newProducts.push({
                                                 id: crypto.randomUUID(),
-                                                itemCode: p.itemCode || p.item_code || id,
-                                                name: p.name || p.display_name || `Item ${id}`,
-                                                price: p.price ? (p.price.startsWith('₹') ? p.price : `₹${p.price}`) : '₹-',
-                                                image: p.image || p.main_image || ''
+                                                itemCode: p.itemCode,
+                                                name: p.name || `Item ${p.itemCode}`,
+                                                price: p.priceDisplay || `₹${p.price}`,
+                                                image: p.image || ''
                                             });
                                         } else {
-                                            console.warn('[PropertyEditor] Product not found:', id);
-                                            notFound.push(id);
+                                            console.warn('[PropertyEditor] Product not found:', cleanId);
+                                            notFound.push(cleanId);
                                             // Still add placeholder
                                             newProducts.push({
                                                 id: crypto.randomUUID(),
-                                                itemCode: id,
-                                                name: `Item ${id} (Not Found)`,
+                                                itemCode: cleanId,
+                                                name: `Item ${cleanId} (Not Found)`,
                                                 price: '₹-',
                                                 image: ''
                                             });
@@ -422,7 +486,9 @@ const PropertyEditor = ({ widget }) => {
                                     textHi: '',
                                     image: '',
                                     leafIds: '',
-                                    redirectLink: ''
+                                    redirectLink: '',
+                                    categoryPage: { heading: '' },
+                                    subCategories: []
                                 });
                                 updateWidget(widget.id, { items: newItems });
                             }}
@@ -440,7 +506,7 @@ const PropertyEditor = ({ widget }) => {
                                         const newItems = (widget.items || []).filter((_, i) => i !== idx);
                                         updateWidget(widget.id, { items: newItems });
                                     }}
-                                    className="absolute top-2 right-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded p-1 opacity-0 group-hover:opacity-100 transition-all"
+                                    className="absolute top-2 right-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded p-1 opacity-0 group-hover:opacity-100 transition-all z-10"
                                 >
                                     <Trash2 size={14} />
                                 </button>
@@ -476,22 +542,197 @@ const PropertyEditor = ({ widget }) => {
                                                 className="w-full px-2 py-1 text-xs border border-slate-200 rounded"
                                             />
                                         </div>
+
+                                        {/* Image Upload for Item */}
+                                        <div className="flex flex-col justify-center">
+                                            <label
+                                                htmlFor={`item-img-${idx}`}
+                                                className="p-1 bg-blue-100 text-blue-600 rounded cursor-pointer hover:bg-blue-200"
+                                                title="Upload Image"
+                                            >
+                                                <Upload size={14} />
+                                            </label>
+                                            <input
+                                                id={`item-img-${idx}`}
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={async (e) => {
+                                                    const file = e.target.files[0];
+                                                    if (file) {
+                                                        try {
+                                                            toast.loading('Uploading...', { id: `item-${idx}` });
+                                                            const result = await GoogleSheetService.uploadMediaToDrive(file);
+                                                            if (result.success) {
+                                                                const newItems = [...widget.items];
+                                                                newItems[idx] = { ...newItems[idx], image: result.viewUrl, driveFileId: result.fileId };
+                                                                updateWidget(widget.id, { items: newItems });
+                                                                toast.success('Uploaded!', { id: `item-${idx}` });
+                                                            } else {
+                                                                toast.error('Upload failed', { id: `item-${idx}` });
+                                                            }
+                                                        } catch (err) {
+                                                            toast.error('Upload error', { id: `item-${idx}` });
+                                                        }
+                                                    }
+                                                    e.target.value = '';
+                                                }}
+                                                className="hidden"
+                                            />
+                                        </div>
                                     </div>
 
-                                    {/* Conditional Field: Leaf IDs vs Redirect Link */}
+                                    {/* Sub-Categories Section (For Category Grid) */}
                                     {isCategoryGrid && (
-                                        <div>
-                                            <label className="text-[10px] font-medium text-slate-400 block mb-0.5">Leaf IDs / Product List</label>
-                                            <input
-                                                value={item.leafIds || item.id || ''}
-                                                onChange={(e) => {
-                                                    const newItems = [...widget.items];
-                                                    newItems[idx] = { ...newItems[idx], leafIds: e.target.value, id: e.target.value };
-                                                    updateWidget(widget.id, { items: newItems });
-                                                }}
-                                                placeholder="e.g. 1020, 1030"
-                                                className="w-full px-2 py-1 text-xs border border-slate-200 rounded font-mono"
-                                            />
+                                        <div className="border-t border-slate-300 pt-3 mt-3">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="text-[10px] font-semibold text-slate-600">Sub-Categories</div>
+                                                <button
+                                                    onClick={() => {
+                                                        const newItems = [...widget.items];
+                                                        const subCategories = [...(newItems[idx].subCategories || [])];
+                                                        subCategories.push({
+                                                            id: crypto.randomUUID(),
+                                                            name: '',
+                                                            nameHi: '',
+                                                            image: '',
+                                                            products: { global: '', JH: '', CG: '', WB: '' }
+                                                        });
+                                                        newItems[idx] = { ...newItems[idx], subCategories };
+                                                        updateWidget(widget.id, { items: newItems });
+                                                    }}
+                                                    className="flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 bg-green-50 text-green-600 rounded hover:bg-green-100"
+                                                >
+                                                    <Plus size={10} /> Add Sub-Category
+                                                </button>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                {(item.subCategories || []).map((subCat, subIdx) => (
+                                                    <div key={subCat.id || subIdx} className="p-2 bg-white border border-slate-200 rounded relative">
+                                                        <button
+                                                            onClick={() => {
+                                                                const newItems = [...widget.items];
+                                                                const subCategories = (newItems[idx].subCategories || []).filter((_, i) => i !== subIdx);
+                                                                newItems[idx] = { ...newItems[idx], subCategories };
+                                                                updateWidget(widget.id, { items: newItems });
+                                                            }}
+                                                            className="absolute top-1 right-1 text-slate-300 hover:text-red-400"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+
+                                                        <div className="text-[9px] font-bold text-slate-500 mb-1">Sub-Cat #{subIdx + 1}</div>
+
+                                                        <input
+                                                            value={subCat.name || ''}
+                                                            onChange={(e) => {
+                                                                const newItems = [...widget.items];
+                                                                const subCategories = [...(newItems[idx].subCategories || [])];
+                                                                subCategories[subIdx] = { ...subCategories[subIdx], name: e.target.value };
+                                                                newItems[idx] = { ...newItems[idx], subCategories };
+                                                                updateWidget(widget.id, { items: newItems });
+                                                            }}
+                                                            placeholder="Name (e.g., Basmati Rice)"
+                                                            className="w-full px-2 py-1 text-[10px] border border-slate-200 rounded mb-1.5"
+                                                        />
+
+                                                        <div className="flex gap-1 mb-1.5">
+                                                            <input
+                                                                value={subCat.image || ''}
+                                                                onChange={(e) => {
+                                                                    const newItems = [...widget.items];
+                                                                    const subCategories = [...(newItems[idx].subCategories || [])];
+                                                                    subCategories[subIdx] = { ...subCategories[subIdx], image: e.target.value };
+                                                                    newItems[idx] = { ...newItems[idx], subCategories };
+                                                                    updateWidget(widget.id, { items: newItems });
+                                                                }}
+                                                                placeholder="Image URL"
+                                                                className="flex-1 px-2 py-1 text-[9px] border border-slate-200 rounded font-mono"
+                                                            />
+                                                            <label
+                                                                htmlFor={`subcat-img-${idx}-${subIdx}`}
+                                                                onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('bg-purple-100'); }}
+                                                                onDragLeave={(e) => { e.currentTarget.classList.remove('bg-purple-100'); }}
+                                                                onDrop={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.currentTarget.classList.remove('bg-purple-100');
+                                                                    const file = e.dataTransfer.files[0];
+                                                                    if (file) {
+                                                                        const fileInput = document.getElementById(`subcat-img-${idx}-${subIdx}`);
+                                                                        const dataTransfer = new DataTransfer();
+                                                                        dataTransfer.items.add(file);
+                                                                        fileInput.files = dataTransfer.files;
+                                                                        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+                                                                    }
+                                                                }}
+                                                                className="flex items-center justify-center px-1.5 py-0.5 bg-purple-500 text-white rounded text-[8px] cursor-pointer hover:bg-purple-600 transition-colors"
+                                                                title="Upload image"
+                                                            >
+                                                                <Upload size={10} />
+                                                            </label>
+                                                            <input
+                                                                id={`subcat-img-${idx}-${subIdx}`}
+                                                                type="file"
+                                                                accept="image/*"
+                                                                onChange={async (e) => {
+                                                                    const file = e.target.files[0];
+                                                                    if (file) {
+                                                                        try {
+                                                                            toast.loading('Uploading...', { id: `subcat-${idx}-${subIdx}` });
+                                                                            const result = await GoogleSheetService.uploadMediaToDrive(file);
+                                                                            if (result.success) {
+                                                                                const newItems = [...widget.items];
+                                                                                const subCategories = [...(newItems[idx].subCategories || [])];
+                                                                                subCategories[subIdx] = { ...subCategories[subIdx], image: result.viewUrl, driveFileId: result.fileId };
+                                                                                newItems[idx] = { ...newItems[idx], subCategories };
+                                                                                updateWidget(widget.id, { items: newItems });
+                                                                                toast.success('Uploaded!', { id: `subcat-${idx}-${subIdx}` });
+                                                                            } else {
+                                                                                toast.error('Upload failed', { id: `subcat-${idx}-${subIdx}` });
+                                                                            }
+                                                                        } catch (err) {
+                                                                            toast.error('Upload error', { id: `subcat-${idx}-${subIdx}` });
+                                                                        }
+                                                                    }
+                                                                    e.target.value = '';
+                                                                }}
+                                                                className="hidden"
+                                                            />
+                                                        </div>
+
+                                                        {/* State-wise Products */}
+                                                        <div className="text-[9px] font-semibold text-slate-500 mb-1">Products by State</div>
+                                                        <div className="space-y-1">
+                                                            {['global', 'JH', 'CG', 'WB'].map(state => (
+                                                                <div key={state} className="flex items-center gap-1.5">
+                                                                    <span className="text-[9px] font-medium text-slate-600 w-12">{state === 'global' ? 'Global' : state}:</span>
+                                                                    <input
+                                                                        value={subCat.products?.[state] || ''}
+                                                                        onChange={(e) => {
+                                                                            const newItems = [...widget.items];
+                                                                            const subCategories = [...(newItems[idx].subCategories || [])];
+                                                                            subCategories[subIdx] = {
+                                                                                ...subCategories[subIdx],
+                                                                                products: {
+                                                                                    ...(subCategories[subIdx].products || {}),
+                                                                                    [state]: e.target.value
+                                                                                }
+                                                                            };
+                                                                            newItems[idx] = { ...newItems[idx], subCategories };
+                                                                            updateWidget(widget.id, { items: newItems });
+                                                                        }}
+                                                                        placeholder="Item codes (e.g. 4586)"
+                                                                        className="flex-1 px-1.5 py-0.5 text-[9px] border border-slate-200 rounded font-mono"
+                                                                    />
+                                                                    {state === 'global' && subCat.products?.global && (
+                                                                        <ProductCodePreview codesString={subCat.products.global} />
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
 

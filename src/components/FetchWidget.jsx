@@ -19,10 +19,18 @@ export default function FetchWidget({ onWidgetFetched }) {
         setError('');
 
         try {
-            // Try fetching as a widget first
-            const widgetResponse = await fetch(
+            // Try fetching as a widget first (Standard Endpoint)
+            let widgetResponse = await fetch(
                 `/api/app/widget/?slug_name=${encodeURIComponent(slugName.trim())}`
             );
+
+            // If standard endpoint fails, try the alternative "get_widget" endpoint (User suggested)
+            if (!widgetResponse.ok && widgetResponse.status === 404) {
+                console.log("Standard widget endpoint 404, trying get_widget...");
+                widgetResponse = await fetch(
+                    `/api/app/get_widget/?slug_name=${encodeURIComponent(slugName.trim())}`
+                );
+            }
 
             if (widgetResponse.ok) {
                 const widgetData = await widgetResponse.json();
@@ -34,10 +42,18 @@ export default function FetchWidget({ onWidgetFetched }) {
                 return;
             }
 
-            // If not found as widget, try as widget item
-            const itemResponse = await fetch(
+            // If not found as widget, try as widget item (Standard Endpoint)
+            let itemResponse = await fetch(
                 `/api/app/widget_item/?slug_name=${encodeURIComponent(slugName.trim())}`
             );
+
+            // If standard endpoint fails, try the alternative "get_widget_item" endpoint (User suggested)
+            if (!itemResponse.ok && itemResponse.status === 404) {
+                console.log("Standard widget_item endpoint 404, trying get_widget_item...");
+                itemResponse = await fetch(
+                    `/api/app/get_widget_item/?widget_item_slug_name=${encodeURIComponent(slugName.trim())}`
+                );
+            }
 
             if (itemResponse.ok) {
                 const itemData = await itemResponse.json();

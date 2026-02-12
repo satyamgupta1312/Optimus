@@ -211,6 +211,21 @@ function handleApprove(params, sheet) {
           results.push({ widget: 'Secondary Masthead', status: 'failed', error: smError.toString() });
         }
       }
+
+      // Process Category Masthead (if enabled)
+      if (params.headerWidgets.categoryMasthead && params.headerWidgets.categoryMasthead.enabled === true) {
+        var cmWidget = params.headerWidgets.categoryMasthead;
+        console.log('Processing Category Masthead:', cmWidget.slug_name);
+        
+        try {
+          // New Category Grid logic
+          var result = createCategoryGridFromApproval(cmWidget, baseHeaders);
+          results.push({ widget: 'Category Masthead', status: 'success', slug: result });
+        } catch (cmError) {
+          console.error('Category Masthead creation failed:', cmError);
+          results.push({ widget: 'Category Masthead', status: 'failed', error: cmError.toString() });
+        }
+      }
     }
     
     // Update status in sheet

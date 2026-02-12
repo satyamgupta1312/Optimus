@@ -7,6 +7,13 @@ export default defineConfig({
   server: {
     port: 8888,
     proxy: {
+      // Proxy Google Apps Script API (MUST be before /api to match first)
+      '/api/google-sheet': {
+        target: 'https://script.google.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/google-sheet/, '/macros/s/AKfycbwGI4r4nDqo5iKIYubUGpAUTaDN-Z1Su_fsD8EmQ7bxIP3XB0HmEdfXFG89hk0uMVZfBQ/exec')
+      },
       // Proxy API requests
       '/api': {
         target: 'https://samaan.apnamart.in',

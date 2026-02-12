@@ -27,7 +27,7 @@
 // ==================== CONFIGURATION ====================
 // TEMPORARY FIX: Using manual cookies until authorization popup issue is resolved
 // Fresh cookies obtained: 2026-02-03
-var COOKIE_STRING = "csrftoken=0aAZrbP6ESnptako3gFliD0kAsQMGz5f; sessionid=90wx34k16le6wyrr4o18zhyp5uqmftj7; theme=samaan";
+var COOKIE_STRING = "csrftoken=rahrce1omLfR1FL07tmjv53rY3eotrWx; sessionid=0hr6v9r5pqk4bfo175e7cox3bo7u7lex; theme=samaan";
 var BASE_URL = "https://samaan.apnamart.in";
 
 /**
@@ -166,6 +166,10 @@ function handleApprove(params, sheet) {
           } else if (widget.type === 'Primary Masthead') {
             console.log("Routing to Primary Masthead Logic...");
             var result = createPrimaryMastheadFromApproval(widget, baseHeaders);
+            results.push({ widget: widget.title, status: 'success', slug: result });
+          } else if (widget.type === 'Category Grid' || widget.type === 'Category Masthead') {
+            console.log("Routing to Category Grid Logic...");
+            var result = createCategoryGridFromApproval(widget, baseHeaders);
             results.push({ widget: widget.title, status: 'success', slug: result });
           } else {
             results.push({ widget: widget.title, status: 'skipped', reason: 'Type not supported' });
@@ -494,7 +498,9 @@ function handleUploadMedia(params) {
     // - drive.google.com/uc?export=view - has CORS issues
     // - drive.google.com/thumbnail?id=xxx&sz=w1000 - works but lower quality
     // - lh3.googleusercontent.com/d/xxx - works well for embedding
-    var viewUrl = 'https://lh3.googleusercontent.com/d/' + fileId;
+    // Use the reliable thumbnail URL for preview
+    // OLD: var viewUrl = 'https://lh3.googleusercontent.com/d/' + fileId;
+    var viewUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1000';
     var downloadUrl = 'https://drive.google.com/uc?export=download&id=' + fileId;
     var thumbnailUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1000';
     

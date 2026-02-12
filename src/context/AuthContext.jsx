@@ -12,7 +12,12 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const storedUser = localStorage.getItem('optimus_user');
         if (storedUser) {
-            setUser(JSON.parse(storedUser));
+            try {
+                setUser(JSON.parse(storedUser));
+            } catch (e) {
+                console.warn("Retreived invalid user data from storage, clearing.", e);
+                localStorage.removeItem('optimus_user');
+            }
         }
         setLoading(false);
     }, []);

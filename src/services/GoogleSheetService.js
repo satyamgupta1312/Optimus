@@ -1,7 +1,10 @@
 // Service to interact with Google Sheets Backend
 
 // Google Apps Script URL for Queue & Approval (Approval_Automation.gs)
-const SHEET_API_URL = 'https://script.google.com/macros/s/AKfycbytsbTHOLaFnoVPaoHbFcdjBD9PCDNgtsdrRA3P5N4Uc3k_OtqrkvbGmJuKjOMMeNDdkg/exec';
+const SHEET_ID = 'AKfycbwGI4r4nDqo5iKIYubUGpAUTaDN-Z1Su_fsD8EmQ7bxIP3XB0HmEdfXFG89hk0uMVZfBQ';
+const SHEET_API_URL = import.meta.env.DEV
+    ? '/api/google-sheet'
+    : `https://script.google.com/macros/s/${SHEET_ID}/exec`;
 
 // Note: Primary Masthead uses a SEPARATE backend (Primary_Masthead_Backend.gs)
 // This is only kept for reference but NOT USED now since Master Key is manual input

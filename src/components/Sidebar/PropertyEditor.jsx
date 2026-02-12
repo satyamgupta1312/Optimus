@@ -53,20 +53,20 @@ const ProductCodePreview = ({ codesString }) => {
     if (products.length === 0) return null;
 
     return (
-        <div className="flex flex-wrap gap-1 mt-1">
+        <div className="flex flex-wrap gap-1 mt-1 max-h-24 overflow-y-auto p-1 bg-slate-50/50 rounded border border-slate-100/50">
             {products.map((p, i) => (
                 <span
                     key={i}
-                    className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-medium ${p.found
-                        ? 'bg-green-50 text-green-700 border border-green-200'
-                        : 'bg-orange-50 text-orange-600 border border-orange-200'
+                    className={`inline-flex items-center px-1 py-0.5 rounded-[3px] text-[7.5px] font-medium leading-none ${p.found
+                        ? 'bg-green-50 text-green-700 border border-green-100'
+                        : 'bg-orange-50 text-orange-600 border border-orange-100'
                         }`}
                     title={p.found ? p.name : `Code ${p.code} not found in catalog`}
                 >
-                    {p.found ? p.name : `#${p.code}`}
+                    {p.found ? (p.name.length > 20 ? p.name.substring(0, 18) + '..' : p.name) : `#${p.code}`}
                 </span>
             ))}
-            {loading && <Loader2 size={10} className="animate-spin text-blue-500" />}
+            {loading && <Loader2 size={10} className="animate-spin text-blue-500 ml-auto" />}
         </div>
     );
 };
@@ -514,8 +514,23 @@ const PropertyEditor = ({ widget }) => {
                                 <div className="space-y-2">
                                     <div className="flex gap-2">
                                         <div className="w-10 h-10 bg-slate-200 rounded shrink-0 flex items-center justify-center overflow-hidden border border-slate-300">
-                                            {item.image ? (
-                                                <img src={typeof item.image === 'string' ? item.image : URL.createObjectURL(item.image)} className="w-full h-full object-cover" />
+                                            {item.image || item.driveFileId ? (
+                                                <img
+                                                    src={item.driveFileId
+                                                        ? `https://drive.google.com/thumbnail?id=${item.driveFileId}&sz=w100`
+                                                        : (typeof item.image === 'string' ? item.image : URL.createObjectURL(item.image))
+                                                    }
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        const fileIdMatch = (item.image || '').match(/\/d\/([^\/]+)/);
+                                                        if (fileIdMatch && !e.target.dataset.retried) {
+                                                            e.target.dataset.retried = 'true';
+                                                            e.target.src = `https://drive.google.com/thumbnail?id=${fileIdMatch[1]}&sz=w100`;
+                                                        } else {
+                                                            e.target.style.display = 'none';
+                                                        }
+                                                    }}
+                                                />
                                             ) : (
                                                 <span className="text-[10px] text-slate-400">Img</span>
                                             )}
@@ -540,6 +555,16 @@ const PropertyEditor = ({ widget }) => {
                                                 }}
                                                 placeholder="Name (Hindi)"
                                                 className="w-full px-2 py-1 text-xs border border-slate-200 rounded"
+                                            />
+                                            <input
+                                                value={item.image || ''}
+                                                onChange={(e) => {
+                                                    const newItems = [...widget.items];
+                                                    newItems[idx] = { ...newItems[idx], image: e.target.value };
+                                                    updateWidget(widget.id, { items: newItems });
+                                                }}
+                                                placeholder="Image URL"
+                                                className="w-full px-2 py-1 text-xs border border-slate-200 rounded font-mono"
                                             />
                                         </div>
 
@@ -702,28 +727,30 @@ const PropertyEditor = ({ widget }) => {
 
                                                         {/* State-wise Products */}
                                                         <div className="text-[9px] font-semibold text-slate-500 mb-1">Products by State</div>
-                                                        <div className="space-y-1">
+                                                        <div className="space-y-1.5">
                                                             {['global', 'JH', 'CG', 'WB'].map(state => (
-                                                                <div key={state} className="flex items-center gap-1.5">
-                                                                    <span className="text-[9px] font-medium text-slate-600 w-12">{state === 'global' ? 'Global' : state}:</span>
-                                                                    <input
-                                                                        value={subCat.products?.[state] || ''}
-                                                                        onChange={(e) => {
-                                                                            const newItems = [...widget.items];
-                                                                            const subCategories = [...(newItems[idx].subCategories || [])];
-                                                                            subCategories[subIdx] = {
-                                                                                ...subCategories[subIdx],
-                                                                                products: {
-                                                                                    ...(subCategories[subIdx].products || {}),
-                                                                                    [state]: e.target.value
-                                                                                }
-                                                                            };
-                                                                            newItems[idx] = { ...newItems[idx], subCategories };
-                                                                            updateWidget(widget.id, { items: newItems });
-                                                                        }}
-                                                                        placeholder="Item codes (e.g. 4586)"
-                                                                        className="flex-1 px-1.5 py-0.5 text-[9px] border border-slate-200 rounded font-mono"
-                                                                    />
+                                                                <div key={state} className="space-y-1">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="text-[9px] font-medium text-slate-600 w-12">{state === 'global' ? 'Global' : state}:</span>
+                                                                        <input
+                                                                            value={subCat.products?.[state] || ''}
+                                                                            onChange={(e) => {
+                                                                                const newItems = [...widget.items];
+                                                                                const subCategories = [...(newItems[idx].subCategories || [])];
+                                                                                subCategories[subIdx] = {
+                                                                                    ...subCategories[subIdx],
+                                                                                    products: {
+                                                                                        ...(subCategories[subIdx].products || {}),
+                                                                                        [state]: e.target.value
+                                                                                    }
+                                                                                };
+                                                                                newItems[idx] = { ...newItems[idx], subCategories };
+                                                                                updateWidget(widget.id, { items: newItems });
+                                                                            }}
+                                                                            placeholder="Item codes (e.g. 4586)"
+                                                                            className="flex-1 px-1.5 py-1 text-[9px] border border-slate-200 rounded font-mono focus:border-blue-300 focus:outline-none transition-colors"
+                                                                        />
+                                                                    </div>
                                                                     {state === 'global' && subCat.products?.global && (
                                                                         <ProductCodePreview codesString={subCat.products.global} />
                                                                     )}

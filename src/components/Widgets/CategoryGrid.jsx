@@ -1,29 +1,27 @@
 import React from 'react';
-import { fetchWidgetProductList } from '../../services/api';
+import { useWidgetContext } from '../../context/WidgetContext';
 
 const CategoryGrid = ({ widget }) => {
+    const { navigateTo } = useWidgetContext();
 
-    const handleItemClick = async (item) => {
-        // Use widget.id and item.id provided by the prop
-        // Fallback to defaults if missing (for demo)
-        const widgetId = widget.id || 426; // Default from example curl
-        const itemId = item.id;
+    const handleItemClick = (item) => {
+        navigateTo('category', {
+            heading: item.categoryPage?.heading || item.text,
+            subCategories: item.subCategories || []
+        });
+    };
 
-        console.log(`[CategoryGrid] Fetching products for Widget: ${widgetId}, Item: ${itemId}`);
-
-        try {
-            const data = await fetchWidgetProductList(widgetId, itemId);
-            console.log('[CategoryGrid] API Response:', data);
-
-            if (data && data.results) {
-                alert(`API Success!\nFetched ${data.results.length} products for category "${item.text}".\n(Check Console for full data)`);
-            } else {
-                alert(`API Success, but no results found.`);
-            }
-        } catch (error) {
-            console.error("Failed to fetch products", error);
-            alert("API Failed. Check console.");
+    const getImageSrc = (item) => {
+        if (item.driveFileId) {
+            return `https://drive.google.com/thumbnail?id=${item.driveFileId}&sz=w200`;
         }
+        if (item.image) {
+            const fileIdMatch = item.image.match(/\/d\/([^\/]+)/);
+            if (fileIdMatch) {
+                return `https://drive.google.com/thumbnail?id=${fileIdMatch[1]}&sz=w200`;
+            }
+        }
+        return item.image;
     };
 
     return (
@@ -44,8 +42,20 @@ const CategoryGrid = ({ widget }) => {
                         onClick={() => handleItemClick(item)}
                     >
                         <div className="w-full aspect-square bg-slate-50 rounded-lg overflow-hidden relative border border-slate-100 shadow-sm">
-                            {item.image ? (
-                                <img src={item.image} alt={item.text} className="w-full h-full object-cover" />
+                            {item.image || item.driveFileId ? (
+                                <img
+                                    src={getImageSrc(item)}
+                                    alt={item.text}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        if (item.driveFileId && !e.target.dataset.retried) {
+                                            e.target.dataset.retried = 'true';
+                                            e.target.src = `https://lh3.googleusercontent.com/d/${item.driveFileId}`;
+                                        } else {
+                                            e.target.style.display = 'none';
+                                        }
+                                    }}
+                                />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center text-slate-300 text-[10px]">No Img</div>
                             )}

@@ -4,28 +4,49 @@ import SingleProductRow from './SingleProductRow';
 import SingleProductRowOptimized from './SingleProductRowOptimized';
 // import PromoScrollWidget from './PromoScrollWidget'; // Removed
 import BannerWithProductListing from './BannerWithProductListing';
+import ProductRail from './ProductRail/ProductRail';
 import PrimaryMasthead from './PrimaryMasthead';
 import CategoryGrid from './CategoryGrid';
 import { useWidgetContext } from '../../context/WidgetContext';
+import { WidgetRegistry } from '../../config/WidgetRegistry';
 
 const WidgetRenderer = ({ widget, isSelected, onClick, deleteWidget }) => {
     const { duplicateWidget } = useWidgetContext();
 
-    const componentMap = {
+    // Legacy componentMap (for non-config-driven widgets)
+    const legacyComponentMap = {
         'Single Product Row': SingleProductRow,
         'Single Product Row Optimize': SingleProductRowOptimized,
-        // 'Promo Scroll Widget': PromoScrollWidget, // Removed
-        'Secondary Masthead Carousel': PrimaryMasthead, // Reuse blue banner component
-        'Primary Masthead': PrimaryMasthead, // Header Blue Banner
+        'Secondary Masthead Carousel': PrimaryMasthead,
+        'Primary Masthead': PrimaryMasthead,
         'Banner With Product Listing': BannerWithProductListing,
         'Category Grid': CategoryGrid,
     };
 
+    // Config-driven componentMap (resolved from config.rendering.component)
+    const configComponentMap = {
+        'ProductRail': ProductRail,
+        // Future:
+        // 'CategoryGrid': CategoryGridNew,
+        // 'Masthead': MastheadNew,
+    };
+
     const renderWidgetContent = () => {
-        const Component = componentMap[widget.type];
-        if (Component) {
-            return <Component widget={widget} />;
+        // 1. Try config-driven lookup first
+        const config = WidgetRegistry.getConfig(widget.type);
+        if (config?.rendering?.component) {
+            const Component = configComponentMap[config.rendering.component];
+            if (Component) {
+                return <Component widget={widget} />;
+            }
         }
+
+        // 2. Fallback to legacy componentMap
+        const LegacyComponent = legacyComponentMap[widget.type];
+        if (LegacyComponent) {
+            return <LegacyComponent widget={widget} />;
+        }
+
         return <div className="p-4 text-red-500 text-xs">Unknown: {widget.type}</div>;
     };
 

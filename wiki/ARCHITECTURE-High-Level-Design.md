@@ -20,15 +20,30 @@ optimus/
 ├── src/
 │   ├── components/
 │   │   ├── Dashboard/         # Request Queue & Widget Generator UI
+│   │   ├── Inputs/            # Reusable input components (TextInput, PillSelector, etc.)
 │   │   ├── Preview/           # Phone Emulator components
 │   │   ├── Sidebar/           # Widget Library & Property Editor
 │   │   └── Widgets/           # Individual Widget implementations
+│   ├── config/
+│   │   ├── WidgetRegistry.js  # Central type → config lookup
+│   │   └── widgets/           # Per-widget config files (ProductRailConfig.js, etc.)
 │   ├── context/               # Global State (WidgetContext, UndoRedo, Auth)
-│   ├── services/              # API & Business Logic (GoogleSheetService, BackendSyncService)
+│   ├── services/
+│   │   ├── system/            # Generic config consumers (VariantResolver, PayloadBuilder, ConfigValidator)
+│   │   └── *.js               # API & Business Logic (GoogleSheetService, BackendSyncService)
 │   └── data/                  # Static assets and mock data
 ├── scripts/                   # Google Apps Script (Backend Logic)
-│   ├── Approval_Automation.gs # Main Trigger for Approvals
-│   ├── SPR_Widget_Optimized.gs # Complex SPR Creation Logic
-│   └── Secondary_Masthead_Automation.gs # 3-Phase Batch Creation
-└── vite.config.js             # Prozy configuration for API calls
+│   ├── Approval_Automation.gs
+│   ├── CLP_Automation.gs
+│   ├── Primary_Masthead_Automation.gs
+│   ├── Product_Fetch_Service.gs
+│   ├── SPR_Widget_Optimized.gs
+│   ├── SPR_Optimized_Automation.gs
+│   ├── Secondary_Masthead_Automation.gs
+│   └── Secondary_Masthead_Backend.gs
+├── wiki/                      # Project documentation
+└── vite.config.js             # Proxy configuration for API calls
 ```
+
+> See also: [Config-Driven Architecture](./ARCH-Config-Driven-System.md) for details on the `config/` and `services/system/` layers.
+

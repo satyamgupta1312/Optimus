@@ -1,54 +1,12 @@
 import React, { useState } from 'react';
 import { Layers, Plus, ChevronDown } from 'lucide-react';
 import { useWidgetContext } from '../../context/WidgetContext';
+import { WidgetRegistry, LegacyWidgetDefinitions } from '../../config/WidgetRegistry';
 
+// Combine Config-Driven and Legacy Widgets
 const WIDGET_TYPES = [
-    {
-        type: 'Single Product Row',
-        description: 'Horizontal scrollable product cards',
-        defaultProps: {
-            title: 'New Product Collection',
-            productIds: '',
-            products: [],
-            background: '#ffffff'
-        }
-    },
-    {
-        type: 'Single Product Row Optimize',
-        description: 'Compact product row with quick actions',
-        defaultProps: {
-            title: 'Quick Shop',
-            productIds: '',
-            products: [],
-            actions: true
-        }
-    },
-
-    {
-        type: 'Banner With Product Listing',
-        description: 'Image banner with category title',
-        defaultProps: {
-            title: 'Rice & Grains',
-            image: '',
-            background: '#ffffff'
-        }
-    },
-    {
-        type: 'Category Grid',
-        description: 'Grid of category icons (2-4 cols)',
-        defaultProps: {
-            title: 'Shop By Category',
-            background: '#ffffff',
-            textColor: '#000000',
-            items: [
-                { id: '1030', text: 'Fruits (Live)', image: '' },
-                { id: '1031', text: 'Vegetables', image: '' },
-                { id: '1032', text: 'Dairy', image: '' },
-                { id: '1033', text: 'Bakery', image: '' }
-            ]
-        }
-    },
-
+    ...WidgetRegistry.getAllWidgets(),
+    ...LegacyWidgetDefinitions
 ];
 
 const WidgetLibrary = () => {
@@ -80,7 +38,7 @@ const WidgetLibrary = () => {
                     >
                         {WIDGET_TYPES.map((widget) => (
                             <option key={widget.type} value={widget.type}>
-                                {widget.type}
+                                {widget.label || widget.type}
                             </option>
                         ))}
                     </select>

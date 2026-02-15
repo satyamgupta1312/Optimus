@@ -1,3 +1,4 @@
+#!/usr/bin/env -S npx tsx
 import { execSync } from 'child_process';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import path from 'path';
@@ -18,8 +19,8 @@ const commands: Record<string, () => void> = {
             // Not running, start it
             // We use 'npm run preview' to serve the production build, or 'npm run dev' for dev
             // 'preview' is better for "deployment" style running.
-            // Executing: pm2 start npm --name "optimus" -- run preview
-            execSync(`${PM2_CMD} start npm --name "${APP_NAME}" -- run preview`, { stdio: 'inherit' });
+            // Executing: pm2 start npm --name "optimus" -- run dev
+            execSync(`${PM2_CMD} start npm --name "${APP_NAME}" -- run dev`, { stdio: 'inherit' });
             console.log(`Started successfully.`);
         }
     },

@@ -6,6 +6,7 @@
 
 1.  **Architecture & Overview**
     *   [High-Level Architecture](./ARCHITECTURE-High-Level-Design.md)
+    *   [Config-Driven Widget System](./ARCH-Config-Driven-System.md)
     *   [Supported Widgets Reference](./REFERENCE-Widget-Library.md)
 2.  **Frontend System**
     *   [Frontend Components](./FRONTEND-Core-Components.md)
@@ -13,7 +14,9 @@
     *   [Automation Services](./BACKEND-Automation-Services.md)
     *   [SPR Optimization Logic](./BACKEND-SPR-Optimization-Logic.md)
     *   [Secondary Masthead Strategy](./BACKEND-Secondary-Masthead-Strategy.md)
-4.  **Processes**
+4.  **Widget Deep-Dives**
+    *   [Product Rail](./WIDGET-Product-Rail.md)
+5.  **Processes**
     *   [Deployment Lifecycle](./PROCESS-Deployment-Lifecycle.md)
     *   [Catalog Integration](./DATA-Catalog-Integration.md)
 

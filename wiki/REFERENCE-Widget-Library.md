@@ -1,21 +1,47 @@
 # Supported Widget Library
 
-The following widgets are currently supported in the Optimus builder:
+The following widgets are currently supported in the Optimus builder.
 
-## User-Addable Widgets
-These widgets can be added explicitly from the Sidebar Library:
+## Config-Driven Widgets
 
-| Widget Name | Description | Key Features |
+These widgets are defined by a single config file that controls variant resolution, form rendering, validation, and API payload generation.
+
+| Widget | Config File | Variants | Key Feature |
+| :--- | :--- | :--- | :--- |
+| **Product Rail** | `ProductRailConfig.js` | 8 variants (1/2 row × standard/optimized × plain/multimedia) | Full config-driven lifecycle |
+
+### Product Rail Variants
+
+| Variant | Backend `widget_type` |
+| :--- | :--- |
+| Single Row | `single_product_row` |
+| Single Row Optimized | `single_product_row_v2` |
+| Double Row | `double_product_row` |
+| Double Row Optimized | `double_product_row_v2` |
+| Multimedia Single Row | `multimedia_single_product_row` |
+| Multimedia Single Row Optimized | `multimedia_single_product_row_v2` |
+| Multimedia Double Row | `multimedia_double_product_row` |
+| Multimedia Double Row Optimized | `multimedia_double_product_row` |
+
+> See [ARCH-Config-Driven-System.md](./ARCH-Config-Driven-System.md) for the architecture.
+> See [WIDGET-Product-Rail.md](./WIDGET-Product-Rail.md) for detailed Product Rail documentation.
+
+---
+
+## Legacy Widgets
+
+These widgets use hard-coded component maps and will be migrated to config-driven in future phases.
+
+| Widget Name | Component | Key Features |
 | :--- | :--- | :--- |
-| **Single Product Row** | Horizontal scrollable product cards. | Basic product display. |
-| **Single Product Row Optimize** | Compact product row with quick actions. | **Recommended**. Supports automated PLP creation and "View All" linking. |
-| **Banner With Product Listing** | Image banner with category title. | Legacy CLP style widget. |
-| **Category Grid** | Grid of category icons (2-4 cols). | Navigation to sub-categories. |
+| **Banner With Product Listing** | `BannerWithProductListing` | Image banner with category title (legacy CLP style) |
+| **Category Grid** | `CategoryGrid` | Grid of category icons (2-4 cols), navigation to sub-categories |
 
 ## System/Special Widgets
-These widgets exist in the renderer but may be restricted or context-specific:
+
+Managed via Header Settings, not directly user-addable from the Sidebar Library.
 
 | Widget Name | Component | Usage |
 | :--- | :--- | :--- |
-| **Primary Masthead** | `PrimaryMasthead` | Top-level Hero banner. Managed via Header Settings. |
-| **Secondary Masthead** | `SecondaryMasthead` | Pill navigation. Managed via Header Settings. |
+| **Primary Masthead** | `PrimaryMasthead` | Top-level Hero banner |
+| **Secondary Masthead** | `SecondaryMasthead` | Pill navigation (3-phase batch creation) |

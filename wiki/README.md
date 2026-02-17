@@ -14,11 +14,23 @@
     *   [Automation Services](./BACKEND-Automation-Services.md)
     *   [SPR Optimization Logic](./BACKEND-SPR-Optimization-Logic.md)
     *   [Secondary Masthead Strategy](./BACKEND-Secondary-Masthead-Strategy.md)
-4.  **Widget Deep-Dives**
+4.  **Features**
+    *   [Maker-Checker Approval Workflow](./Feature-Maker-Checker.md)
+    *   [Widget Creation](./Feature-Creation-Widget.md)
+    *   [Fetch & Edit Widgets](./FEATURE-Fetch-Widget.md)
+    *   [Widget Mapping](./Feature-Mapping-Widget.md)
+5.  **Widget Deep-Dives**
+    *   [Collection Banner](./WIDGET-Collection-Banner.md)
+    *   [Masthead (Primary & Secondary)](./WIDGET-Masthead.md)
     *   [Product Rail](./WIDGET-Product-Rail.md)
-5.  **Processes**
-    *   [Deployment Lifecycle](./PROCESS-Deployment-Lifecycle.md)
+    *   [Single Product Row](./Widget-spr.md)
+6.  **Data & Mappings**
+    *   [Homepage Mapping](./Homepage_mapping.md)
+    *   [PLP Page & Widget Support](./PLP-PAGE-widget-support.md)
+    *   [Slug Naming Patterns](./SLUG_NAME.md)
     *   [Catalog Integration](./DATA-Catalog-Integration.md)
+7.  **Processes**
+    *   [Deployment Lifecycle](./PROCESS-Deployment-Lifecycle.md)
 
 ## Quick Links
 

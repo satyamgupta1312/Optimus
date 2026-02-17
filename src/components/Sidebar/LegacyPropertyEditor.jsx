@@ -5,6 +5,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { GoogleSheetService } from '../../services/GoogleSheetService';
 import { searchProduct } from '../../services/CatalogService';
 import ImageUpload from '../ImageUpload';
+import SlugBuilder from '../Inputs/SlugBuilder';
 
 /**
  * LegacyPropertyEditor
@@ -33,16 +34,13 @@ const LegacyPropertyEditor = ({ widget }) => {
             <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-sm">
                 <h3 className="font-semibold text-sm text-slate-900 mb-3">Content Settings</h3>
                 <div className="flex flex-col gap-3">
-                    <div>
-                        <label className="text-xs font-medium text-slate-500 mb-1 block">Slug Name (Required for Script)</label>
-                        <input
-                            type="text"
-                            value={widget.slug || ''}
-                            onChange={(e) => handleChange('slug', e.target.value)}
-                            placeholder="e.g., rice_mela_offer_spr"
-                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-blue-500 transition-colors font-mono"
-                        />
-                    </div>
+                    <SlugBuilder
+                        label="Slug Name"
+                        value={widget.slug || ''}
+                        onChange={(val) => handleChange('slug', val)}
+                        required
+                        widget={widget}
+                    />
 
                     {/* Start Time: Hide for SPR Optimize and Banner PLP */}
                     {!isSPROpt && !isBannerPLP && (

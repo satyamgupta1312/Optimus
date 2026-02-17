@@ -1,6 +1,7 @@
 // Real Authentication Service connected to samaan.apnamart.in
 // Enforces strict role assignment:
-// - CHECKER: Only satyam.gupta@apnamart.in
+// - SUPER_ADMIN: satyam.gupta@apnamart.in (can manage checkers + has checker powers)
+// - CHECKER: Users added to the approval list in Google Sheet
 // - MAKER: All other authenticated users
 
 // Helper to get CSRF token from cookie
@@ -114,7 +115,7 @@ export const loginUser = async (username, password) => {
         const lowerUser = username.toLowerCase();
 
         if (lowerUser === 'satyam.gupta@apnamart.in') {
-            role = 'CHECKER';
+            role = 'SUPER_ADMIN';
         }
 
         console.log('[Auth] Assigned role:', role);

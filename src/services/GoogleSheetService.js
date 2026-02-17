@@ -197,6 +197,72 @@ export const GoogleSheetService = {
     },
 
     /**
+     * Fetch all approval users (checkers) from Google Sheet
+     */
+    getApprovalUsers: async () => {
+        if (!SHEET_API_URL) return [];
+        try {
+            const res = await fetch(SHEET_API_URL, {
+                method: 'POST',
+                redirect: 'follow',
+                headers: {
+                    "Content-Type": "text/plain;charset=utf-8",
+                },
+                body: JSON.stringify({ action: 'get_approval_users' })
+            });
+            const data = await res.json();
+            return data.users || [];
+        } catch (error) {
+            console.error("[GoogleSheetService] Failed to fetch approval users:", error);
+            return [];
+        }
+    },
+
+    /**
+     * Add a user to the approval (checker) list
+     */
+    addApprovalUser: async (email, name) => {
+        if (!SHEET_API_URL) return { success: false, error: "No API URL" };
+        try {
+            const res = await fetch(SHEET_API_URL, {
+                method: 'POST',
+                redirect: 'follow',
+                headers: {
+                    "Content-Type": "text/plain;charset=utf-8",
+                },
+                body: JSON.stringify({ action: 'add_approval_user', email, name })
+            });
+            const data = await res.json();
+            return data;
+        } catch (error) {
+            console.error("[GoogleSheetService] Failed to add approval user:", error);
+            return { success: false, error: error.message };
+        }
+    },
+
+    /**
+     * Remove a user from the approval (checker) list
+     */
+    removeApprovalUser: async (email) => {
+        if (!SHEET_API_URL) return { success: false, error: "No API URL" };
+        try {
+            const res = await fetch(SHEET_API_URL, {
+                method: 'POST',
+                redirect: 'follow',
+                headers: {
+                    "Content-Type": "text/plain;charset=utf-8",
+                },
+                body: JSON.stringify({ action: 'remove_approval_user', email })
+            });
+            const data = await res.json();
+            return data;
+        } catch (error) {
+            console.error("[GoogleSheetService] Failed to remove approval user:", error);
+            return { success: false, error: error.message };
+        }
+    },
+
+    /**
      * Upload media file to Google Drive
      * Returns the Drive URL for the uploaded file
      */

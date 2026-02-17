@@ -131,3 +131,88 @@ These filters are **Universal** and apply to **ALL** Product Rail variants (Stan
 | **App Version** | `max_android_version` | Show widget only on Android App Version $\le$ V. |
 | **Platform** | `allow_android`, `allow_ios`| Toggle visibility per platform. |
 
+## 6. Location / State-Based Product Mapping (Dynamic)
+
+The Product Rail supports **state-specific product lists** for the Optimized variant (which creates a PLP ecosystem with sub-categories). The state list is **not fixed** — new states can be added at any time using the **"Add"** button on the frontend sidebar.
+
+### How It Works
+
+1. **Global** is always present (required — the default/fallback product list)
+2. User clicks the **"+ Add State"** button to add a new state
+3. User selects or types the state name (e.g., `Uttar Pradesh`, `Patna`)
+4. User enters state-specific product codes for that state
+5. Each added state generates its own sub-category widget item with a unique slug suffix
+
+### State Mapping Reference
+
+| State Key | `level_tag` | `level_property` | Slug Suffix |
+| :--- | :--- | :--- | :--- |
+| Global | `global` | `global` | `_global` |
+| JH | `state` | `jharkhand` | `_jh` |
+| CG | `state` | `chhattisgarh` | `_cg` |
+| WB | `state` | `west bengal` | `_wb` |
+| UP | `state` | `uttar pradesh` | `_up` |
+| Patna | `state` | `patna` | `_patna` |
+| *(any new state)* | `state` | `{state_name_lowercase}` | `_{short_key}` |
+
+### Frontend Behavior
+
+```
+Product Rail: "Rice Mela Rail"
+┌──────────────────────────────────────────────────┐
+│ Global Products:  1001, 1002, 1003, 1004         │
+│                                                    │
+│ ┌─ State: Jharkhand ──────────────────────────┐  │
+│ │ Products: 1003, 1004, 1005                   │  │
+│ └──────────────────────────────────────────────┘  │
+│                                                    │
+│ ┌─ State: West Bengal ────────────────────────┐  │
+│ │ Products: 1007, 1008                         │  │
+│ └──────────────────────────────────────────────┘  │
+│                                                    │
+│ ┌─ State: Uttar Pradesh ──────────────────────┐  │
+│ │ Products: 1010, 1011, 1012                   │  │
+│ └──────────────────────────────────────────────┘  │
+│                                                    │
+│  [ + Add State ]                                   │
+└──────────────────────────────────────────────────┘
+```
+
+- The **"+ Add State"** button appends a new state input row
+- Each state row has: **State Name** (text/dropdown) + **Product Codes** (comma-separated)
+- States can be **removed** if no longer needed
+- **Global** cannot be removed (always required as fallback)
+
+### Slug Generation
+
+**Standard Variant** (no state mapping — single product list):
+```
+{base}_wi                           ← single widget item, no states
+```
+
+**Optimized Variant** (with state mapping):
+```
+{base}_sc_wi_{state_suffix}
+
+Examples:
+  rice_mela_rail_sc_wi_global        ← Global
+  rice_mela_rail_sc_wi_jh            ← Jharkhand
+  rice_mela_rail_sc_wi_up            ← Uttar Pradesh
+  rice_mela_rail_sc_wi_patna         ← Patna
+```
+
+### Mapping CSV Format
+
+```csv
+widget_item_slug_name,level_tag,level_property,priority,cohort
+rice_mela_rail_sc_wi_global,global,global,1,
+rice_mela_rail_sc_wi_jh,state,jharkhand,2,
+rice_mela_rail_sc_wi_cg,state,chhattisgarh,3,
+rice_mela_rail_sc_wi_wb,state,west bengal,4,
+rice_mela_rail_sc_wi_up,state,uttar pradesh,5,
+```
+
+> **Priority** is auto-assigned incrementally. Global is always priority `1`.
+
+> **Note:** State-based mapping applies only to the **Optimized** variant (which creates sub-category items). The **Standard** variant uses a single widget item with one product list (no state separation).
+

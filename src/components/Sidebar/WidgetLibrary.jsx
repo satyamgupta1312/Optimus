@@ -5,7 +5,7 @@ import { WidgetRegistry, LegacyWidgetDefinitions } from '../../config/WidgetRegi
 
 // Combine Config-Driven and Legacy Widgets
 const WIDGET_TYPES = [
-    ...WidgetRegistry.getAllWidgets(),
+    ...WidgetRegistry.getAllConfigs(),
     ...LegacyWidgetDefinitions
 ];
 

@@ -8,11 +8,12 @@ import { useWidgetContext } from '../../context/WidgetContext';
 import { useAppSettings } from '../../context/AppSettingsContext';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import RequestQueue from '../Dashboard/RequestQueue';
-import { LogOut, Save, CheckCircle, XCircle, Send, RotateCcw, Smartphone, ChevronDown, ListTodo, History, Undo2, Redo2, Settings, X } from 'lucide-react';
+import ManageApprovalUsers from '../AdminPanel/ManageApprovalUsers';
+import { LogOut, Save, CheckCircle, XCircle, Send, RotateCcw, Smartphone, ChevronDown, ListTodo, History, Undo2, Redo2, Settings, X, Users } from 'lucide-react';
 
 
 const MainLayout = () => {
-    const { user, logout } = useAuth();
+    const { user, logout, isChecker, isSuperAdmin } = useAuth();
     const {
         pageStatus, setPageStatus, submitForReview, approvePage, rejectPage, resetToDraft,
         headerWidgets, updateHeaderWidget, canUndo, canRedo, undo, redo
@@ -21,7 +22,8 @@ const MainLayout = () => {
     const [sidebarWidth, setSidebarWidth] = React.useState(420);
     const [isResizing, setIsResizing] = React.useState(false);
     const [showQueue, setShowQueue] = React.useState(false);
-    const [showHeaderConfig, setShowHeaderConfig] = React.useState(false); // NEW: Modal state
+    const [showHeaderConfig, setShowHeaderConfig] = React.useState(false);
+    const [showManageUsers, setShowManageUsers] = React.useState(false);
 
     // Keyboard shortcuts
     useKeyboardShortcuts({
@@ -127,6 +129,18 @@ const MainLayout = () => {
                         <span>Queue</span>
                     </button>
 
+                    {/* Manage Users Button (Super Admin only) */}
+                    {isSuperAdmin && (
+                        <button
+                            onClick={() => setShowManageUsers(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 transition-colors text-xs font-medium"
+                            title="Manage Approval Users"
+                        >
+                            <Users size={14} />
+                            <span>Users</span>
+                        </button>
+                    )}
+
                     {/* Filter buttons for Maker - Controls both page status and queue filter */}
                     {user?.role === 'MAKER' && (
                         <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
@@ -170,7 +184,7 @@ const MainLayout = () => {
                     )}
 
                     {/* Request Queue Popover */}
-                    {showQueue && user?.role === 'CHECKER' && (
+                    {showQueue && isChecker && (
                         <RequestQueue
                             onClose={() => setShowQueue(false)}
                             onApprove={(id) => {
@@ -204,7 +218,7 @@ const MainLayout = () => {
                         </button>
                     )}
 
-                    {user?.role === 'CHECKER' && pageStatus === 'APPROVED' && (
+                    {isChecker && pageStatus === 'APPROVED' && (
                         <button
                             onClick={resetToDraft}
                             className="text-slate-500 hover:text-blue-600 px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center gap-2"
@@ -332,6 +346,47 @@ const MainLayout = () => {
                             <button
                                 onClick={() => setShowHeaderConfig(false)}
                                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+                            >
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {/* Manage Users Modal Panel (Super Admin) */}
+            {showManageUsers && (
+                <>
+                    <div
+                        className="fixed inset-0 bg-black/50 z-40 animate-in fade-in duration-200"
+                        onClick={() => setShowManageUsers(false)}
+                    />
+                    <div className="fixed inset-y-0 right-0 w-full max-w-lg bg-white shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300">
+                        <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white p-6 shrink-0">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <Users size={24} />
+                                    <div>
+                                        <h2 className="text-xl font-bold">Manage Approval Users</h2>
+                                        <p className="text-sm text-amber-100 mt-1">Add or remove checkers</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowManageUsers(false)}
+                                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                                    title="Close"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
+                            <ManageApprovalUsers />
+                        </div>
+                        <div className="border-t border-slate-200 p-4 bg-white shrink-0 flex items-center justify-end">
+                            <button
+                                onClick={() => setShowManageUsers(false)}
+                                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium text-sm"
                             >
                                 Done
                             </button>

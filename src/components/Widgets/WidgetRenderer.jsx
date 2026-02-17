@@ -7,6 +7,7 @@ import BannerWithProductListing from './BannerWithProductListing';
 import ProductRail from './ProductRail/ProductRail';
 import PrimaryMasthead from './PrimaryMasthead';
 import CategoryGrid from './CategoryGrid';
+import CollectionBanner from './CollectionBanner';
 import { useWidgetContext } from '../../context/WidgetContext';
 import { WidgetRegistry } from '../../config/WidgetRegistry';
 
@@ -21,6 +22,7 @@ const WidgetRenderer = ({ widget, isSelected, onClick, deleteWidget }) => {
         'Primary Masthead': PrimaryMasthead,
         'Banner With Product Listing': BannerWithProductListing,
         'Category Grid': CategoryGrid,
+        'Collection Banner': CollectionBanner,
     };
 
     // Config-driven componentMap (resolved from config.rendering.component)

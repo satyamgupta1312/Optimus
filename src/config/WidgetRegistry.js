@@ -9,16 +9,17 @@
  */
 
 import { ProductRailConfig } from './widgets/ProductRailConfig';
+import { CollectionBannerConfig } from './widgets/CollectionBannerConfig';
+import { MastheadConfig } from './widgets/MastheadConfig';
+import { SPRConfig } from './widgets/SPRConfig';
 import { resolveVariant, resolveStrategy, getAvailableVariants } from '../services/system/VariantResolver';
 
 // ── Registry Map: type → config ──
 const configMap = {
     [ProductRailConfig.type]: ProductRailConfig,
-    // Future:
-    // [CategoryGridConfig.type]: CategoryGridConfig,
-    // [MastheadConfig.type]: MastheadConfig,
-    // [BannerConfig.type]: BannerConfig,
-    // [CarouselConfig.type]: CarouselConfig,
+    [CollectionBannerConfig.type]: CollectionBannerConfig,
+    [MastheadConfig.type]: MastheadConfig,
+    [SPRConfig.type]: SPRConfig,
 };
 
 export const WidgetRegistry = {

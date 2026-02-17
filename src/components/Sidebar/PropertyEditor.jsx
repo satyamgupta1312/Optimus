@@ -139,6 +139,7 @@ const PropertyEditor = ({ widget }) => {
                                 helperText={field.helperText}
                                 placeholder={field.placeholder}
                                 required={field.validation?.required}
+                                widget={widget}
                                 {...(field.validation || {})}
                             />
                         );

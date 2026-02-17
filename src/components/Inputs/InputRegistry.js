@@ -15,6 +15,7 @@ import NumberInput from './NumberInput';
 import VersionInput from './VersionInput';
 import ImageUpload from '../ImageUpload';
 import ColorPicker from '../ColorPickerInput';
+import SlugBuilder from './SlugBuilder';
 
 // ProductListInput is the existing product entry component
 // It will be added here once it's extracted/created
@@ -29,6 +30,7 @@ export const InputRegistry = {
     VersionInput,
     ImageUpload,
     ColorPicker,
+    SlugBuilder,
     // ProductListInput, // TODO: Wire in once extracted
 };
 

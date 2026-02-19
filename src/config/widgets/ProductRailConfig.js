@@ -48,7 +48,7 @@ export const ProductRailConfig = {
         { rows: 2, is_optimized: false, has_multimedia: false, widgetType: 'double_product_row' },
         { rows: 2, is_optimized: true, has_multimedia: false, widgetType: 'double_product_row_v2' },
         { rows: 2, is_optimized: false, has_multimedia: true, widgetType: 'multimedia_double_product_row' },
-        { rows: 2, is_optimized: true, has_multimedia: true, widgetType: 'multimedia_double_product_row' },
+        { rows: 2, is_optimized: true, has_multimedia: true, widgetType: 'multimedia_double_product_row_v2' },
     ],
 
     // ── Multimedia Capabilities ──
@@ -290,7 +290,7 @@ export const ProductRailConfig = {
                 {
                     entity: 'page_layout',
                     endpoint: '/api/app/post_page_layout/',
-                    slugSuffix: '_page',
+                    slugSuffix: '_page_p',
                     type: 'json',
                     fieldMap: {
                         slug_name: '$slug',
@@ -300,7 +300,8 @@ export const ProductRailConfig = {
                     },
                 },
                 { action: 'map_widget_item', parentSlugSuffix: '_plp_w', childSlugSuffix: '_sc_wi' },
-                { action: 'map_layout_widget', parentSlugSuffix: '_page', childSlugSuffix: '_plp_w' },
+                { action: 'map_layout_widget', parentSlugSuffix: '_page_p', childSlugSuffix: '_plp_w' },
+                { action: 'map_page_layout', parentSlugSuffix: '_page_p' },
                 // 2. Home Row
                 {
                     entity: 'widget_item',

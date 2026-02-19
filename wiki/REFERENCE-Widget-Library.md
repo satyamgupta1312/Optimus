@@ -60,7 +60,7 @@ Managed via Header Settings, not directly user-addable from the Sidebar Library.
 
 | Config | File | Used By |
 | :--- | :--- | :--- |
-| **PLP Ecosystem** | `plpEcosystem.js` | All widgets that create click-through pages (3-layer structure) |
+| **PLP Ecosystem** | `PLP-PAGE-widget-support.js` | All widgets that create click-through pages (3-layer structure) |
 | **Slug Patterns** | `slugPatterns.js` | Slug generation and validation across all widget types |
 
 > See [PLP-PAGE-widget-support.md](./PLP-PAGE-widget-support.md) for the 3-layer PLP ecosystem.

@@ -100,6 +100,12 @@ User sidebar mein widget type choose karta hai:
 | :--- | :--- |
 | Single Product Row | `single_product_row` |
 | Single Product Row (Optimized) | `single_product_row_v2` |
+| Multimedia Single Product Row | `multimedia_single_product_row` |
+| Multimedia Single Product Row (Optimized) | `multimedia_single_product_row_v2` |
+| Double Product Row | `double_product_row` |
+| Double Product Row (Optimized) | `double_product_row_v2` |
+| Multimedia Double Product Row | `multimedia_double_product_row` |
+| Multimedia Double Product Row (Optimized) | `multimedia_double_product_row_v2` |
 | Collection Banner (Scroll) | `carousel` |
 | Collection Banner (Stick) | `category` |
 | Primary Masthead | `masthead_primary` |

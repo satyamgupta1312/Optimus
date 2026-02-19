@@ -4,7 +4,7 @@
 
 The **Single Product Row (SPR)** is the primary product display widget on the homepage. It renders a horizontal scrollable row of product cards with a "View All" link to a PLP page.
 
-SPR is fully driven by `ProductRailConfig.js` and resolves into **4 backend variants** based on two properties: **Optimized** and **Multimedia**.
+SPR is fully driven by `ProductRailConfig.js` and is part of the **Product Rail** family with **8 backend variants** based on three properties: **Rows** (1 or 2), **Optimized**, and **Multimedia**.
 
 ### System Architecture
 
@@ -61,23 +61,30 @@ flowchart TD
 
 ## 2. Variant Resolution
 
-Two properties determine the exact `widget_type`:
+Three properties determine the exact `widget_type`:
 
 | Property | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
+| `rows` | `1 \| 2` | `1` | Number of product rows: 1 = Single, 2 = Double |
 | `is_optimized` | Boolean | `true` | Enables PLP ecosystem creation with sub-categories |
 | `has_multimedia` | Boolean (implicit) | `false` | Auto-set to `true` when `background_media` is uploaded |
 
-### Variant Matrix
+### Complete 8-Variant Matrix (Product Rail Family)
 
-| Optimized? | Multimedia? | Resolved `widget_type` |
-| :---: | :---: | :--- |
-| `false` | `false` | `single_product_row` |
-| `true` | `false` | `single_product_row_v2` |
-| `false` | `true` | `multimedia_single_product_row` |
-| `true` | `true` | `multimedia_single_product_row_v2` |
+| # | Rows | Optimized? | Multimedia? | Resolved `widget_type` |
+| :---: | :---: | :---: | :---: | :--- |
+| 1 | **1** | `false` | `false` | `single_product_row` |
+| 2 | **1** | `true` | `false` | `single_product_row_v2` |
+| 3 | **1** | `false` | `true` | `multimedia_single_product_row` |
+| 4 | **1** | `true` | `true` | `multimedia_single_product_row_v2` |
+| 5 | **2** | `false` | `false` | `double_product_row` |
+| 6 | **2** | `true` | `false` | `double_product_row_v2` |
+| 7 | **2** | `false` | `true` | `multimedia_double_product_row` |
+| 8 | **2** | `true` | `true` | `multimedia_double_product_row_v2` |
 
-> **Multimedia Constraint:** `single_product_row` and `single_product_row_v2` **IGNORE** `background_multimedia`. Only `multimedia_*` variants render backgrounds.
+> **Multimedia Constraint:** `single_product_row`, `single_product_row_v2`, `double_product_row`, and `double_product_row_v2` **IGNORE** `background_multimedia`. Only `multimedia_*` variants render backgrounds.
+>
+> See [WIDGET-Product-Rail.md](./WIDGET-Product-Rail.md) for the complete Product Rail reference.
 
 ---
 
@@ -179,14 +186,15 @@ Creates **two parallel flows** — a PLP ecosystem with `sub_category` items AND
 -- Flow 1: PLP Ecosystem --
 Step 1: Create Sub-Cat Widget Item   POST /api/app/post_widget_item/   (slug: {base}_sc_wi)
 Step 2: Create PLP Widget            POST /api/app/widget/              (slug: {base}_plp_w)
-Step 3: Create Page Layout            POST /api/app/post_page_layout/   (slug: {base}_page)
+Step 3: Create Page Layout            POST /api/app/post_page_layout/   (slug: {base}_page_p)
 Step 4: Map PLP Widget <-> Sub-Cat   (parent: _plp_w, child: _sc_wi)
-Step 5: Map Page <-> PLP Widget      (parent: _page, child: _plp_w)
+Step 5: Map Page <-> PLP Widget      (parent: _page_p, child: _plp_w)
+Step 6: Map Page → Global Registry   (parent: _page_p)
 
 -- Flow 2: Home Row --
-Step 6: Create Row Widget Item        POST /api/app/post_widget_item/   (slug: {base}_pr_wi)
-Step 7: Create SPR V2 Widget          POST /api/app/widget/              (slug: {base}_spr_opt)
-Step 8: Map SPR V2 <-> Row Item      (parent: _spr_opt, child: _pr_wi)
+Step 7: Create Row Widget Item        POST /api/app/post_widget_item/   (slug: {base}_pr_wi)
+Step 8: Create SPR V2 Widget          POST /api/app/widget/              (slug: {base}_spr_opt)
+Step 9: Map SPR V2 <-> Row Item      (parent: _spr_opt, child: _pr_wi)
 ```
 
 ```mermaid
@@ -225,9 +233,9 @@ flowchart TD
 | :--- | :--- | :--- | :--- |
 | 1 | Sub-Cat Widget Item | `_sc_wi` | `item_type: sub_category`, `product_list`, `filter_lst` |
 | 2 | PLP Widget | `_plp_w` | `widget_type: product_listing`, `heading: $title` |
-| 3 | Page Layout | `_page` | `page_type: $selectedPageType`, `page_heading: $title`, `page_layout_type: 2` |
-| 6 | Row Widget Item | `_pr_wi` | `item_type: item_rows`, `product_list` |
-| 7 | SPR V2 Widget | `_spr_opt` | `widget_type: $resolvedWidgetType`, `heading_en/hi`, `view_all: redirect-to-page`, `background_multimedia`, `filter_dict`, `app_configurations` |
+| 3 | Page Layout | `_page_p` | `page_type: $selectedPageType`, `page_heading: $title`, `page_layout_type: 2` |
+| 7 | Row Widget Item | `_pr_wi` | `item_type: item_rows`, `product_list` |
+| 8 | SPR V2 Widget | `_spr_opt` | `widget_type: $resolvedWidgetType`, `heading_en/hi`, `view_all: redirect-to-page`, `background_multimedia`, `filter_dict`, `app_configurations` |
 
 ---
 

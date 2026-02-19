@@ -62,12 +62,12 @@ export const WIDGET_TYPE_MAP = {
     },
     single_product_row: {
         builderType: 'Single Product Row',
-        emulatorComponent: 'SingleProductRow',
+        emulatorComponent: 'ProductRail',
         editor: 'LegacyPropertyEditor',
     },
     single_product_row_v2: {
         builderType: 'Single Product Row Optimize',
-        emulatorComponent: 'SingleProductRowOptimized',
+        emulatorComponent: 'ProductRail',
         editor: 'LegacyPropertyEditor',
     },
     double_product_row: {
@@ -163,6 +163,8 @@ export const EDITABLE_FIELDS = {
             jh: { slugSuffix: '_sc_wi_jh', levelTag: 'state', levelProperty: 'jharkhand' },
             cg: { slugSuffix: '_sc_wi_cg', levelTag: 'state', levelProperty: 'chhattisgarh' },
             wb: { slugSuffix: '_sc_wi_wb', levelTag: 'state', levelProperty: 'west bengal' },
+            up: { slugSuffix: '_sc_wi_up', levelTag: 'state', levelProperty: 'uttar pradesh' },
+            patna: { slugSuffix: '_sc_wi_patna', levelTag: 'state', levelProperty: 'patna' },
             // Dynamic states added via "Add State" button
         },
         advancedSettings: [
@@ -181,7 +183,7 @@ export const EDITABLE_FIELDS = {
             { name: 'slug', input: 'TextInput', required: true, apiField: 'slug_name' },
             { name: 'title', input: 'TextInput', required: true, apiField: 'heading_en' },
             { name: 'titleHi', input: 'TextInput', required: false, apiField: 'heading_hi' },
-            { name: 'media_aspect_ratio', input: 'NumberInput', required: true, apiField: 'media_aspect_ratio' },
+            { name: 'media_number', input: 'NumberInput', required: true, apiField: 'media_number' },
             { name: 'start_time', input: 'DateTimePicker', required: true, apiField: 'start_time' },
             { name: 'end_time', input: 'DateTimePicker', required: true, apiField: 'end_time' },
         ],

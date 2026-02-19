@@ -5,6 +5,7 @@
  * shared by ALL widgets that navigate to a page.
  *
  * Wiki Reference: wiki/PLP-PAGE-widget-support.md
+ * Config file: src/config/widgets/PLP-PAGE-widget-support.js
  *
  * Architecture:
  *   Sub-Category Widget Items (products + location mapping)
@@ -65,12 +66,7 @@ export const WIDGET_PAGE_TYPE_SUPPORT = {
         selectionLevel: 'per_item',
         navigationMechanism: 'click_action_params',
     },
-    category: {
-        supportsProductListingPage: true,
-        supportsCategoryPage: true,
-        selectionLevel: 'per_item',
-        navigationMechanism: 'click_action_params',
-    },
+    // category: NOT supported on PLP pages (homepage only)
     single_product_row: {
         supportsProductListingPage: true,
         supportsCategoryPage: true,
@@ -212,7 +208,7 @@ export const PLP_APP_CONFIGURATIONS = {
         enabledFor: [
             'carousel',                            // has multiple state-wise sub-categories
             'masthead_secondary_category_hp',      // always — has multiple sub-categories
-            'category',                            // always — has multiple sub-categories
+            // category: NOT supported on PLP pages
         ],
         // Widgets that should leave false or omit:
         disabledFor: [
@@ -229,7 +225,7 @@ export const PLP_APP_CONFIGURATIONS = {
 export const LOCATION_MAPPING_SUPPORT = {
     carousel: { supported: true, stateAddition: 'dynamic' },
     masthead_secondary_category_hp: { supported: true, stateAddition: 'dynamic' },
-    category: { supported: true, stateAddition: 'dynamic' },
+    // category: NOT supported on PLP pages
     single_product_row: { supported: true, stateAddition: 'dynamic' },
     single_product_row_v2: { supported: true, stateAddition: 'dynamic' },
     multimedia_single_product_row: { supported: true, stateAddition: 'dynamic' },
@@ -293,7 +289,7 @@ export const WIDGET_ITEM_ADDITIONAL_PROPERTIES = {
 export const FILTER_SUPPORT_MATRIX = {
     carousel: { widgetFilters: true, itemFilters: true, productFilters: true, appConfig: true, additionalProperties: true },
     masthead_secondary_category_hp: { widgetFilters: true, itemFilters: true, productFilters: true, appConfig: true, additionalProperties: true },
-    category: { widgetFilters: true, itemFilters: true, productFilters: true, appConfig: true, additionalProperties: true },
+    // category: NOT supported on PLP pages
     single_product_row: { widgetFilters: true, itemFilters: true, productFilters: true, appConfig: true, additionalProperties: true },
     single_product_row_v2: { widgetFilters: true, itemFilters: true, productFilters: true, appConfig: true, additionalProperties: true },
     multimedia_single_product_row: { widgetFilters: true, itemFilters: true, productFilters: true, appConfig: true, additionalProperties: true },

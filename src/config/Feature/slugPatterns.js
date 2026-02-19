@@ -185,8 +185,8 @@ export const PAGE_TYPES = {
 // ── Multimedia Type Values ──
 export const MULTIMEDIA_TYPES = {
     lottie: '1',
-    video: '2',
     image: '3',
+    video: '4',
 };
 
 // ── Quick Reference: All Suffixes ──

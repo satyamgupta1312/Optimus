@@ -182,10 +182,14 @@ export const EMULATOR_WIDGET_COMPONENTS = {
     masthead_secondary_category_hp: { component: 'PrimaryMasthead', displayAs: 'Scrollable category banners' },
     carousel: { component: 'CollectionBanner', mode: 'scroll', displayAs: 'Swipeable banner carousel' },
     category: { component: 'CollectionBanner', mode: 'stick', displayAs: '4-column category grid' },
-    single_product_row_v2: { component: 'ProductRail', displayAs: 'Horizontal product scroll (1 row)' },
-    double_product_row_v2: { component: 'ProductRail', displayAs: '2-row product scroll' },
-    multimedia_single_product_row_v2: { component: 'ProductRail', displayAs: 'Product scroll + background media' },
-    multimedia_double_product_row_v2: { component: 'ProductRail', displayAs: '2-row product scroll + background media' },
+    single_product_row: { component: 'ProductRail', displayAs: 'Horizontal product scroll (1 row)' },
+    single_product_row_v2: { component: 'ProductRail', displayAs: 'Horizontal product scroll (1 row, optimized)' },
+    double_product_row: { component: 'ProductRail', displayAs: '2-row product scroll' },
+    double_product_row_v2: { component: 'ProductRail', displayAs: '2-row product scroll (optimized)' },
+    multimedia_single_product_row: { component: 'ProductRail', displayAs: 'Product scroll + background media' },
+    multimedia_single_product_row_v2: { component: 'ProductRail', displayAs: 'Product scroll + background media (optimized)' },
+    multimedia_double_product_row: { component: 'ProductRail', displayAs: '2-row product scroll + background media' },
+    multimedia_double_product_row_v2: { component: 'ProductRail', displayAs: '2-row product scroll + background media (optimized)' },
 };
 
 // ── Mapping CSV Templates ──
@@ -258,8 +262,9 @@ export const HOMEPAGE_API_ENDPOINTS = {
     getWidgetItem: '/api/app/get_widget_item/',
 };
 
-// ── Live Data Snapshot (as of Feb 2026) ──
-// For reference / seeding UI defaults
+// ── Live Data Snapshot ──
+// ⚠️  Static snapshot — update periodically via HomepageMapping dashboard
+// Last updated: 2026-02-19
 export const HOMEPAGE_LIVE_SNAPSHOT = {
     totalActiveMappings: 143,
     uniqueWidgets: 60,

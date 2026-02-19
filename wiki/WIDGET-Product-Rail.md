@@ -31,7 +31,7 @@ This matrix defines the exact widget type resolved from the configuration permut
 | **2** | `false` | `false` | `double_product_row` |
 | **2** | `true` | `false` | `double_product_row_v2` |
 | **2** | `false` | `true` | `multimedia_double_product_row` |
-| **2** | `true` | `true` | `multimedia_double_product_row` |
+| **2** | `true` | `true` | `multimedia_double_product_row_v2` |
 
 ## 4. Data Flow Diagram
 This diagram illustrates how User Inputs translate into Backend Objects and Mappings.

@@ -9,6 +9,7 @@ import { useAppSettings } from '../../context/AppSettingsContext';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import RequestQueue from '../Dashboard/RequestQueue';
 import ManageApprovalUsers from '../AdminPanel/ManageApprovalUsers';
+import { ACTIVE_ENV } from '../../config/apiConfig';
 import { LogOut, Save, CheckCircle, XCircle, Send, RotateCcw, Smartphone, ChevronDown, ListTodo, History, Undo2, Redo2, Settings, X, Users } from 'lucide-react';
 
 
@@ -82,6 +83,12 @@ const MainLayout = () => {
                         alt="Optimus"
                         className="h-10 w-auto"
                     />
+                    {/* Feature 7: UAT Environment Badge */}
+                    {ACTIVE_ENV === 'UAT' && (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700 border border-orange-300 animate-pulse select-none" title="You are connected to the UAT (test) environment">
+                            🧪 UAT
+                        </span>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -150,8 +157,8 @@ const MainLayout = () => {
                                     setPageStatus('DRAFT');
                                 }}
                                 className={`px-2.5 py-1 text-xs font-semibold rounded transition-all ${pageStatus === 'DRAFT'
-                                        ? 'bg-white text-slate-800 shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700'
+                                    ? 'bg-white text-slate-800 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
                                     }`}
                             >
                                 Draft
@@ -162,8 +169,8 @@ const MainLayout = () => {
                                     setPageStatus('PENDING');
                                 }}
                                 className={`px-2.5 py-1 text-xs font-semibold rounded transition-all ${pageStatus === 'PENDING'
-                                        ? 'bg-white text-slate-800 shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700'
+                                    ? 'bg-white text-slate-800 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
                                     }`}
                             >
                                 Pending
@@ -174,8 +181,8 @@ const MainLayout = () => {
                                     setPageStatus('APPROVED');
                                 }}
                                 className={`px-2.5 py-1 text-xs font-semibold rounded transition-all ${pageStatus === 'APPROVED'
-                                        ? 'bg-white text-slate-800 shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700'
+                                    ? 'bg-white text-slate-800 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
                                     }`}
                             >
                                 Approved

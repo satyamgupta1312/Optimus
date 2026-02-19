@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle, XCircle, Clock, Eye, RefreshCw, FileText, ChevronDown, ChevronUp, X, Loader2, User, AlertCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Eye, RefreshCw, FileText, ChevronDown, ChevronUp, X, Loader2, User, AlertCircle, MessageSquare } from 'lucide-react';
 import { useWidgetContext } from '../../context/WidgetContext';
 import { useAuth } from '../../context/AuthContext';
 import { GoogleSheetService } from '../../services/GoogleSheetService';
@@ -92,6 +92,10 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
     const [expandedReqs, setExpandedReqs] = useState(new Set());
     const [selectedWidgets, setSelectedWidgets] = useState({});
     const [selectedHeaderWidgets, setSelectedHeaderWidgets] = useState({}); // Track header widget selection
+    const [deployResults, setDeployResults] = useState({}); // Per-widget deploy results by req.id
+    // Feature 9: Rejection reason dialog
+    const [rejectDialog, setRejectDialog] = useState(null); // { req } when open
+    const [rejectReason, setRejectReason] = useState('');
 
     const toggleExpand = (reqId) => {
         setExpandedReqs(prev => {
@@ -245,6 +249,11 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                 toast.error(`Approval completed with ${errorCount} error(s)`, { icon: '⚠️', duration: 5000 });
             }
 
+            // Feature 5: Store per-widget results for display
+            if (result.results?.length) {
+                setDeployResults(prev => ({ ...prev, [req.id]: result.results }));
+            }
+
             onApprove?.(req.id);
             fetchRequests();
         } catch (error) {
@@ -255,10 +264,19 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
         }
     };
 
-    const handleReject = async (req) => {
+    // Feature 9: Open rejection dialog instead of directly rejecting
+    const handleRejectClick = (req) => {
+        setRejectReason('');
+        setRejectDialog({ req });
+    };
+
+    const handleRejectConfirm = async () => {
+        if (!rejectDialog) return;
+        const { req } = rejectDialog;
+        setRejectDialog(null);
         setActionLoading(req.id);
         try {
-            await GoogleSheetService.updateStatus(req.id, 'REJECTED');
+            await GoogleSheetService.updateStatus(req.id, 'REJECTED', rejectReason.trim());
             toast.success('Request rejected', { icon: '❌' });
             onReject?.(req.id);
             fetchRequests();
@@ -282,9 +300,17 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
 
             toast.dismiss(loadingToast);
             if (result.success) {
-                toast.success('Deployed successfully!', { icon: '🚀', duration: 4000 });
+                toast.success(
+                    result.summary || 'Deployed successfully!',
+                    { icon: '🚀', duration: 4000 }
+                );
             } else {
                 toast.error(`Deployment failed: ${result.error}`);
+            }
+
+            // Feature 5: Store per-widget deploy results for display
+            if (result.results?.length) {
+                setDeployResults(prev => ({ ...prev, [req.id]: result.results }));
             }
         } catch (e) {
             toast.dismiss(loadingToast);
@@ -578,7 +604,7 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                                             Approve
                                         </button>
                                         <button
-                                            onClick={() => handleReject(req)}
+                                            onClick={() => handleRejectClick(req)}
                                             disabled={isActioning}
                                             className="flex-1 bg-white hover:bg-red-50 text-red-600 border border-red-200 text-xs font-semibold py-2 px-3 rounded-lg shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
                                         >
@@ -599,11 +625,87 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                                     </button>
                                 )}
                             </div>
+
+                            {/* Feature 5: Per-Widget Deploy Results */}
+                            {deployResults[req.id] && deployResults[req.id].length > 0 && (
+                                <div className="mt-3 bg-slate-50 border border-slate-200 rounded-lg p-2 space-y-1">
+                                    <p className="text-xs font-semibold text-slate-600 mb-1">Deployment Results:</p>
+                                    {deployResults[req.id].map((r, i) => (
+                                        <div key={i} className="flex items-center gap-2 text-xs">
+                                            {r.status === 'ok' || r.status === 'updated'
+                                                ? <CheckCircle size={12} className="text-emerald-500 shrink-0" />
+                                                : r.status === 'skipped'
+                                                    ? <Clock size={12} className="text-amber-500 shrink-0" />
+                                                    : <XCircle size={12} className="text-red-500 shrink-0" />
+                                            }
+                                            <span className={`font-medium ${r.status === 'failed' ? 'text-red-700' : 'text-slate-700'}`}>
+                                                {r.widget}
+                                            </span>
+                                            {r.error && <span className="text-red-500 truncate">{r.error}</span>}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Feature 9: Show rejection reason to Maker */}
+                            {isMaker && req.status === 'REJECTED' && req.rejectionReason && (
+                                <div className="mt-2 flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-2">
+                                    <MessageSquare size={12} className="text-red-500 mt-0.5 shrink-0" />
+                                    <div>
+                                        <p className="text-xs font-semibold text-red-700">Rejection Reason:</p>
+                                        <p className="text-xs text-red-600 mt-0.5">{req.rejectionReason}</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     );
                 })}
             </div>
         </div>
+
+        {/* Feature 9: Rejection Reason Dialog */ }
+    {
+        rejectDialog && (
+            <>
+                <div
+                    className="fixed inset-0 bg-black/40 z-[200]"
+                    onClick={() => setRejectDialog(null)}
+                />
+                <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] bg-white rounded-xl shadow-2xl z-[201] p-5">
+                    <h4 className="font-bold text-slate-800 mb-1 flex items-center gap-2">
+                        <XCircle size={16} className="text-red-500" />
+                        Reject Request
+                    </h4>
+                    <p className="text-xs text-slate-500 mb-3">
+                        Optionally add a reason — the Maker will see this in their queue.
+                    </p>
+                    <textarea
+                        value={rejectReason}
+                        onChange={e => setRejectReason(e.target.value)}
+                        placeholder="e.g. Product list is empty — please add at least 3 products."
+                        rows={3}
+                        autoFocus
+                        className="w-full text-sm border border-slate-200 rounded-lg p-2.5 resize-none focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-200"
+                    />
+                    <div className="flex gap-2 mt-3">
+                        <button
+                            onClick={() => setRejectDialog(null)}
+                            className="flex-1 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleRejectConfirm}
+                            className="flex-1 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                        >
+                            Confirm Reject
+                        </button>
+                    </div>
+                </div>
+            </>
+        )
+    }
+    </div >
     );
 };
 

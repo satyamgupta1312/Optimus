@@ -11,6 +11,7 @@
 2.  **Frontend System**
     *   [Frontend Components](./FRONTEND-Core-Components.md)
 3.  **Backend & Automation**
+    *   [Backend Workflow (End-to-End)](./Backend-work-flow.md)
     *   [Automation Services](./BACKEND-Automation-Services.md)
     *   [SPR Optimization Logic](./BACKEND-SPR-Optimization-Logic.md)
     *   [Secondary Masthead Strategy](./BACKEND-Secondary-Masthead-Strategy.md)

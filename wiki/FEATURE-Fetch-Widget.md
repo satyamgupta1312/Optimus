@@ -559,3 +559,48 @@ Each widget type has a corresponding Google Apps Script that handles the API cal
 - [Collection Banner Widget](./WIDGET-Collection-Banner.md) — Carousel (scroll) + Category Grid (stick)
 - [Masthead Widget](./WIDGET-Masthead.md) — Primary + Secondary Masthead
 - [Widget Library Reference](./REFERENCE-Widget-Library.md) — All supported widgets and configs
+
+---
+
+## 11. Fetched Widget Re-Deploy (PATCH Flow)
+
+Jab Checker kisi fetched widget ko Deploy karta hai, `BackendSyncService.deployRequest()` detect karta hai ki widget `_fetched: true` marker ke saath hai aur `PATCH` use karta hai instead of `POST`.
+
+### Re-Deploy Flow
+
+```
+Fetch Widget (slug) → Edit in canvas → Submit (Maker)
+    → Approve (Checker) → Deploy
+        → _fetched? YES → PATCH /api/app/widget/<slug>/
+                        → 405? → Skip (PATCH not supported, log warning)
+        → _fetched? NO  → POST  /api/app/widget/ (new create)
+```
+
+### Code Reference
+
+| File | Function | Role |
+| :--- | :--- | :--- |
+| `src/services/BackendSyncService.js` | `updateWidget(widget, tokens, log)` | PATCH request with title, start_time, end_time |
+| `src/config/BackendFlow.js` | `FETCHED_WIDGET_UPDATE_STRATEGY` | Config: marker field, slug field, preferred method |
+
+### PATCH Payload
+
+```javascript
+// PATCH /api/app/widget/<slug>/
+FormData:
+  heading      → widget.title
+  start_time   → widget.start_time
+  end_time     → widget.end_time
+```
+
+### Partial Deploy Results
+
+After each deploy (PATCH or POST), the result is shown in RequestQueue:
+
+| Status | Icon | Meaning |
+| :--- | :--- | :--- |
+| `ok` | ✅ | New widget created successfully |
+| `updated` | ✅ | Fetched widget updated via PATCH |
+| `skipped` | ⏳ | Widget type not supported, skipped |
+| `failed` | ❌ | Error — message shown in card |
+

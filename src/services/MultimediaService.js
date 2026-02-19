@@ -3,8 +3,12 @@
  * Used by Primary Masthead and other widgets
  */
 
-// Use relative URL to leverage Vite proxy and avoid CORS issues in development
-const MULTIMEDIA_API_URL = '/api/app/multimedia/';
+// Use API_BASE from config to leverage environment switching (UAT/PROD)
+import { API_BASE, ENDPOINTS, ACTIVE_ENV } from '../config/apiConfig';
+
+console.log(`[MultimediaService] Active env: ${ACTIVE_ENV}`);
+
+const MULTIMEDIA_API_URL = `${API_BASE}${ENDPOINTS.multimedia}`;
 
 export const MultimediaService = {
     /**

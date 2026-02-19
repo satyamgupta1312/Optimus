@@ -1,5 +1,8 @@
 // Real API Service for Widget Operations
 // Based on the automation scripts provided
+import { API_BASE, ENDPOINTS, ACTIVE_ENV } from '../config/apiConfig';
+
+console.log(`[WidgetApiService] Active env: ${ACTIVE_ENV}`);
 
 // Helper to get CSRF token from cookie
 const getCsrfToken = () => {
@@ -76,7 +79,7 @@ export const createSingleProductRow = async (widget) => {
     try {
         // Step 1: Create Page Layout
         const pageSlug = `${slugBase}_page`;
-        await callApi('/api/app/post_page_layout/', {
+        await callApi(`${API_BASE}${ENDPOINTS.pageLayout}`, {
             slug_name: pageSlug,
             page_heading: widget.title,
             page_layout_type: '2',
@@ -117,7 +120,7 @@ export const createSingleProductRow = async (widget) => {
             offer_id: '',
             click_action_params: '{}'
         };
-        await callApi('/api/app/post_widget_item/', wiPayload, true);
+        await callApi(`${API_BASE}${ENDPOINTS.widgetItem}`, wiPayload, true);
 
         // Step 3: Create Widget
         const widgetSlug = `${slugBase}_spr`;
@@ -143,25 +146,25 @@ export const createSingleProductRow = async (widget) => {
             filter_dict: '{}',
             app_configurations: '{}'
         };
-        await callApi('/api/app/widget/', widgetPayload, true);
+        await callApi(`${API_BASE}${ENDPOINTS.widget}`, widgetPayload, true);
 
         // Step 4: Map Widget Item to Widget
         const csvWI = createMappingCsv('widget_item', wiSlug);
-        await callApi('/api/app/update_widget_widget_item_mapping/', {
+        await callApi(`${API_BASE}${ENDPOINTS.mapWidgetItems}`, {
             widget_slug: widgetSlug,
             mapping_file: csvWI
         }, true);
 
         // Step 5: Map Widget to Page Layout
         const csvLayout = createMappingCsv('layout_widget', widgetSlug);
-        await callApi('/api/app/update_layout_widget_mapping/', {
+        await callApi(`${API_BASE}${ENDPOINTS.mapLayoutWidget}`, {
             page_layout_slug: pageSlug,
             mapping_file: csvLayout
         }, true);
 
         // Step 6: Map Page to Global
         const csvPage = createMappingCsv('global_page', '');
-        await callApi('/api/app/update_page_page_layout_mapping/', {
+        await callApi(`${API_BASE}${ENDPOINTS.mapPageLayout}`, {
             page_layout_slug: pageSlug,
             page_type: '',
             mapping_file: csvPage

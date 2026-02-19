@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { Clock, User, Plus, Trash2, Edit, ChevronDown, Download } from 'lucide-react';
+import { Clock, User, Plus, Trash2, Edit, ChevronDown, Download, RefreshCw } from 'lucide-react';
 import { useActivityLog } from '../context/ActivityLogContext';
+import { GoogleSheetService } from '../services/GoogleSheetService';
 
 /**
  * Activity Log Panel
  * Displays recent activity history
  */
 const ActivityLogPanel = ({ className = '' }) => {
-    const { activities, getRecentActivities, clearActivities, exportActivities } = useActivityLog();
+    const { activities, getRecentActivities, clearActivities, exportActivities, logActivity } = useActivityLog();
     const [showAll, setShowAll] = useState(false);
     const [filter, setFilter] = useState('all'); // 'all', 'widget', 'status', 'user'
+    const [loadingSheet, setLoadingSheet] = useState(false);
 
     const displayActivities = showAll ? activities : getRecentActivities(20);
 
@@ -59,6 +61,21 @@ const ActivityLogPanel = ({ className = '' }) => {
         URL.revokeObjectURL(url);
     };
 
+    // Feature 8: Load persisted audit log from Google Sheet
+    const handleLoadFromSheet = async () => {
+        setLoadingSheet(true);
+        try {
+            const sheetLogs = await GoogleSheetService.fetchAuditLog();
+            sheetLogs.forEach(entry => {
+                logActivity(entry.action, entry.details || {}, entry.user || 'Unknown');
+            });
+        } catch (e) {
+            console.warn('[ActivityLogPanel] Load from sheet failed:', e);
+        } finally {
+            setLoadingSheet(false);
+        }
+    };
+
     return (
         <div className={`bg-white rounded-xl border border-slate-200 shadow-sm ${className}`}>
             {/* Header */}
@@ -69,6 +86,14 @@ const ActivityLogPanel = ({ className = '' }) => {
                         Activity Log
                     </h3>
                     <div className="flex items-center gap-2">
+                        <button
+                            onClick={handleLoadFromSheet}
+                            disabled={loadingSheet}
+                            className="p-2 text-slate-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Load audit log from Google Sheet"
+                        >
+                            <RefreshCw size={16} className={loadingSheet ? 'animate-spin' : ''} />
+                        </button>
                         <button
                             onClick={handleExport}
                             className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"

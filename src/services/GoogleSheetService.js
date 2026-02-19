@@ -68,16 +68,20 @@ export const GoogleSheetService = {
 
     /**
      * Approve or Reject a request
+     * @param {string} id - Request ID
+     * @param {string} status - New status ('APPROVED' | 'REJECTED')
+     * @param {string} [rejectionReason] - Optional reason shown to Maker on rejection
      */
-    updateStatus: async (id, status) => {
+    updateStatus: async (id, status, rejectionReason = '') => {
         if (!SHEET_API_URL) return;
 
-        console.log("Updating status:", id, status);
+        console.log('Updating status:', id, status, rejectionReason ? `(reason: ${rejectionReason})` : '');
 
         const payload = {
             action: 'update_status',
             id,
-            status
+            status,
+            ...(rejectionReason ? { rejectionReason } : {})
         };
 
         await fetch(SHEET_API_URL, {
@@ -312,6 +316,60 @@ export const GoogleSheetService = {
         } catch (error) {
             console.error("[GoogleSheetService] Upload failed:", error);
             return { success: false, error: error.message };
+        }
+    },
+
+    /**
+     * Append an audit log entry to the Google Sheet.
+     * Feature 8: Activity Log / Audit Trail
+     * Wiki Reference: wiki/Backend-work-flow.md — Audit Trail
+     *
+     * Only called for significant actions: submit, approve, reject.
+     * Minor UI actions (add widget, update field) stay in-memory only.
+     */
+    appendAuditLog: async ({ action, user, widgetId = null, details = {}, timestamp }) => {
+        if (!SHEET_API_URL) return;
+        const payload = {
+            action: 'audit_log',
+            log: {
+                action,
+                user,
+                widgetId,
+                details,
+                timestamp: timestamp || new Date().toISOString(),
+            }
+        };
+        try {
+            await fetch(SHEET_API_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                redirect: 'follow',
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify(payload)
+            });
+        } catch (e) {
+            console.warn('[GoogleSheetService] appendAuditLog failed (non-blocking):', e.message);
+        }
+    },
+
+    /**
+     * Fetch persisted audit log entries from the Google Sheet.
+     * Feature 8: Activity Log / Audit Trail — Load from Sheet
+     */
+    fetchAuditLog: async () => {
+        if (!SHEET_API_URL) return [];
+        try {
+            const res = await fetch(SHEET_API_URL, {
+                method: 'POST',
+                redirect: 'follow',
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({ action: 'get_audit_log' })
+            });
+            const data = await res.json();
+            return data.logs || [];
+        } catch (error) {
+            console.warn('[GoogleSheetService] fetchAuditLog failed:', error.message);
+            return [];
         }
     }
 };

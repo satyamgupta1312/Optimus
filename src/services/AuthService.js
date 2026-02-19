@@ -4,6 +4,13 @@
 // - CHECKER: Users added to the approval list in Google Sheet
 // - MAKER: All other authenticated users
 
+// Use API_BASE from config to leverage environment switching (UAT/PROD)
+import { API_BASE, ACTIVE_ENV } from '../config/apiConfig';
+
+console.log(`[AuthService] Active env: ${ACTIVE_ENV}`);
+
+// Helper to get CSRF token from cookie
+
 // Helper to get CSRF token from cookie
 const getCsrfToken = () => {
     const value = `; ${document.cookie}`;
@@ -19,7 +26,7 @@ export const loginUser = async (username, password) => {
         // STEP 0: Clear any existing session first
         console.log('[Auth] Clearing any existing sessions...');
         try {
-            await fetch('/logout/', {
+            await fetch(`${API_BASE}/logout/`, {
                 method: 'GET',
                 credentials: 'include',
                 redirect: 'follow'
@@ -35,7 +42,7 @@ export const loginUser = async (username, password) => {
 
         // STEP 1: Get CSRF token by visiting the login page first
         console.log('[Auth] Fetching CSRF token from server...');
-        await fetch('/login/', {
+        await fetch(`${API_BASE}/login/`, {
             method: 'GET',
             credentials: 'include' // Save cookies
         });
@@ -57,7 +64,7 @@ export const loginUser = async (username, password) => {
         formData.append('csrfmiddlewaretoken', csrfToken);
 
         console.log('[Auth] Submitting login request...');
-        const response = await fetch('/login/', {
+        const response = await fetch(`${API_BASE}/login/`, {
             method: 'POST',
             body: formData,
             headers: {
@@ -138,7 +145,7 @@ export const loginUser = async (username, password) => {
 
 export const logoutUser = async () => {
     try {
-        await fetch('/logout', { method: 'GET', credentials: 'include' });
+        await fetch(`${API_BASE}/logout`, { method: 'GET', credentials: 'include' });
         console.log('[Auth] Logged out from backend');
     } catch (e) {
         console.warn('[Auth] Logout failed (backend might be unreachable)', e);

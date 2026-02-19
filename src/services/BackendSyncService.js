@@ -1,15 +1,54 @@
 import { fetchWidgetProductList } from './api';
+import { API_BASE, ENDPOINTS, ACTIVE_ENV } from '../config/apiConfig';
+import { RETRY_CONFIG, FETCHED_WIDGET_UPDATE_STRATEGY } from '../config/BackendFlow';
 
 // Backend Sync Service - Ports logic from python script to JS
-// Endpoints relative to /api (proxied)
+// Endpoints resolved from apiConfig (UAT or PROD based on VITE_ENV)
 
 const API = {
-    POST_WIDGET_ITEM: '/api/app/post_widget_item/',
-    POST_WIDGET: '/api/app/widget/',
-    POST_PAGE_LAYOUT: '/api/app/post_page_layout/',
-    MAP_WIDGET_ITEMS: '/api/app/update_widget_widget_item_mapping/',
-    MAP_LAYOUT_WIDGET: '/api/app/update_layout_widget_mapping/',
-    MAP_PAGE_LAYOUT: '/api/app/update_page_page_layout_mapping/'
+    POST_WIDGET_ITEM: `${API_BASE}${ENDPOINTS.widgetItem}`,
+    POST_WIDGET: `${API_BASE}${ENDPOINTS.widget}`,
+    POST_PAGE_LAYOUT: `${API_BASE}${ENDPOINTS.pageLayout}`,
+    MAP_WIDGET_ITEMS: `${API_BASE}${ENDPOINTS.mapWidgetItems}`,
+    MAP_LAYOUT_WIDGET: `${API_BASE}${ENDPOINTS.mapLayoutWidget}`,
+    MAP_PAGE_LAYOUT: `${API_BASE}${ENDPOINTS.mapPageLayout}`,
+    PATCH_WIDGET: `${API_BASE}${ENDPOINTS.widget}`,
+};
+
+console.log(`[BackendSyncService] Active env: ${ACTIVE_ENV}`);
+
+/**
+ * fetchWithRetry — Exponential backoff for transient server errors
+ * Retries on 5xx status codes as defined in RETRY_CONFIG.
+ * Wiki Reference: wiki/Backend-work-flow.md — Retry Logic (Step 8)
+ */
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+
+const fetchWithRetry = async (url, options = {}) => {
+    const { maxRetries, baseDelayMs, backoffMultiplier, retryOnStatus } = RETRY_CONFIG;
+    let lastResponse;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            const response = await fetch(url, { credentials: 'include', ...options });
+            if (!retryOnStatus.includes(response.status) || attempt === maxRetries) {
+                return response;
+            }
+            lastResponse = response;
+            const delay = baseDelayMs * Math.pow(backoffMultiplier, attempt);
+            console.warn(
+                `[BackendSyncService] HTTP ${response.status} on attempt ${attempt + 1}/${maxRetries}. ` +
+                `Retrying in ${delay}ms...`
+            );
+            await sleep(delay);
+        } catch (err) {
+            if (attempt === maxRetries) throw err;
+            const delay = baseDelayMs * Math.pow(backoffMultiplier, attempt);
+            console.warn(`[BackendSyncService] Network error on attempt ${attempt + 1}. Retrying in ${delay}ms...`);
+            await sleep(delay);
+        }
+    }
+    return lastResponse;
 };
 
 const getHeaders = (tokens) => ({
@@ -47,28 +86,81 @@ export const BackendSyncService = {
                 }
             }
 
-            // Process Body Widgets
+            // Process Body Widgets — track per-widget results
             const widgets = requestData.widgets || [];
+            const results = [];
+
             for (const widget of widgets) {
                 log(`Processing Widget: ${widget.type} - ${widget.title}`);
 
-                if (widget.type === 'Category Grid') {
-                    await this.deployCategoryGrid(widget, uniqueSuffix, tokens, log);
-                }
-                else if (widget.type === 'Product Listing Page (CLP)') {
-                    await this.deployCLP(widget, uniqueSuffix, tokens, log);
-                }
-                else {
-                    log(`Skipping unsupported body widget type: ${widget.type}`);
-                    // Note: Primary/Secondary Mastheads used to be here, now in Header block
+                try {
+                    // Feature 6: Fetched Widget Re-Deploy via PATCH
+                    if (widget[FETCHED_WIDGET_UPDATE_STRATEGY.checkMarker]) {
+                        log(`[Re-Deploy] Fetched widget detected → using PATCH for: ${widget.slug_name}`);
+                        await this.updateWidget(widget, tokens, log);
+                        results.push({ widget: widget.title || widget.type, status: 'updated', slug: widget.slug_name });
+                    } else if (widget.type === 'Category Grid') {
+                        await this.deployCategoryGrid(widget, uniqueSuffix, tokens, log);
+                        results.push({ widget: widget.title || widget.type, status: 'ok' });
+                    } else if (widget.type === 'Product Listing Page (CLP)') {
+                        await this.deployCLP(widget, uniqueSuffix, tokens, log);
+                        results.push({ widget: widget.title || widget.type, status: 'ok' });
+                    } else {
+                        log(`Skipping unsupported body widget type: ${widget.type}`);
+                        results.push({ widget: widget.title || widget.type, status: 'skipped' });
+                    }
+                } catch (widgetErr) {
+                    log(`Error on widget "${widget.title}": ${widgetErr.message}`);
+                    results.push({ widget: widget.title || widget.type, status: 'failed', error: widgetErr.message });
+                    // Continue processing remaining widgets (non-fatal per widget)
                 }
             }
 
-            return { success: true, logs };
+            const failedCount = results.filter(r => r.status === 'failed').length;
+            return {
+                success: failedCount === 0,
+                results,
+                logs,
+                summary: `${results.length - failedCount}/${results.length} widget(s) deployed successfully.`
+            };
         } catch (error) {
-            log(`Error: ${error.message}`);
-            return { success: false, error: error.message, logs };
+            log(`Fatal Error: ${error.message}`);
+            return { success: false, error: error.message, results: [], logs };
         }
+    },
+
+    /**
+     * updateWidget — Re-deploy a fetched (existing) widget using PATCH.
+     * Feature 6: Fetched Widget Edit → Re-Deploy
+     * Wiki Reference: wiki/FEATURE-Fetch-Widget.md — Re-Deploy Flow
+     */
+    async updateWidget(widget, tokens, log) {
+        const slug = widget[FETCHED_WIDGET_UPDATE_STRATEGY.slugField] || widget.slug_name;
+        if (!slug) throw new Error('Cannot update widget: slug_name is missing.');
+
+        const widgetUrl = `${API.PATCH_WIDGET}${slug}/`;
+        log(`[updateWidget] PATCH ${widgetUrl}`);
+
+        const formData = new FormData();
+        if (widget.title) formData.append('heading', widget.title);
+        if (widget.start_time) formData.append('start_time', widget.start_time);
+        if (widget.end_time) formData.append('end_time', widget.end_time);
+
+        const response = await fetchWithRetry(widgetUrl, {
+            method: 'PATCH',
+            headers: { 'X-CSRFToken': tokens.csrftoken },
+            body: formData,
+        });
+
+        if (!response.ok) {
+            // Fallback: if PATCH returns 405, log and skip (backend may not support it)
+            if (response.status === 405) {
+                log(`[updateWidget] PATCH not supported for ${slug}, skipping update.`);
+                return;
+            }
+            throw new Error(`PATCH failed for ${slug}: HTTP ${response.status}`);
+        }
+        log(`[updateWidget] Successfully updated ${slug}`);
     },
 
     // Category Grid Deployment
@@ -99,7 +191,7 @@ export const BackendSyncService = {
                 formData.append('media_en', item.image);
             }
 
-            const response = await fetch(API.POST_WIDGET_ITEM, {
+            const response = await fetchWithRetry(API.POST_WIDGET_ITEM, {
                 method: 'POST',
                 headers: { 'X-CSRFToken': tokens.csrftoken },
                 body: formData

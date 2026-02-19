@@ -5,6 +5,7 @@ import showToast from '../utils/toast';
 import { useUndoRedo } from './UndoRedoContext';
 import { useActivityLog } from './ActivityLogContext';
 import { useAuth } from './AuthContext';
+import { validateAndCheckSlugs } from '../services/ValidationService';
 
 const WidgetContext = createContext();
 
@@ -30,6 +31,7 @@ export const WidgetProvider = ({ children }) => {
     const [currentView, setCurrentView] = useState('home');
     const [viewData, setViewData] = useState(null);
     const [comments, setComments] = useState([]); // Widget comments
+    const [validationErrors, setValidationErrors] = useState([]); // Pre-submit validation errors
 
     // Save state to undo/redo history whenever widgets change
     useEffect(() => {
@@ -187,19 +189,25 @@ export const WidgetProvider = ({ children }) => {
     // Workflow Actions
     const submitForReview = async () => {
         try {
+            // ── Feature 2 & 4: Pre-Submit Validation + Slug Uniqueness Check ──
+            showToast.info('Validating widgets before submit...');
+            const validationResult = await validateAndCheckSlugs(widgets);
+            if (!validationResult.valid) {
+                setValidationErrors(validationResult.errors);
+                const firstError = validationResult.errors[0];
+                showToast.error(
+                    `Validation failed: ${firstError.widgetTitle} — ${firstError.message}`,
+                    { duration: 6000 }
+                );
+                console.warn('[WidgetContext] Validation errors:', validationResult.errors);
+                return; // Block submit
+            }
+
+            // Clear previous validation errors
+            setValidationErrors([]);
+
             console.log('Submitting to Google Sheet...');
             const { GoogleSheetService } = await import('../services/GoogleSheetService');
-            // Assuming current user is maker
-            // We need to access user from AuthContext, but we are in WidgetContext.
-            // Ideally pass user info or store in request.
-            // For now, hardcode or grab from localStorage/window if needed, or pass as arg.
-            // Let's assume the component calling this passes metadata or we stick to generic identity for now.
-            // Wait, MainLayout calls this. MainLayout has user.
-            // I should update submitForReview to accept 'user' object.
-
-            // For now, I'll alert the user to check if it works.
-            // But to do it right, I'll update the signature later. 
-            // Actually, let's just use a placeholder user if not passed.
 
             // Helper: Remove File objects from multimedia (can't be serialized)
             const cleanHeaderWidgets = (headerWidgets) => {
@@ -223,6 +231,7 @@ export const WidgetProvider = ({ children }) => {
             });
 
             setPageStatus('PENDING');
+            logActivity('page_submitted', { widgetCount: widgets.length, user: user?.email });
             showToast.success('Page submitted for review!');
         } catch (e) {
             console.error(e);
@@ -326,7 +335,10 @@ export const WidgetProvider = ({ children }) => {
             // Collaboration features
             comments,
             addComment,
-            deleteComment
+            deleteComment,
+            // Validation
+            validationErrors,
+            setValidationErrors,
         }}>
             {children}
         </WidgetContext.Provider>

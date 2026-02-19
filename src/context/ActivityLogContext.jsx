@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { GoogleSheetService } from '../services/GoogleSheetService';
 
 const ActivityLogContext = createContext();
 
@@ -19,12 +20,14 @@ export const ActivityLogProvider = ({ children }) => {
     const [maxActivities] = useState(100); // Keep last 100 activities
 
     /**
-     * Log an activity
+     * Log an activity.
+     * Significant lifecycle actions (submit, approve, reject) are also
+     * persisted to Google Sheet via appendAuditLog.
      */
     const logActivity = useCallback((action, details = {}, user = 'Current User') => {
         const activity = {
             id: crypto.randomUUID(),
-            action, // 'widget_added', 'widget_deleted', 'widget_updated', etc.
+            action, // 'widget_added', 'widget_deleted', 'page_submitted', etc.
             details,
             user,
             timestamp: new Date().toISOString(),
@@ -32,12 +35,23 @@ export const ActivityLogProvider = ({ children }) => {
 
         setActivities(prev => {
             const newActivities = [activity, ...prev];
-            // Keep only the latest activities
             if (newActivities.length > maxActivities) {
                 return newActivities.slice(0, maxActivities);
             }
             return newActivities;
         });
+
+        // Feature 8: Persist significant lifecycle events to Google Sheet
+        const PERSIST_ACTIONS = ['page_submitted', 'page_approved', 'page_rejected'];
+        if (PERSIST_ACTIONS.includes(action)) {
+            // Fire-and-forget — non-blocking
+            GoogleSheetService.appendAuditLog({
+                action,
+                user: details.user || user,
+                details,
+                timestamp: activity.timestamp,
+            }).catch(e => console.warn('[ActivityLogContext] appendAuditLog error:', e));
+        }
 
         return activity;
     }, [maxActivities]);

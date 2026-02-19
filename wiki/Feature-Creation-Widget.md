@@ -15,6 +15,47 @@ Mappings (wire everything together)
     ↓ created last
 ```
 
+### Bottom-Up Creation Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  CREATION ORDER (bottom → up)                                     │
+│                                                                    │
+│  Layer 4 ── Global Registry ─────────────────────────────────    │
+│             ↑ Layer 3 Mapping (page_page_layout)                 │
+│  Layer 3 ── Page Layout ─────────────────────────────────────    │
+│             {base}_page  /  {base}_Page_p  /  {base}_item_n_page │
+│             ↑ Layer 2 Mapping (layout_widget)                    │
+│  Layer 2 ── Widget ──────────────────────────────────────────    │
+│             SPR / Carousel / Category / PLP / Masthead Widget    │
+│             ↑ Layer 1 Mapping (widget_widget_item)               │
+│  Layer 1 ── Widget Items ────────────────────────────────────    │
+│             item_rows / sub_category / carousel / category       │
+│                 ↑ State-wise rows (global, jh, cg, wb, up...)    │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+```mermaid
+flowchart TD
+    User([User Submits Widget Form]) --> WType{Widget Type?}
+
+    WType -->|Product Rail| SPR[SPR Creation Flow\nStandard or Optimized]
+    WType -->|Collection Banner| CB[Carousel or Category Grid\nper display mode]
+    WType -->|Masthead| Mast[Primary or Secondary\nper variant]
+
+    SPR --> Items1[Widget Items\nitem_rows / sub_category]
+    CB  --> Items2[Sub-Category Items\n+ Carousel/Category Items]
+    Mast --> Items3[Multimedia Object\noptional background]
+
+    Items1 --> Widgets[Widgets\nSPR / PLP Widget]
+    Items2 --> Widgets
+    Items3 --> Widgets
+
+    Widgets --> Pages[Page Layouts\nproduct_listing_page / category_page]
+    Pages   --> Mappings[3 Mapping Layers\nItem→Widget→Page→Global]
+    Mappings --> Live([Widgets LIVE on Backend ✓])
+```
+
 ### Widget Types at a Glance
 
 | Widget | Backend Type(s) | Sidebar Selection | Complexity |

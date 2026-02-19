@@ -8,6 +8,48 @@ Optimus uses a **Maker-Checker** approval workflow to ensure all widget changes 
 Maker (creates/edits) → Submit → Checker (reviews) → Approve/Reject → Backend API Update
 ```
 
+### Approval Workflow — System Diagram
+
+```mermaid
+flowchart TD
+    Login([User Logs In]) --> RoleResolve[Role Resolution\nAuthService + Checker Sheet]
+    RoleResolve --> MAKER[MAKER\nCreate · Edit · Submit]
+    RoleResolve --> CHECKER[CHECKER\nPreview · Approve · Reject · Deploy]
+    RoleResolve --> SUPER[SUPER_ADMIN\nAll Checker Powers\n+ Manage Users]
+
+    MAKER --> Canvas[Canvas: Build Widgets]
+    Canvas --> Submit[Click Submit → PENDING]
+    Submit --> Sheet[Google Sheet\nRequests Storage]
+    Sheet --> RequestQueue[RequestQueue UI\nChecker sees PENDING]
+
+    CHECKER --> RequestQueue
+    RequestQueue --> Decision{Decision}
+    Decision -->|Approve + Select| ApproveFlow[Apps Script\nhandleApprove]
+    Decision -->|Reject| Reject[Status: REJECTED\nMaker can re-edit]
+    ApproveFlow --> Backend[Backend API Calls\nWidgets LIVE ✓]
+    Reject --> Canvas
+```
+
+### Maker Sidebar vs Checker Review Queue
+
+```
+MAKER UI                                  CHECKER UI
+┌──────────────────────────────┐          ┌──────────────────────────────┐
+│  OPTIMUS   ░░░ DRAFT [Submit]│          │  OPTIMUS  [RequestQueue]      │
+│                              │          │                               │
+│  Sidebar │ Canvas  │ Emulator│          │  Review Queue    [Filter ▼]   │
+│  ─────── │ ─────── │ ─────── │          │                               │
+│  + SPR   │ [SPR-1] │ [Phone] │          │  PENDING: John Doe 2m ago     │
+│  + CB    │ [CB-1 ] │ [img  ] │          │  ┌──────────────────────────┐ │
+│  + Mast  │         │ [₹99  ] │          │  │ [☑] SPR – Rice Mela      │ │
+│          │         │         │          │  │ [☑] Masthead – Diwali    │ │
+│  ─────── │         │ ─────── │          │  │ [☐] CB – Summer Sale     │ │
+│  [🔍 Fetch Slug ▢ ]          │          │  │                          │ │
+│                              │          │  │ [Preview] [Approve] [✕]  │ │
+└──────────────────────────────┘          │  └──────────────────────────┘ │
+                                          └──────────────────────────────┘
+```
+
 | Role | Can Do | Cannot Do |
 | :--- | :--- | :--- |
 | **Maker** | Create, edit, delete widgets; Submit for review | Approve or reject |

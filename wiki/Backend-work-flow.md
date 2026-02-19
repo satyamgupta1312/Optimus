@@ -10,6 +10,61 @@ User → UI (Canvas) → Widget Form Fill → Emulator Preview → Submit
     → Approve / Reject → Backend API Deployment
 ```
 
+### Role-Based Dashboard Skeleton
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  OPTIMUS                                  [👤 John Doe]   │
+│  ░░░░░ DRAFT                              [Submit]        │
+├──────────────────────────────────────────────────────────┤
+│  Sidebar (Maker)              │  Canvas (Center)           │
+│  ───────────────────────────  │  ──────────────────────── │
+│  [🔍 Fetch: slug_name  ]      │  ┌─────────────────────┐  │
+│                               │  │ Single Product Row   │  │
+│  Widget Library               │  │  Rice Mela ···       │  │
+│  ┌─ Product Rail ──────────┐  │  ├─────────────────────┤  │
+│  │  [+ Add Widget]         │  │  │ Collection Banner    │  │
+│  └─────────────────────────┘  │  │  Summer Sale ···     │  │
+│  ┌─ Collection Banner──────┐  │  ├─────────────────────┤  │
+│  │  [+ Add Widget]         │  │  │ Primary Masthead     │  │
+│  └─────────────────────────┘  │  │  Diwali ···          │  │
+│  ┌─ Masthead ──────────────┐  │  └─────────────────────┘  │
+│  │  [+ Add Widget]         │  │                           │
+│  └─────────────────────────┘  │  Right → Phone Emulator   │
+└──────────────────────────────────────────────────────────┘
+
+CHECKER VIEW (RequestQueue):
+┌──────────────────────────────────────────────────────────┐
+│  Review Queue                              [Filter: All ▼] │
+│                                                            │
+│  ▓▓ PENDING   John Doe         2 min ago                  │
+│  ┌────────────────────────────────────────────────────┐   │
+│  │ [☑] Rice Mela (Single Product Row)                 │   │
+│  │ [☑] Diwali Masthead (Primary Masthead)             │   │
+│  │ [☐] Summer Sale (Collection Banner)                │   │
+│  │                                                    │   │
+│  │  [Preview]         [✓ Approve]     [✕ Reject]     │   │
+│  └────────────────────────────────────────────────────┘   │
+│                                                            │
+│  ██ APPROVED  Jane Smith       1 hour ago  [Deploy]        │
+└──────────────────────────────────────────────────────────┘
+```
+
+### End-to-End Flow Overview
+
+```mermaid
+flowchart LR
+    Login([Login]) --> Role{Role?}
+    Role -->|MAKER| Canvas[Canvas: Create & Edit Widgets]
+    Role -->|CHECKER| Queue[RequestQueue: Review Requests]
+
+    Canvas --> Submit[Submit → PENDING]
+    Submit --> Queue
+    Queue --> Decision{Decision}
+    Decision -->|Approve| Backend[Backend API Deployment\nWidgets LIVE ✓]
+    Decision -->|Reject| Canvas
+```
+
 ---
 
 ## 2. Full Flow — Step by Step

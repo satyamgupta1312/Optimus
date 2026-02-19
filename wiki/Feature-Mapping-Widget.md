@@ -10,6 +10,30 @@ Layer 2: Widget → Page Layout           (widget is placed on a page)
 Layer 3: Page Layout → Global Registry  (page is discoverable globally)
 ```
 
+### Architecture Skeleton
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  MAPPING ARCHITECTURE                                            │
+│                                                                   │
+│  ┌─ Layer 3: Global Registry ─────────────────────────────┐     │
+│  │  GL-HP-global / product_listing_page / category_page    │     │
+│  └─────────────────────────────────────────────────────────┘     │
+│              ↑ update_page_page_layout_mapping CSV               │
+│  ┌─ Layer 2: Page Layout ──────────────────────────────────┐     │
+│  │  {base}_page   widget → page mapping CSV               │     │
+│  └─────────────────────────────────────────────────────────┘     │
+│              ↑ update_layout_widget_mapping CSV                  │
+│  ┌─ Layer 1: Widget ───────────────────────────────────────┐     │
+│  │  SPR Widget / Carousel / Category / PLP Widget          │     │
+│  └─────────────────────────────────────────────────────────┘     │
+│              ↑ update_widget_widget_item_mapping CSV             │
+│  ┌─ Widget Items (State-wise) ─────────────────────────────┐     │
+│  │  global  │  jharkhand  │  chhattisgarh  │  west bengal  │     │
+│  └─────────────────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 ```mermaid
 flowchart BT
     WI["Widget Items\n(sub_category / item_rows / carousel / category)"]

@@ -9,6 +9,66 @@ The **Fetch Widget** feature allows users to:
 3. **Submit** changes for review (Maker → Google Sheet queue)
 4. **Approve** and trigger API calls to update the widget on the backend (Checker → automation)
 
+### FetchWidget — Sidebar Skeleton
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  FETCH WIDGET                                            │
+│                                                          │
+│  Slug Name: [rice_mela_spr_opt___________________]  [→] │
+│                                                          │
+│  ── Phase 1: Try as Widget ───────────────────────────  │
+│    GET /api/app/widget/?slug_name=rice_mela_spr_opt      │
+│    GET /api/app/get_widget/?slug_name=...  (fallback)    │
+│                                                          │
+│  ── Phase 2: Try as Widget Item ──────────────────────  │
+│    GET /api/app/widget_item/?slug_name=...               │
+│    GET /api/app/get_widget_item/?widget_item_slug_name=… │
+│                                                          │
+│  ── Result ────────────────────────────────────────────  │
+│  ✓ Found: Single Product Row Optimize                    │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │ Title:    Rice Mela Rail                          │   │
+│  │ Slug:     rice_mela_spr_opt   [_fetched: true ✓] │   │
+│  │ Products: 1001, 1002, 1003                        │   │
+│  │ Start:    2026-02-15 19:21:37                     │   │
+│  │ End:      2026-07-01 18:29:00                     │   │
+│  └──────────────────────────────────────────────────┘   │
+│                                                          │
+│  [Added to Canvas ↓]                                     │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Fetch Flow — Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant U as User (Sidebar)
+    participant FW as FetchWidget.jsx
+    participant API as Backend API
+    participant Canvas as Canvas (Widget State)
+
+    U->>FW: Enter slug_name + click Fetch
+    FW->>API: GET /api/app/widget/?slug_name={slug}
+    alt Widget found
+        API-->>FW: Widget data (widget_type, heading_en, ...)
+        FW->>Canvas: formatWidgetData() → addWidget(_fetched:true)
+        Canvas-->>U: Widget appears on canvas ✓
+    else 404
+        FW->>API: GET /api/app/get_widget/?slug_name={slug}
+        alt Still not found
+            FW->>API: GET /api/app/widget_item/?slug_name={slug}
+            alt Widget Item found
+                API-->>FW: Item data (item_type, product_list, ...)
+                FW->>Canvas: formatWidgetItemData() → addWidget()
+                Canvas-->>U: Widget item on canvas ✓
+            else Not found
+                FW-->>U: Error: "Widget not found with slug: {slug}"
+            end
+        end
+    end
+```
+
 ```
 Fetch (slug) → Edit (all fields) → Submit (Maker) → Approve (Checker) → API Update (Backend)
 ```

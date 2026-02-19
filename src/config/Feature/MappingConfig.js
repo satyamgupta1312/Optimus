@@ -1,3 +1,5 @@
+import { STATE_DEFINITIONS as STATE_DEFINITIONS_BASE } from '../widgets/MastheadConfig';
+
 /**
  * Widget Mapping Configuration — Source of Truth
  *
@@ -11,6 +13,7 @@
  *   Layer 2: Widget → Page Layout          (widget is placed on a page)
  *   Layer 3: Page Layout → Global Registry (page is discoverable globally)
  */
+
 
 // ── Mapping API Endpoints ──
 export const MAPPING_ENDPOINTS = {
@@ -78,12 +81,9 @@ export const LOCATION_RESOLUTION_PRIORITY = [
 ];
 
 // ── State Reference ──
-export const LOCATION_STATES = {
-    global: { levelTag: 'global', levelProperty: 'global', slugSuffix: '_global', required: true },
-    jh: { levelTag: 'state', levelProperty: 'jharkhand', slugSuffix: '_jh', required: false },
-    cg: { levelTag: 'state', levelProperty: 'chhattisgarh', slugSuffix: '_cg', required: false },
-    wb: { levelTag: 'state', levelProperty: 'west bengal', slugSuffix: '_wb', required: false },
-    up: { levelTag: 'state', levelProperty: 'uttar pradesh', slugSuffix: '_up', required: false },
+// Imported from MastheadConfig (single source of truth) + store-level entry added here.
+export const STATE_DEFINITIONS = {
+    ...STATE_DEFINITIONS_BASE,
     store_166: { levelTag: 'store_id', levelProperty: '166', slugSuffix: '_store_166', required: false },
     // Dynamic states added via "Add State" button
 };

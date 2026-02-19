@@ -11,6 +11,46 @@ The **Collection Banner** is a unified widget for displaying clickable items tha
 
 > **Legacy Widget**: This widget uses hard-coded components and will be migrated to the config-driven system in a future phase.
 
+### Mode Comparison — Emulator Preview
+
+```
+SCROLL MODE (carousel)              STICK MODE (category)
+┌─ Phone Emulator ──────────┐       ┌─ Phone Emulator ──────────┐
+│                            │       │                            │
+│  ┌── Collection Banner ─┐  │       │  ┌── Collection Banner ─┐  │
+│  │ ┌──────┐ ┌──────┐ ┌─ │  │       │  │  ★ Rice Mela          │  │
+│  │ │      │ │      │ │   │  │       │  │  ┌────┐ ┌────┐       │  │
+│  │ │Banner│ │Banner│ │Ba │  │       │  │  │img │ │img │       │  │
+│  │ │  1   │ │  2   │ │ 3 │  │       │  │  │Milk│ │Brd │       │  │
+│  │ │      │ │      │ │   │  │       │  │  └────┘ └────┘       │  │
+│  │ └──────┘ └──────┘ └─ │  │       │  │  ┌────┐ ┌────┐       │  │
+│  │  ● ○ ○ ○              │  │       │  │  │img │ │img │       │  │
+│  └───────────────────────┘  │       │  │  │Brkf│ │Jam │       │  │
+│  ← swipeable carousel →     │       │  │  └────┘ └────┘       │  │
+│                            │       │  └─────────────────────┘  │
+└────────────────────────────┘       └────────────────────────────┘
+media_number: 3.5 (3 + peek)         4-col static grid (no scroll)
+```
+
+### Mode Decision Flowchart
+
+```mermaid
+flowchart TD
+    User([User adds Collection Banner]) --> Toggle{Display Mode Toggle}
+    Toggle -->|Scroll| Carousel[widget_type: carousel\nHorizontal swipeable banners]
+    Toggle -->|Stick| Category[widget_type: category\n4-column static grid]
+
+    Carousel --> CarItems[Carousel Items\nimage + click_action_params]
+    Category --> CatItems[Category Items\nimage + label + page]
+
+    CarItems --> PLPScroll[PLP Ecosystem per item\nSub-Cat → PLP Widget → Page Layout]
+    CatItems --> PLPStick[PLP Ecosystem per item\nSub-Cat → PLP Widget → Page Layout]
+
+    PLPScroll --> Map[3 Mapping Layers\nItem→Widget→Page→Global]
+    PLPStick --> Map
+    Map --> Live([Widgets LIVE ✓])
+```
+
 ---
 
 ## 2. Display Mode Toggle

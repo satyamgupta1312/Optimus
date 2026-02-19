@@ -115,6 +115,32 @@ The **Primary Masthead** is a header-only widget that displays category navigati
 
 > **Legacy Widget**: This widget uses a hard-coded component and will be migrated to the config-driven system in a future phase.
 
+### Emulator Preview — Primary Masthead
+
+```
+┌─ Phone Emulator ────────────────────────────────┐
+│                                                   │
+│  ░░░░░░░░░░ BACKGROUND MEDIA ░░░░░░░░░░░░░░░░   │  ← multimedia bg
+│                                                   │
+│  ┌──────────────────────────────────────────┐    │
+│  │  [🏠 All] [🔁 Buy Again] [🍚 Rice]      │    │
+│  │  [🧴 Body Care] [🛒 Kirana] [🥦 Fresh]  │    │
+│  └──────────────────────────────────────────┘    │  ← category icons row
+│                                                   │
+│  (No carousel body — header only)                │
+│                                                   │
+└───────────────────────────────────────────────────┘
+```
+
+### Creation Flow
+
+```mermaid
+flowchart LR
+    BG["1. Multimedia Background\n{base}_bg\nPOST /api/app/multimedia/"] -.->
+    PM["2. Primary Masthead Widget\n{base}_pm_hp\nPOST /api/app/widget/"]
+    PM --> Live([Widget LIVE ✓])
+```
+
 ## 2. Widget Composition
 
 The Primary Masthead is a simple widget — no nested ecosystem or item mappings required.
@@ -302,6 +328,62 @@ The **Secondary Masthead** is a promotional banner with a complex nested carouse
 - State-based product mapping (Global, JH, CG, WB)
 - Uses **3-Phase Creation Logic** to handle nested dependencies
 - Configurable aspect ratio (1–4)
+
+### Emulator Preview — Secondary Masthead
+
+```
+┌─ Phone Emulator ────────────────────────────────┐
+│                                                   │
+│  ░░░ FULL-WIDTH BANNER BACKGROUND ░░░░░░░░░░░░  │  ← multimedia bg
+│  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │
+│  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │
+│                                                   │
+│  ┌── Carousel Items Below Banner ─────────────┐  │
+│  │ ┌─────────┐ ┌─────────┐ ┌─────────┐       │  │
+│  │ │         │ │         │ │         │       │  │
+│  │ │  Item1  │ │  Item2  │ │  Item3  │  → │  │
+│  │ │  image  │ │  image  │ │  image  │       │  │
+│  │ │         │ │         │ │         │       │  │
+│  │ │ Festive │ │  Rice   │ │ Kirana  │       │  │
+│  │ └─────────┘ └─────────┘ └─────────┘       │  │
+│  └────────────────────────────────────────────┘  │
+│                                                   │
+└───────────────────────────────────────────────────┘
+```
+
+### System Overview — 3-Phase Architecture
+
+```mermaid
+flowchart TD
+    User([User Input: Banner + Carousel Items]) --> Phase1
+
+    subgraph Phase1 [Phase 1: Parent Containers]
+        MM["1. Multimedia Background\n{base}_bg"] -.->
+        SMW["2. Secondary Masthead Widget\n{base}_sm_hp"]
+    end
+
+    Phase1 --> Phase2
+
+    subgraph Phase2 [Phase 2: Per Carousel Item]
+        Page["3. Page Layout\ncategory_page / product_listing_page"]
+        PLP["4. PLP Widget\nproduct_listing"]
+        SC["5. Sub-Category Items\nper state: global · jh · cg · wb"]
+        CI["6. Carousel Widget Item\nclick → page_layout_slug_name"]
+
+        SC -->|widget_item| PLP
+        PLP -->|layout_widget| Page
+        Page -->|global mapping| GR[Global Registry]
+        Page -.->|slug reference| CI
+    end
+
+    Phase2 --> Phase3
+
+    subgraph Phase3 [Phase 3: Final Mapping]
+        Map["7. Map all Carousel Items → SM Widget"]
+    end
+
+    Phase3 --> Live([Widgets LIVE ✓])
+```
 
 ## 2. Widget Composition
 

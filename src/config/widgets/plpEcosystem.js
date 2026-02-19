@@ -19,16 +19,20 @@
  * structure regardless of widget type.
  */
 
+import { STATE_DEFINITIONS as STATE_DEFINITIONS_BASE } from './MastheadConfig';
+
 // ── State / Location Definitions ──
+// Single source of truth: MastheadConfig.js — imported and extended here with 'required' flag.
 // Global is always required. Additional states are added dynamically via "Add State" button.
-export const LOCATION_STATES = {
-    global: { levelTag: 'global', levelProperty: 'global', slugSuffix: '_global', required: true },
-    jh: { levelTag: 'state', levelProperty: 'jharkhand', slugSuffix: '_jh', required: false },
-    cg: { levelTag: 'state', levelProperty: 'chhattisgarh', slugSuffix: '_cg', required: false },
-    wb: { levelTag: 'state', levelProperty: 'west bengal', slugSuffix: '_wb', required: false },
-    up: { levelTag: 'state', levelProperty: 'uttar pradesh', slugSuffix: '_up', required: false },
-    patna: { levelTag: 'state', levelProperty: 'patna', slugSuffix: '_patna', required: false },
+export const STATE_DEFINITIONS = {
+    global: { ...STATE_DEFINITIONS_BASE.global, required: true },
+    jh: { ...STATE_DEFINITIONS_BASE.jh, required: false },
+    cg: { ...STATE_DEFINITIONS_BASE.cg, required: false },
+    wb: { ...STATE_DEFINITIONS_BASE.wb, required: false },
+    up: { ...STATE_DEFINITIONS_BASE.up, required: false },
+    patna: { ...STATE_DEFINITIONS_BASE.patna, required: false },
 };
+
 
 // ── Page Types ──
 export const PAGE_TYPES = {
@@ -104,6 +108,12 @@ export const WIDGET_PAGE_TYPE_SUPPORT = {
         navigationMechanism: 'view_all_action_params',
     },
     multimedia_double_product_row: {
+        supportsProductListingPage: true,
+        supportsCategoryPage: true,
+        selectionLevel: 'per_widget',
+        navigationMechanism: 'view_all_action_params',
+    },
+    multimedia_double_product_row_v2: {
         supportsProductListingPage: true,
         supportsCategoryPage: true,
         selectionLevel: 'per_widget',
@@ -227,6 +237,7 @@ export const LOCATION_MAPPING_SUPPORT = {
     double_product_row: { supported: true, stateAddition: 'dynamic' },
     double_product_row_v2: { supported: true, stateAddition: 'dynamic' },
     multimedia_double_product_row: { supported: true, stateAddition: 'dynamic' },
+    multimedia_double_product_row_v2: { supported: true, stateAddition: 'dynamic' },
 };
 
 // ── Universal Filters & Configurations ──
@@ -252,16 +263,21 @@ export const UNIVERSAL_FILTERS = {
     },
 };
 
-// ── Universal App Configurations ──
+// ── App Configurations ──
 // Applied by PageViewUtils.__filter_by_app_version for all widget types
-export const UNIVERSAL_APP_CONFIGURATIONS = {
+// Same keys used in all widget configs (appConfigurations field)
+export const APP_CONFIGURATIONS = {
     allow_android: { type: 'boolean', default: true, component: 'ToggleInput', description: 'Toggle visibility on Android' },
     allow_ios: { type: 'boolean', default: true, component: 'ToggleInput', description: 'Toggle visibility on iOS' },
-    min_android_version: { type: 'version', component: 'VersionInput', description: 'Show only on Android >= V' },
-    max_android_version: { type: 'version', component: 'VersionInput', description: 'Show only on Android <= V' },
-    min_ios_version: { type: 'version', component: 'VersionInput', description: 'Show only on iOS >= V' },
-    max_ios_version: { type: 'version', component: 'VersionInput', description: 'Show only on iOS <= V' },
+    min_android_version: { type: 'version', default: null, component: 'VersionInput', description: 'Show only on Android >= V (e.g. 2.4.7)' },
+    max_android_version: { type: 'version', default: null, component: 'VersionInput', description: 'Show only on Android <= V' },
+    min_ios_version: { type: 'version', default: null, component: 'VersionInput', description: 'Show only on iOS >= V' },
+    max_ios_version: { type: 'version', default: null, component: 'VersionInput', description: 'Show only on iOS <= V' },
 };
+
+// Alias for backward compatibility
+export const UNIVERSAL_APP_CONFIGURATIONS = APP_CONFIGURATIONS;
+
 
 // ── Widget Item Additional Properties ──
 // Backend-processed by WidgetItemHelper for all item types
@@ -285,6 +301,7 @@ export const FILTER_SUPPORT_MATRIX = {
     double_product_row: { widgetFilters: true, itemFilters: true, productFilters: true, appConfig: true, additionalProperties: true },
     double_product_row_v2: { widgetFilters: true, itemFilters: true, productFilters: true, appConfig: true, additionalProperties: true },
     multimedia_double_product_row: { widgetFilters: true, itemFilters: true, productFilters: true, appConfig: true, additionalProperties: true },
+    multimedia_double_product_row_v2: { widgetFilters: true, itemFilters: true, productFilters: true, appConfig: true, additionalProperties: true },
     masthead_primary: { widgetFilters: true, itemFilters: false, productFilters: false, appConfig: true, additionalProperties: false },
 };
 
@@ -300,7 +317,7 @@ export const MAPPING_CSV_TEMPLATE = {
      * @returns {string} CSV row
      */
     generateRow(slugName, stateKey, priority) {
-        const state = LOCATION_STATES[stateKey];
+        const state = STATE_DEFINITIONS[stateKey];
         if (!state) {
             // Dynamic state — derive from key
             return `${slugName},state,${stateKey.toLowerCase()},${priority},`;

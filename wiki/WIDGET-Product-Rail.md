@@ -123,13 +123,24 @@ Supports operators: `in`, `equal`, `lte`, `gte`, `lt`, `gt`.
 ### Advanced Universal Filters
 These filters are **Universal** and apply to **ALL** Product Rail variants (Standard, Optimized, Multimedia), as they are handled by the core `WidgetItemHelper` and `PageViewUtils`.
 
-| Filter | Key | Description |
-| :--- | :--- | :--- |
-| **Order Count** | `min_order_constraint` | Show widget only if user's total orders $\ge$ X. |
-| **Order Count** | `max_order_constraint` | Show widget only if user's total orders $\le$ Y. |
-| **App Version** | `min_android_version` | Show widget only on Android App Version $\ge$ V (e.g. `2.4.7`). |
-| **App Version** | `max_android_version` | Show widget only on Android App Version $\le$ V. |
-| **Platform** | `allow_android`, `allow_ios`| Toggle visibility per platform. |
+**Widget-Level Filters (`filter_dict` on Widget)**
+
+| Key | Type | Component | Description |
+| :--- | :--- | :--- | :--- |
+| `min_order_constraint` | int | `NumberInput` | Show widget only if user's total orders >= X |
+| `max_order_constraint` | int | `NumberInput` | Show widget only if user's total orders <= Y |
+
+**App Configurations (`app_configurations` on Widget)**
+
+| Key | Type | Default | Component | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `allow_android` | boolean | `true` | `ToggleInput` | Toggle visibility on Android |
+| `allow_ios` | boolean | `true` | `ToggleInput` | Toggle visibility on iOS |
+| `min_android_version` | version | — | `VersionInput` | Show only on Android >= V (e.g. `2.4.7`) |
+| `max_android_version` | version | — | `VersionInput` | Show only on Android <= V |
+| `min_ios_version` | version | — | `VersionInput` | Show only on iOS >= V |
+| `max_ios_version` | version | — | `VersionInput` | Show only on iOS <= V |
+
 
 ## 6. Location / State-Based Product Mapping (Dynamic)
 

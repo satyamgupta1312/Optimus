@@ -1,3 +1,5 @@
+import { STATE_DEFINITIONS } from './MastheadConfig';
+
 /**
  * Product Rail Configuration — Source of Truth
  *
@@ -343,6 +345,9 @@ export const ProductRailConfig = {
         component: 'ProductRail',
         previewMaxProducts: 10,
     },
+
+    // ── State Definitions (single source of truth — shared with all widgets) ──
+    stateDefinitions: STATE_DEFINITIONS,
 
     // ── Initial State ──
     initialState: {

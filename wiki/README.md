@@ -20,6 +20,7 @@
     *   [Widget Creation](./Feature-Creation-Widget.md)
     *   [Fetch & Edit Widgets](./FEATURE-Fetch-Widget.md)
     *   [Widget Mapping](./Feature-Mapping-Widget.md)
+    *   [Widget Drag & Drop (Emulator Reorder)](./FEATURE-WIDGET-drag-and-drop.md)
 5.  **Widget Deep-Dives**
     *   [Collection Banner](./WIDGET-Collection-Banner.md) — Carousel (Scroll) and Category Grid (Stick) modes
     *   [Masthead (Primary & Secondary)](./WIDGET-Masthead.md)
@@ -42,7 +43,8 @@
 
 | Date | Change |
 | :--- | :--- |
-| Feb 2026 | `PLP-PAGE-widget-support.md` — added Section 7 (Universal Filters), Section 10 (Builder Guide), Section 11 (Adding New Widget) |
+| Feb 2026 | `FEATURE-WIDGET-drag-and-drop.md` — new wiki: widget drag & drop reorder, priority logic, GL-HP-global mapping |
+| Feb 2026 | `PLP-PAGE-widget-support.md` — rewritten with Expand Page toggle logic, API endpoints, removed Category Grid |
 | Feb 2026 | `WIDGET-Collection-Banner.md` — Carousel & Category Grid merged into single "Collection Banner" doc |
 | Feb 2026 | `WIDGET-Product-Rail.md` — fixed variant matrix (row 8 was missing `_v2`) |
 | Feb 2026 | `Widget-spr.md` — expanded to full 8-variant Product Rail matrix |

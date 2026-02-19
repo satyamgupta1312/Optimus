@@ -14,7 +14,7 @@ flowchart TD
     PageType -->|product_listing_page| Toggle["Expand Page toggle appears\n(default: OFF)"]
     PageType -->|category_page| Simple[Standard category page with sub-cat tabs]
 
-    Toggle -->|OFF| Flat[Simple product grid\nSub-Cat Items → flat list]
+    Toggle -->|OFF| Flat["Simple product grid\nSub-Cat Items → flat list"]
     Toggle -->|ON| Picker["Widget Picker opens\nSelect supported PLP widgets"]
 
     Picker --> Config["Configure each widget\nwith its own input fields"]
@@ -267,7 +267,7 @@ flowchart TD
             SC_JH["Sub-Cat: Summer Sale (JH)\nproducts: 1003,1004"]
             SC_UP["Sub-Cat: Summer Sale (UP)\nproducts: 1010,1011"]
 
-            PLP[PLP Widget\nproduct_listing]
+            PLP["PLP Widget\nproduct_listing"]
             Page["Page Layout\nproduct_listing_page OR category_page"]
 
             SC_G -->|"global, global, priority:1"| PLP
@@ -381,7 +381,7 @@ flowchart TD
         SC_G["Sub-Cat (Global)\nproducts: 1001,1002,1003"]
         SC_JH["Sub-Cat (JH)\nproducts: 1003,1004"]
 
-        PLP[PLP Widget\nproduct_listing]
+        PLP["PLP Widget\nproduct_listing"]
         Page["Page Layout\nproduct_listing_page\nOR category_page"]
 
         SC_G -->|"global, global, P:1"| PLP

@@ -10,19 +10,19 @@ SPR is fully driven by `ProductRailConfig.js` and is part of the **Product Rail*
 
 ```mermaid
 flowchart TD
-    User([User Configures SPR Widget]) --> Form[Fill Sidebar Form\nTitle · Products · Page Type]
+    User(["User Configures SPR Widget"]) --> Form["Fill Sidebar Form\nTitle · Products · Page Type"]
     Form --> Opt{is_optimized?}
     Form --> MM{has_multimedia?}
 
-    Opt -->|false| Std[Standard Path\nsingle_product_row]
-    Opt -->|true|  Opt2[Optimized Path\nsingle_product_row_v2]
-    MM  -->|true|  Media[+multimedia_ prefix\non widget_type]
+    Opt -->|false| Std["Standard Path\nsingle_product_row"]
+    Opt -->|true|  Opt2["Optimized Path\nsingle_product_row_v2"]
+    MM  -->|true|  Media["+multimedia_ prefix\non widget_type"]
 
-    Std  --> API1[POST /api/app/post_page_layout/\nPOST /api/app/post_widget_item/\nPOST /api/app/widget/\n+ 3 mapping CSV calls]
-    Opt2 --> API2[PLP Ecosystem + Home Row\n8 API calls total]
-    Media --> MM2[POST /api/app/multimedia/\nbefore widget create]
+    Std  --> API1["POST /api/app/post_page_layout/\nPOST /api/app/post_widget_item/\nPOST /api/app/widget/\n+ 3 mapping CSV calls"]
+    Opt2 --> API2["PLP Ecosystem + Home Row\n8 API calls total"]
+    Media --> MM2["POST /api/app/multimedia/\nbefore widget create"]
 
-    API1 --> Live([Widget Live on Backend])
+    API1 --> Live(["Widget Live on Backend"])
     API2 --> Live
     MM2  --> Live
 ```

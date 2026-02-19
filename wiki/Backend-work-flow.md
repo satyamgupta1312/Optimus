@@ -61,7 +61,7 @@ flowchart LR
     Canvas --> Submit[Submit → PENDING]
     Submit --> Queue
     Queue --> Decision{Decision}
-    Decision -->|Approve| Backend[Backend API Deployment\nWidgets LIVE ✓]
+    Decision -->|Approve| Backend["Backend API Deployment\nWidgets LIVE ✓"]
     Decision -->|Reject| Canvas
 ```
 
@@ -482,45 +482,45 @@ flowchart TD
 
     subgraph Maker Flow
         Canvas[Canvas — Select Widget Type]
-        Canvas --> FillForm[Fill Input Fields\nTitle, Products, Timing, State-wise data]
-        FillForm --> Emulator[Preview in Emulator\nPhoneFrame real-time render]
+        Canvas --> FillForm["Fill Input Fields\nTitle, Products, Timing, State-wise data"]
+        FillForm --> Emulator["Preview in Emulator\nPhoneFrame real-time render"]
         Emulator --> Submit[Click Submit]
-        Submit --> Package[submitForReview\nPackage all widgets into JSON]
-        Package --> Sheet[Google Sheet\nStatus: PENDING\nEditing locked]
+        Submit --> Package["submitForReview\nPackage all widgets into JSON"]
+        Package --> Sheet["Google Sheet\nStatus: PENDING\nEditing locked"]
     end
 
     RoleCheck -->|CHECKER| Queue
 
     subgraph Checker Flow
-        Sheet --> Queue[RequestQueue\nSee PENDING requests]
+        Sheet --> Queue["RequestQueue\nSee PENDING requests"]
         Queue --> Preview[Preview in Emulator]
         Preview --> Decision{Decision}
     end
 
     subgraph Reject Flow
         Decision -->|Reject| Reject[updateStatus: REJECTED]
-        Reject --> MakerEdit[Maker re-edits\nand re-submits]
+        Reject --> MakerEdit["Maker re-edits\nand re-submits"]
         MakerEdit --> Sheet
     end
 
     subgraph Approve + Validation Flow
-        Decision -->|Approve| Validate[Apps Script\nhandleApprove\nJSON Validation]
-        Validate --> Valid{All fields\nvalid?}
-        Valid -->|No| ErrResponse[Error Response\nWidget name + Error detail]
+        Decision -->|Approve| Validate["Apps Script\nhandleApprove\nJSON Validation"]
+        Validate --> Valid{"All fields\nvalid?"}
+        Valid -->|No| ErrResponse["Error Response\nWidget name + Error detail"]
         ErrResponse --> Reject
         Valid -->|Yes| Route[Route by widget type]
     end
 
     subgraph Backend API
-        Route --> SPR[createSPROptimizedWidget\ncreatesSPRStandardWidget]
+        Route --> SPR["createSPROptimizedWidget\ncreatesSPRStandardWidget"]
         Route --> CLP[createCLPWidget]
         Route --> Mast[createPrimaryMastheadFromApproval]
         Route --> CatGrid[createCategoryGridFromApproval]
-        SPR --> API[POST /api/app/widget\nPOST /api/app/post_widget_item\nPOST /api/app/post_page_layout\nMapping CSV uploads]
+        SPR --> API["POST /api/app/widget\nPOST /api/app/post_widget_item\nPOST /api/app/post_page_layout\nMapping CSV uploads"]
         CLP --> API
         Mast --> API
         CatGrid --> API
-        API --> Done([Status: APPROVED\nWidgets LIVE on backend ✓])
+        API --> Done(["Status: APPROVED\nWidgets LIVE on backend ✓"])
     end
 ```
 

@@ -1,5 +1,5 @@
 
-import { ProductRailConfig } from '../../config/widgets/ProductRailConfig';
+import { SPRConfig } from '../../config/widgets/SPRConfig';
 
 /**
  * ProductRailBuilder
@@ -11,7 +11,7 @@ import { ProductRailConfig } from '../../config/widgets/ProductRailConfig';
 export class ProductRailBuilder {
     constructor(widget) {
         this.widget = widget;
-        this.config = ProductRailConfig;
+        this.config = SPRConfig;
         this.slugBase = widget.slug || widget.title.toLowerCase().replace(/ /g, '_');
     }
 

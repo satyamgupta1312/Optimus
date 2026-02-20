@@ -346,33 +346,11 @@ flowchart TD
 
 ---
 
-### 7.3 Single Product Row (Standard)
+### 7.3 Single Product Row (ALL Variants — Standard & Optimized)
 
-**Script:** `SPR_Widget_Optimized.gs` → `createSPRStandardWidget()`
+**Script:** `SPR_Widget_Optimized.gs`
 
-Standard SPR creates a **single widget item** of type `item_rows`. Simpler mapping.
-
-```mermaid
-flowchart TD
-    subgraph SPR Standard Ecosystem
-        WI["Widget Item\nitem_type: item_rows\nproduct_list: 1001,1002,1003"]
-        SPR["SPR Widget\nsingle_product_row"]
-        Page["Page Layout\nproduct_listing_page OR\ncategory_page"]
-
-        WI -->|widget_item mapping| SPR
-        SPR -->|layout_widget mapping| Page
-    end
-
-    SPR -.->|"view_all_action_params\npage_layout_slug_name"| Page
-```
-
----
-
-### 7.4 Single Product Row (Optimized V2)
-
-**Script:** `SPR_Widget_Optimized.gs` → `createSPROptimizedWidget()`
-
-Creates **two parallel flows** — PLP ecosystem with `sub_category` items AND a home row with `item_rows`.
+**All** Product Rail variants create **two parallel flows** — a PLP ecosystem with state-wise `sub_category` items AND a home row with `item_rows`. The `is_optimized` flag only controls the `widget_type` name (`_v2` suffix), not the creation flow.
 
 ```mermaid
 flowchart TD
@@ -394,7 +372,7 @@ flowchart TD
     subgraph Flow 2 - Home Row
         direction TB
         RI["Row Widget Item\nitem_type: item_rows"]
-        SPR["SPR V2 Widget\nsingle_product_row_v2"]
+        SPR["Homepage Widget\nwidget_type from variant matrix"]
 
         RI -->|widget_item mapping| SPR
     end
@@ -417,7 +395,7 @@ flowchart TD
 
 ### 7.5 Multimedia Product Row
 
-**Same as Optimized (V2)** with an additional **multimedia background** object.
+**Same creation flow as all Product Rail variants** with an additional **multimedia background** object.
 
 - Widget type: `multimedia_single_product_row` or `multimedia_single_product_row_v2`
 - Creates same PLP ecosystem with state-wise sub-category mapping
@@ -571,8 +549,8 @@ These filters are **universal** across ALL supported PLP widget types. Handled b
 | :--- | :--- | :--- | :--- |
 | `show_sub_cat` | Boolean | `false` | Show sub-category tabs on the page |
 
-**`show_sub_cat: true`** → Carousel, Secondary Masthead
-**`show_sub_cat: false`** → SPR Standard, SPR Optimized, non-optimized variants
+**`show_sub_cat: true`** → Carousel, Secondary Masthead, Category Grid (Stick)
+**`show_sub_cat: false`** → All Product Rail variants (SPR Standard, SPR Optimized, DPR — all 8 variants)
 
 ---
 
@@ -611,7 +589,7 @@ These filters are **universal** across ALL supported PLP widget types. Handled b
 
 ## 13. Related Documentation
 
-- [Product Rail Widget](./WIDGET-Product-Rail.md) — All 8 SPR variants and composition
+- [Product Rail Widget](./Widget-spr.md) — All 8 SPR variants and composition
 - [Collection Banner Widget](./WIDGET-Collection-Banner.md) — Carousel (Scroll) and Category Grid (Stick) modes
 - [Masthead Widget](./WIDGET-Masthead.md) — Secondary Masthead 3-phase creation
 - [Slug Name Reference](./SLUG_NAME.md) — All slug patterns across widgets

@@ -1,10 +1,7 @@
 import React from 'react';
 import { X, Copy } from 'lucide-react';
-import SingleProductRow from './SingleProductRow';
-import SingleProductRowOptimized from './SingleProductRowOptimized';
-// import PromoScrollWidget from './PromoScrollWidget'; // Removed
 import BannerWithProductListing from './BannerWithProductListing';
-import ProductRail from './ProductRail/ProductRail';
+import SingleProductRow from './SPR/SingleProductRow';
 import PrimaryMasthead from './PrimaryMasthead';
 import CategoryGrid from './CategoryGrid';
 import CollectionBanner from './CollectionBanner';
@@ -17,7 +14,7 @@ const WidgetRenderer = ({ widget, isSelected, onClick, deleteWidget }) => {
     // Legacy componentMap (for non-config-driven widgets)
     const legacyComponentMap = {
         'Single Product Row': SingleProductRow,
-        'Single Product Row Optimize': SingleProductRowOptimized,
+        'Single Product Row Optimize': SingleProductRow,
         'Secondary Masthead Carousel': PrimaryMasthead,
         'Primary Masthead': PrimaryMasthead,
         'Banner With Product Listing': BannerWithProductListing,
@@ -27,10 +24,12 @@ const WidgetRenderer = ({ widget, isSelected, onClick, deleteWidget }) => {
 
     // Config-driven componentMap (resolved from config.rendering.component)
     const configComponentMap = {
-        'ProductRail': ProductRail,
-        // Future:
-        // 'CategoryGrid': CategoryGridNew,
-        // 'Masthead': MastheadNew,
+        'SingleProductRow': SingleProductRow,
+        'CollectionBanner': CollectionBanner,
+        'BannerWithProductListing': BannerWithProductListing,
+        'CategoryGrid': CategoryGrid,
+        'PrimaryMasthead': PrimaryMasthead,
+        'SecondaryMasthead': PrimaryMasthead,
     };
 
     const renderWidgetContent = () => {

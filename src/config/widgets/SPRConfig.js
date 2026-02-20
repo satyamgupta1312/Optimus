@@ -1,40 +1,57 @@
 /**
- * Single Product Row (SPR) Configuration — Source of Truth
+ * Product Rail Configuration — Source of Truth (SPR + DPR)
  *
- * Captures SPR-specific details:
- * 1. Page Type Selection (product_listing_page / category_page)
- * 2. Variant Matrix (4 SPR variants: is_optimized x has_multimedia)
- * 3. Deploy Strategies (Standard / Optimized with dual-flow PLP ecosystem)
- * 4. State-Based Location Mapping (Optimized variant)
- * 5. Slug Patterns (Standard + Optimized)
+ * Unified config for ALL Product Rail variants:
+ * - Single Product Row (SPR): rows=1, 4 variants
+ * - Double Product Row (DPR): rows=2, 4 variants
+ * - Total: 8 backend variants (rows × is_optimized × has_multimedia)
+ *
+ * Covers:
+ * 1. Variant Resolution (PNC → backend widget_type)
+ * 2. Page Type Selection (product_listing_page / category_page)
+ * 3. Deploy Strategies (ALL variants use dual-flow: PLP ecosystem + Home Row)
+ * 4. State-Based Location Mapping (ALL variants — state-wise products always present)
+ * 5. Slug Patterns (unified — all variants create PLP ecosystem)
  * 6. Navigation ("View All" link to PLP page)
  *
  * Wiki Reference: wiki/Widget-spr.md
- *
- * Note: SPR is a subset of the Product Rail family (rows=1).
- * See ProductRailConfig.js for the full 8-variant Product Rail config (Single + Double rows).
  */
 
 import { STATE_DEFINITIONS } from './MastheadConfig';
 
 export const SPRConfig = {
     // ── Identity ──
-    type: 'single_product_row',
-    label: 'Single Product Row',
+    type: 'product_rail',
+    label: 'Product Rail',
     icon: 'LayoutGrid',
-    description: 'Horizontal scrollable row of product cards with "View All" link to a PLP page. Resolves into 4 backend variants based on Optimized and Multimedia properties.',
-    parentConfig: 'ProductRailConfig', // SPR is rows=1 subset of Product Rail
+    description: 'Scrollable product cards with "View All" link. Supports single row (SPR) and double row (DPR). Resolves into 8 backend variants based on Rows, Optimized, and Multimedia.',
 
     // ── PNC Properties ──
     properties: {
+        rows: {
+            type: 'number',
+            options: [
+                { label: 'Single Row', value: 1 },
+                { label: 'Double Row', value: 2 },
+            ],
+            default: 1,
+            label: 'Layout',
+            ui: 'pills',
+        },
         is_optimized: {
             type: 'boolean',
             default: true,
             label: 'Optimized Rendering',
-            description: 'Creates PLP ecosystem with state-wise sub-categories',
+            description: 'Adds _v2 suffix to widget_type for optimized rendering. State-wise products are available in ALL variants.',
             ui: 'card',
         },
-        // has_multimedia is IMPLICIT from background_media presence
+        has_multimedia: {
+            type: 'boolean',
+            default: false,
+            label: 'Multimedia Background',
+            description: 'Enable background image/video behind the product rail. Variant becomes multimedia_*.',
+            ui: 'card',
+        },
     },
 
     // ── Page Type Selection ──
@@ -52,20 +69,26 @@ export const SPRConfig = {
         affects: ['page_layout.page_type', 'view_all_action_params.page_type'],
     },
 
-    // ── Variant Resolution Matrix ──
+    // ── Variant Resolution Matrix (8 variants: rows × is_optimized × has_multimedia) ──
     variantMatrix: [
-        { is_optimized: false, has_multimedia: false, widgetType: 'single_product_row' },
-        { is_optimized: true, has_multimedia: false, widgetType: 'single_product_row_v2' },
-        { is_optimized: false, has_multimedia: true, widgetType: 'multimedia_single_product_row' },
-        { is_optimized: true, has_multimedia: true, widgetType: 'multimedia_single_product_row_v2' },
+        // SPR (rows=1)
+        { rows: 1, is_optimized: false, has_multimedia: false, widgetType: 'single_product_row' },
+        { rows: 1, is_optimized: true, has_multimedia: false, widgetType: 'single_product_row_v2' },
+        { rows: 1, is_optimized: false, has_multimedia: true, widgetType: 'multimedia_single_product_row' },
+        { rows: 1, is_optimized: true, has_multimedia: true, widgetType: 'multimedia_single_product_row_v2' },
+        // DPR (rows=2)
+        { rows: 2, is_optimized: false, has_multimedia: false, widgetType: 'double_product_row' },
+        { rows: 2, is_optimized: true, has_multimedia: false, widgetType: 'double_product_row_v2' },
+        { rows: 2, is_optimized: false, has_multimedia: true, widgetType: 'multimedia_double_product_row' },
+        { rows: 2, is_optimized: true, has_multimedia: true, widgetType: 'multimedia_double_product_row_v2' },
     ],
 
     // ── Multimedia Constraint ──
-    // single_product_row and single_product_row_v2 IGNORE background_multimedia.
+    // Non-multimedia variants IGNORE background_multimedia.
     // Only multimedia_* variants render backgrounds.
     multimediaConstraint: {
-        ignoredBy: ['single_product_row', 'single_product_row_v2'],
-        renderedBy: ['multimedia_single_product_row', 'multimedia_single_product_row_v2'],
+        ignoredBy: ['single_product_row', 'single_product_row_v2', 'double_product_row', 'double_product_row_v2'],
+        renderedBy: ['multimedia_single_product_row', 'multimedia_single_product_row_v2', 'multimedia_double_product_row', 'multimedia_double_product_row_v2'],
     },
 
     // ── Form Fields ──
@@ -125,7 +148,8 @@ export const SPRConfig = {
             name: 'background_media',
             component: 'ImageUpload',
             label: 'Background Media',
-            helperText: 'Upload image to enable multimedia mode',
+            helperText: 'Upload image for multimedia background',
+            condition: (pnc) => pnc.has_multimedia,
             validation: {
                 required: false,
                 acceptExtensions: ['.jpeg', '.jpg', '.png', '.webp', '.gif', '.svg'],
@@ -136,6 +160,7 @@ export const SPRConfig = {
             name: 'background_video',
             component: 'UrlInput',
             label: 'Background Video URL',
+            condition: (pnc) => pnc.has_multimedia,
             validation: {
                 required: false,
                 pattern: /^https?:\/\/.+\.(mp4|mov|webm)$/i,
@@ -154,10 +179,24 @@ export const SPRConfig = {
             },
             errorMessage: 'Slug must be lowercase alphanumeric',
         },
+        {
+            name: 'start_time',
+            component: 'DateTimeInput',
+            label: 'Start Date & Time',
+            validation: { required: true },
+            errorMessage: 'Start time is required',
+        },
+        {
+            name: 'end_time',
+            component: 'DateTimeInput',
+            label: 'End Date & Time',
+            validation: { required: true },
+            errorMessage: 'End time is required',
+        },
     ],
 
     // ── Supported Filters ──
-    // Universal across all 4 SPR variants — handled by WidgetItemHelper / PageViewUtils
+    // Universal across all 8 variants — handled by WidgetItemHelper / PageViewUtils
     filters: {
         widget: {
             max_order_constraint: { type: 'int', label: 'Max Order Count', component: 'NumberInput', description: 'Show only if user orders <= Y' },
@@ -194,46 +233,97 @@ export const SPRConfig = {
 
     // ── Deploy Strategies ──
     deployStrategies: {
-        // ── STANDARD (single_product_row / multimedia_single_product_row) ──
+        // ── STANDARD (single_product_row / multimedia_single_product_row — NO _v2 suffix) ──
+        // Same dual-flow as OPTIMIZED. State-wise products in ALL variants.
+        // Only difference: widget slug suffix (_spr instead of _spr_opt) and widget_type (no _v2).
         STANDARD: {
-            description: 'Standard SPR — Page Layout → Widget Item → Widget → Mappings',
+            description: 'Standard SPR — Dual-flow: PLP Ecosystem (state-wise) + Home Row',
             condition: (pnc) => !pnc.is_optimized,
             steps: [
-                // Step 1: Page Layout
+                // === Flow 1: PLP Ecosystem (state-wise — same as OPTIMIZED) ===
+                // Step 1: Sub-Category Widget Item (per state — location-wise)
+                {
+                    entity: 'widget_item',
+                    endpoint: '/api/app/post_widget_item/',
+                    slugSuffix: '_sc_wi',
+                    type: 'multipart',
+                    iterateStates: true,
+                    fieldMap: {
+                        slug_name: '$slug',
+                        item_type: 'sub_category',
+                        text_en: '$title',
+                        text_hi: '$titleHi',
+                        product_list: '$stateProductCodes',
+                        filter_lst: '$inStockFilter',
+                        item_click_action: 'deal-detail-redirect',
+                        is_clickable: 'yes',
+                        deactivated_flag: 'no',
+                        start_time: '$startTime',
+                        end_time: '$endTime',
+                    },
+                },
+                // Step 2: PLP Widget
+                {
+                    entity: 'widget',
+                    endpoint: '/api/app/widget/',
+                    slugSuffix: '_plp_w',
+                    type: 'multipart',
+                    fieldMap: {
+                        slug_name: '$slug',
+                        widget_type: 'product_listing',
+                        heading: '$title',
+                        heading_en: '$title',
+                        start_time: '$startTime',
+                        end_time: '$endTime',
+                        app_configurations: '$plpAppConfig',
+                    },
+                },
+                // Step 3: Page Layout
                 {
                     entity: 'page_layout',
                     endpoint: '/api/app/post_page_layout/',
-                    slugSuffix: '_page',
+                    slugSuffix: '_page_p',
                     type: 'json',
                     fieldMap: {
                         slug_name: '$slug',
                         page_heading: '$title',
                         page_layout_type: '2',
-                        page_type: '$selectedPageType', // user-selected: product_listing_page or category_page
+                        page_type: '$selectedPageType',
                     },
                 },
-                // Step 2: Widget Item (item_rows)
+                // Step 4: Map Sub-Cat → PLP Widget (location-wise CSV)
+                {
+                    action: 'map_widget_item',
+                    parentSlugSuffix: '_plp_w',
+                    childPattern: '_sc_wi_{state}',
+                    mappingFields: {
+                        level_tag: '$stateLevelTag',
+                        level_property: '$stateLevelProperty',
+                        priority: '$statePriority',
+                    },
+                },
+                // Step 5: Map PLP Widget → Page Layout
+                { action: 'map_layout_widget', parentSlugSuffix: '_page_p', childSlugSuffix: '_plp_w' },
+                // Step 6: Map Page Layout → Global Registry
+                { action: 'map_page_layout', parentSlugSuffix: '_page_p' },
+
+                // === Flow 2: Home Row ===
+                // Step 7: Row Widget Item (item_rows)
                 {
                     entity: 'widget_item',
                     endpoint: '/api/app/post_widget_item/',
-                    slugSuffix: '_wi',
+                    slugSuffix: '_pr_wi',
                     type: 'multipart',
                     fieldMap: {
                         slug_name: '$slug',
                         item_type: 'item_rows',
-                        text_en: '$title',
-                        text_hi: '$titleHi',
                         product_list: '$productCodes',
                         filter_lst: '$inStockFilter',
-                        item_click_action: 'deal-detail-redirect',
-                        is_clickable: 'no',
-                        deactivated_flag: 'no',
                         start_time: '$startTime',
                         end_time: '$endTime',
-                        media_en: '$blankBlob',
                     },
                 },
-                // Step 3: Widget (SPR)
+                // Step 8: Homepage Widget (Standard — no _v2 suffix)
                 {
                     entity: 'widget',
                     endpoint: '/api/app/widget/',
@@ -245,7 +335,7 @@ export const SPRConfig = {
                         heading_en: '$title',
                         heading_hi: '$titleHi',
                         view_all_action_name: 'redirect-to-page',
-                        view_all_action_params: '$viewAllParams', // {"page_type":"...","page_layout_slug_name":"..."}
+                        view_all_action_params: '$viewAllParams',
                         start_time: '$startTime',
                         end_time: '$endTime',
                         background_multimedia: '$backgroundMultimediaSlug',
@@ -254,16 +344,14 @@ export const SPRConfig = {
                         app_configurations: '$appConfigurations',
                     },
                 },
-                // Step 4: Map Widget Item → Widget
-                { action: 'map_widget_item', parentSlugSuffix: '_spr', childSlugSuffix: '_wi' },
-                // Step 5: Map Widget → Page Layout
-                { action: 'map_layout_widget', parentSlugSuffix: '_page', childSlugSuffix: '_spr' },
+                // Step 9: Map Row Item → Homepage Widget
+                { action: 'map_widget_item', parentSlugSuffix: '_spr', childSlugSuffix: '_pr_wi' },
             ],
         },
 
-        // ── OPTIMIZED (single_product_row_v2 / multimedia_single_product_row_v2) ──
+        // ── OPTIMIZED (single_product_row_v2 / multimedia_single_product_row_v2 — _v2 suffix) ──
         OPTIMIZED: {
-            description: 'Optimized SPR — Dual-flow: PLP Ecosystem + Home Row',
+            description: 'Optimized SPR — Dual-flow: PLP Ecosystem (state-wise) + Home Row',
             condition: (pnc) => pnc.is_optimized,
             steps: [
                 // === Flow 1: PLP Ecosystem ===
@@ -382,29 +470,34 @@ export const SPRConfig = {
         actionName: 'redirect-to-page',
         paramsShape: {
             page_type: '$selectedPageType', // "product_listing_page" or "category_page"
-            page_layout_slug_name: '$pageLayoutSlug', // {base}_page (standard) or {base}_page_p (optimized)
+            page_layout_slug_name: '$pageLayoutSlug', // {base}_page_p (all variants)
         },
     },
 
-    // ── Slug Patterns ──
+    // ── Slug Patterns (unified — ALL variants create PLP ecosystem) ──
     slugPatterns: {
-        standard: {
-            pageLayout: '{base}_page',
-            widgetItem: '{base}_wi',
-            widget: '{base}_spr',
-            example: {
-                base: 'rice_mela_rail',
-                pageLayout: 'rice_mela_rail_page',
-                widgetItem: 'rice_mela_rail_wi',
-                widget: 'rice_mela_rail_spr',
-            },
-        },
-        optimized: {
+        // Both Standard and Optimized use the same PLP ecosystem slugs.
+        // Only the homepage widget slug differs: _spr (Standard) vs _spr_opt (Optimized).
+        common: {
             subCategoryGlobal: '{base}_sc_wi_global',
             subCategoryState: '{base}_sc_wi_{state_key}',
             plpWidget: '{base}_plp_w',
             pageLayout: '{base}_page_p',
             rowWidgetItem: '{base}_pr_wi',
+        },
+        standard: {
+            widget: '{base}_spr',
+            example: {
+                base: 'rice_mela_rail',
+                subCategoryGlobal: 'rice_mela_rail_sc_wi_global',
+                subCategoryJH: 'rice_mela_rail_sc_wi_jh',
+                plpWidget: 'rice_mela_rail_plp_w',
+                pageLayout: 'rice_mela_rail_page_p',
+                rowWidgetItem: 'rice_mela_rail_pr_wi',
+                widget: 'rice_mela_rail_spr',
+            },
+        },
+        optimized: {
             widget: '{base}_spr_opt',
             example: {
                 base: 'rice_mela_rail',
@@ -418,10 +511,10 @@ export const SPRConfig = {
         },
     },
 
-    // ── State Mapping (Optimized only) ──
+    // ── State Mapping (ALL variants) ──
     // Creates one sub-category widget item per state for location-specific product lists
     stateMapping: {
-        appliesTo: 'optimized',
+        appliesTo: 'all', // State-wise products in ALL variants — Standard and Optimized
         globalRequired: true,
         dynamicStates: true, // User adds via "+ Add State" button
         csvFormat: {
@@ -433,7 +526,7 @@ export const SPRConfig = {
 
     // ── Rendering ──
     rendering: {
-        component: 'ProductRail',
+        component: 'SingleProductRow', // Handles all 8 variants (SPR + DPR)
         previewMaxProducts: 10,
     },
 
@@ -443,6 +536,8 @@ export const SPRConfig = {
         title: 'New Collection',
         products: [],
         pageType: 'product_listing_page',
+        start_time: '',
+        end_time: '',
         pnc: { rows: 1, is_optimized: true, has_multimedia: false },
     },
 

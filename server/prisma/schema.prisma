@@ -1,0 +1,168 @@
+// Optimus Local Backend — Prisma Schema
+// SQLite database for widget management, approval workflow, and catalog
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./optimus.db"
+}
+
+// ── User ──
+// Upserted on every request via X-Optimus-User header
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String   @default("")
+  role      String   @default("MAKER") // MAKER | CHECKER | SUPER_ADMIN
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  widgets      Widget[]
+  requests     Request[]
+  comments     Comment[]
+  activityLogs ActivityLog[]
+  checkerEntry CheckerList?
+}
+
+// ── Widget ──
+// Central entity — stores all widget types with flexible JSON fields
+model Widget {
+  id        String   @id @default(uuid())
+  type      String   // product_rail | collection_banner | masthead
+  slug      String   @unique
+  title     String   @default("")
+  titleHi   String   @default("")
+  status    String   @default("DRAFT") // DRAFT | PENDING | APPROVED | REJECTED
+  sortOrder Int      @default(0)
+
+  // Flexible JSON fields (stored as strings)
+  pnc       String   @default("{}") // Properties & Characteristics (rows, is_optimized, etc.)
+  config    String   @default("{}") // Widget-specific config (pageType, filters, appConfig, etc.)
+  products  String   @default("[]") // Product codes array
+
+  // Metadata
+  createdBy String
+  creator   User     @relation(fields: [createdBy], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  versions       WidgetVersion[]
+  requestWidgets RequestWidget[]
+  comments       Comment[]
+}
+
+// ── WidgetVersion ──
+// Persistent undo history — replaces in-memory 50-snapshot limit
+model WidgetVersion {
+  id        String   @id @default(uuid())
+  widgetId  String
+  widget    Widget   @relation(fields: [widgetId], references: [id], onDelete: Cascade)
+  version   Int      // Auto-incrementing per widget
+  snapshot  String   // Full widget state as JSON
+  changedBy String   @default("")
+  changeLog String   @default("") // Description of what changed
+  createdAt DateTime @default(now())
+
+  @@unique([widgetId, version])
+  @@index([widgetId])
+}
+
+// ── HeaderWidget ──
+// Exactly 2 rows: primaryMasthead, secondaryMasthead
+model HeaderWidget {
+  id     String @id // "primaryMasthead" | "secondaryMasthead"
+  config String @default("{}") // Full header widget state as JSON
+  updatedAt DateTime @updatedAt
+}
+
+// ── Request ──
+// Approval workflow: DRAFT -> PENDING -> APPROVED | REJECTED
+model Request {
+  id              String   @id @default(uuid())
+  status          String   @default("DRAFT") // DRAFT | PENDING | APPROVED | REJECTED
+  type            String   @default("Homepage Update")
+  submittedBy     String
+  submitter       User     @relation(fields: [submittedBy], references: [id])
+  rejectionReason String   @default("")
+  headerWidgets   String   @default("{}") // Snapshot of header widgets at submission
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  requestWidgets RequestWidget[]
+
+  @@index([status])
+  @@index([submittedBy])
+}
+
+// ── RequestWidget ──
+// Join table: captures widget state at submission time
+model RequestWidget {
+  id        String  @id @default(uuid())
+  requestId String
+  request   Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  widgetId  String
+  widget    Widget  @relation(fields: [widgetId], references: [id], onDelete: Cascade)
+  snapshot  String  @default("{}") // Widget state frozen at submission
+  sortOrder Int     @default(0)
+  result    String  @default("") // Deploy result: ok | updated | skipped | failed
+  error     String  @default("") // Error message if failed
+
+  @@unique([requestId, widgetId])
+  @@index([requestId])
+}
+
+// ── Comment ──
+// Per-widget discussion thread
+model Comment {
+  id        String   @id @default(uuid())
+  widgetId  String
+  widget    Widget   @relation(fields: [widgetId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([widgetId])
+}
+
+// ── ActivityLog ──
+// Audit trail for significant actions
+model ActivityLog {
+  id        String   @id @default(uuid())
+  action    String   // submit | approve | reject | create | update | delete | deploy
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  targetId  String   @default("") // Widget or Request ID
+  details   String   @default("{}") // Extra context as JSON
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ── Product ──
+// Local product catalog (imported from catalog.csv)
+model Product {
+  id        Int    @id @default(autoincrement())
+  itemCode  String @unique
+  name      String @default("")
+  brand     String @default("")
+  image     String @default("")
+  mrp       Float  @default(0)
+  price     Float  @default(0)
+
+  @@index([name])
+}
+
+// ── CheckerList ──
+// Users authorized as Checkers (approval role)
+model CheckerList {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  addedAt DateTime @default(now())
+}

@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 codebase/
+
+# Prisma SQLite database
+server/prisma/*.db
+server/prisma/*.db-journal

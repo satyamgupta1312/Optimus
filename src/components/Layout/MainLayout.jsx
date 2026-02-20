@@ -9,8 +9,11 @@ import { useAppSettings } from '../../context/AppSettingsContext';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import RequestQueue from '../Dashboard/RequestQueue';
 import ManageApprovalUsers from '../AdminPanel/ManageApprovalUsers';
+import HomepageMappingDashboard from '../Dashboard/HomepageMappingDashboard';
+import WidgetVersionHistory from '../Dashboard/WidgetVersionHistory';
+import DeploymentStatusPanel from '../Dashboard/DeploymentStatusPanel';
 import { ACTIVE_ENV } from '../../config/apiConfig';
-import { LogOut, Save, CheckCircle, XCircle, Send, RotateCcw, Smartphone, ChevronDown, ListTodo, History, Undo2, Redo2, Settings, X, Users } from 'lucide-react';
+import { LogOut, Save, CheckCircle, XCircle, Send, RotateCcw, Smartphone, ChevronDown, ListTodo, History, Undo2, Redo2, Settings, X, Users, Map, Rocket } from 'lucide-react';
 
 
 const MainLayout = () => {
@@ -25,6 +28,9 @@ const MainLayout = () => {
     const [showQueue, setShowQueue] = React.useState(false);
     const [showHeaderConfig, setShowHeaderConfig] = React.useState(false);
     const [showManageUsers, setShowManageUsers] = React.useState(false);
+    const [showMapping, setShowMapping] = React.useState(false);
+    const [showVersionHistory, setShowVersionHistory] = React.useState(false);
+    const [showDeploy, setShowDeploy] = React.useState(false);
 
     // Keyboard shortcuts
     useKeyboardShortcuts({
@@ -145,6 +151,46 @@ const MainLayout = () => {
                         >
                             <Users size={14} />
                             <span>Users</span>
+                        </button>
+                    )}
+
+                    {/* Mapping Dashboard Button */}
+                    <button
+                        onClick={() => setShowMapping(true)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs font-medium ${
+                            showMapping
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                : 'border-slate-200 text-slate-700 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700'
+                        }`}
+                        title="Homepage Mappings"
+                    >
+                        <Map size={14} />
+                        <span>Mapping</span>
+                    </button>
+
+                    {/* Version History Button */}
+                    <button
+                        onClick={() => setShowVersionHistory(true)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs font-medium ${
+                            showVersionHistory
+                                ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                                : 'border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700'
+                        }`}
+                        title="Version History"
+                    >
+                        <History size={14} />
+                        <span>History</span>
+                    </button>
+
+                    {/* Deploy Button (visible when APPROVED) */}
+                    {pageStatus === 'APPROVED' && (
+                        <button
+                            onClick={() => setShowDeploy(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-medium hover:from-blue-700 hover:to-cyan-700 transition-all shadow-sm"
+                            title="Deploy Widgets"
+                        >
+                            <Rocket size={14} />
+                            <span>Deploy</span>
                         </button>
                     )}
 
@@ -400,6 +446,24 @@ const MainLayout = () => {
                         </div>
                     </div>
                 </>
+            )}
+
+            {/* Homepage Mapping Dashboard Modal */}
+            {showMapping && (
+                <HomepageMappingDashboard onClose={() => setShowMapping(false)} />
+            )}
+
+            {/* Widget Version History Modal */}
+            {showVersionHistory && (
+                <WidgetVersionHistory
+                    widgetSlug="rice_mela_spr_opt"
+                    onClose={() => setShowVersionHistory(false)}
+                />
+            )}
+
+            {/* Deployment Status Panel Modal */}
+            {showDeploy && (
+                <DeploymentStatusPanel onClose={() => setShowDeploy(false)} />
             )}
 
             {/* Interactive Help Guide */}

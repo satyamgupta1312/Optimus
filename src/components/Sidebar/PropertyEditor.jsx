@@ -7,6 +7,8 @@ import { validateField } from '../../services/system/ConfigValidator';
 import PillSelector from '../Inputs/PillSelector';
 import ToggleInput from '../Inputs/ToggleInput';
 import LegacyPropertyEditor from './LegacyPropertyEditor';
+import FilterEditor from '../Editors/FilterEditor';
+import AppConfigEditor from '../Editors/AppConfigEditor';
 
 /**
  * PropertyEditor
@@ -133,12 +135,13 @@ const PropertyEditor = ({ widget }) => {
                             <InputComponent
                                 key={field.name}
                                 label={field.label}
-                                value={widget[field.name] || ''}
+                                value={widget[field.name] || field.default || ''}
                                 onChange={(val) => handleChange(field.name, val)}
                                 error={error}
                                 helperText={field.helperText}
                                 placeholder={field.placeholder}
                                 required={field.validation?.required}
+                                options={field.options}
                                 widget={widget}
                                 {...(field.validation || {})}
                             />
@@ -147,7 +150,7 @@ const PropertyEditor = ({ widget }) => {
                 </div>
             </div>
 
-            {/* ─── Section 3: Filters (if config defines them) ─── */}
+            {/* ─── Section 3: Advanced Settings ─── */}
             {config.additionalProperties && (
                 <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-sm">
                     <h3 className="font-semibold text-sm text-slate-900 mb-3">Advanced Settings</h3>
@@ -166,6 +169,24 @@ const PropertyEditor = ({ widget }) => {
                         })}
                     </div>
                 </div>
+            )}
+
+            {/* ─── Section 4: Filters ─── */}
+            {config.filters && (
+                <FilterEditor
+                    filters={config.filters}
+                    value={widget.filterValues || {}}
+                    onChange={(val) => handleChange('filterValues', val)}
+                />
+            )}
+
+            {/* ─── Section 5: App Configuration ─── */}
+            {config.appConfigurations && (
+                <AppConfigEditor
+                    config={config.appConfigurations}
+                    value={widget.appConfig || {}}
+                    onChange={(val) => handleChange('appConfig', val)}
+                />
             )}
         </div>
     );

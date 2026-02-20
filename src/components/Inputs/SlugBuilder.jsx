@@ -20,7 +20,7 @@ const SlugSelect = ({ label, value, onChange, options, placeholder, disabled }) 
             value={value}
             onChange={(e) => onChange(e.target.value)}
             disabled={disabled}
-            className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded-md text-xs text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 focus:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
         >
             <option value="">{placeholder || `Select ${label}`}</option>
             {options.map((opt) => {
@@ -54,7 +54,7 @@ const SmartLocationSelect = ({ level, setLevel, locations, setLocations }) => {
                     setLevel(e.target.value);
                     setLocations([]);
                 }}
-                className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded-md text-xs text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 mb-1.5"
+                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 focus:bg-white mb-1.5"
             >
                 <option value="">Select Level</option>
                 {LOCATION_LEVELS.map((l) => (
@@ -75,7 +75,7 @@ const SmartLocationSelect = ({ level, setLevel, locations, setLocations }) => {
                                 className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
                                     isSelected
                                         ? 'bg-blue-600 text-white ring-1 ring-blue-500/30'
-                                        : 'bg-slate-800 text-slate-400 border border-slate-700 hover:border-slate-500'
+                                        : 'bg-slate-50 text-slate-500 border border-slate-200 hover:border-blue-300 hover:bg-blue-50'
                                 }`}
                             >
                                 {loc}
@@ -184,12 +184,12 @@ const SlugBuilder = ({ label, value, onChange, error, helperText, required, widg
 
     return (
         <div className="mb-3">
-            <label className="block text-xs font-medium text-slate-400 mb-2">
+            <label className="block text-xs font-medium text-slate-500 mb-2">
                 {label}
                 {required && <span className="text-red-400 ml-1">*</span>}
             </label>
 
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 space-y-2.5">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2.5">
                 {/* Row 1: Header + Identifier */}
                 <div className="grid grid-cols-2 gap-2">
                     <SlugSelect
@@ -206,7 +206,7 @@ const SlugBuilder = ({ label, value, onChange, error, helperText, required, widg
                             value={identifier}
                             onChange={(e) => handleIdentifierChange(e.target.value)}
                             placeholder="e.g. buy_1_get_1"
-                            className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded-md text-xs text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
+                            className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-md text-xs text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
                         />
                     </div>
                 </div>
@@ -215,8 +215,8 @@ const SlugBuilder = ({ label, value, onChange, error, helperText, required, widg
                 <div className="grid grid-cols-2 gap-2">
                     <div>
                         <label className="block text-[10px] font-medium text-slate-500 mb-1">3. Widget Type</label>
-                        <div className="px-2 py-1.5 bg-blue-900/40 border border-blue-700/50 rounded-md text-xs text-blue-300 font-mono min-h-[28px] flex items-center">
-                            {widgetTypeCode || <span className="text-slate-600 italic font-sans">auto-detected</span>}
+                        <div className="px-2 py-1.5 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-700 font-mono min-h-[28px] flex items-center">
+                            {widgetTypeCode || <span className="text-slate-400 italic font-sans">auto-detected</span>}
                         </div>
                     </div>
                     <SlugSelect
@@ -265,14 +265,14 @@ const SlugBuilder = ({ label, value, onChange, error, helperText, required, widg
 
                 {/* Slug Preview */}
                 {composedSlug && (
-                    <div className="mt-2 bg-slate-900 border border-slate-700 rounded-md p-2 flex items-center justify-between gap-2">
-                        <code className="text-[11px] text-green-400 font-mono break-all flex-1 leading-relaxed">
+                    <div className="mt-2 bg-white border border-slate-200 rounded-md p-2 flex items-center justify-between gap-2 shadow-sm">
+                        <code className="text-[11px] text-emerald-700 font-mono break-all flex-1 leading-relaxed">
                             {composedSlug}
                         </code>
                         <button
                             type="button"
                             onClick={handleCopy}
-                            className="shrink-0 px-2 py-1 text-[10px] font-medium rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+                            className="shrink-0 px-2 py-1 text-[10px] font-medium rounded bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
                         >
                             {copied ? 'Copied!' : 'Copy'}
                         </button>
@@ -281,7 +281,7 @@ const SlugBuilder = ({ label, value, onChange, error, helperText, required, widg
             </div>
 
             {error && (
-                <p className="mt-1 text-xs text-red-400">{error}</p>
+                <p className="mt-1 text-xs text-red-500">{error}</p>
             )}
             {!error && helperText && (
                 <p className="mt-1 text-xs text-slate-500">{helperText}</p>

@@ -1,5 +1,10 @@
 # Widget Creation — Logic & Flow (All Types)
 
+> **Looking for the user-facing selection journey?** See **[STEP-Create-Widget.md](./STEP-Create-Widget.md)** — step-by-step: what users select when creating each widget type.
+>
+> **Config file:** `src/config/Feature/stepCreateWidgetConfig.js` — UI flow config (PNC definitions, field order, nested item schemas, validation rules).
+> **Backend config:** `src/config/Feature/CreationConfig.js` — API endpoints, creation paths, payload templates.
+
 ## 1. Overview
 
 Every widget in Optimus follows a **bottom-up creation pattern**: create the smallest objects first (widget items), then containers (widgets), then pages (page layouts), and finally wire them together with mappings.
@@ -81,7 +86,7 @@ flowchart TD
 
 ## 3. Product Rail — Unified Creation Flow
 
-> **Ref:** [WIDGET-Product-Rail.md](./WIDGET-Product-Rail.md)
+> **Ref:** [Widget-spr.md](./Widget-spr.md)
 
 The Product Rail is defined by a **composition of 3 properties**. All 8 variants share the **same creation flow** — only the homepage widget's `widget_type` field differs.
 
@@ -98,32 +103,26 @@ The Product Rail is defined by a **composition of 3 properties**. All 8 variants
 | **2** | `false` | `true` | `multimedia_double_product_row` |
 | **2** | `true` | `true` | `multimedia_double_product_row_v2` |
 
-### 3.2 Two Creation Paths
+### 3.2 Unified Creation Path
 
-The creation path depends **only** on `is_optimized`:
+**All** Product Rail variants follow the **same creation flow** — a PLP ecosystem with state-wise sub-categories AND a homepage row widget. The `is_optimized` flag only controls:
+1. The `widget_type` name (`_v2` suffix when ON)
+2. The homepage widget slug suffix (`_spr_opt` when ON, `_spr` when OFF)
+3. The "View All Page Slug" field visibility (hidden when ON, auto-linked to PLP page)
 
-| Path | When | Creates PLP Ecosystem? | State-wise Sub-Categories? |
-| :--- | :--- | :---: | :---: |
-| **Standard** | `is_optimized = false` | No | No |
-| **Optimized** | `is_optimized = true` | Yes | Yes |
+| Flag | When | PLP Ecosystem? | State-wise Sub-Categories? | Widget Type Suffix |
+| :--- | :--- | :---: | :---: | :--- |
+| **Standard** | `is_optimized = false` | Yes | Yes | No `_v2` |
+| **Optimized** | `is_optimized = true` | Yes | Yes | `_v2` |
 
-**Multimedia** (`has_multimedia = true`) adds **one extra step** (create multimedia object) to either path. The rest of the flow stays identical.
+**Multimedia** (`has_multimedia = true`) adds **one extra step** (create multimedia object) to the flow. The rest of the creation stays identical.
 
-### 3.3 Standard Path — Creation Steps
+### 3.3 Creation Steps (ALL Variants — Standard & Optimized)
 
-```
-1. Page Layout
-2. Widget Item (item_rows) — single product list
-3. Homepage Widget (widget_type from matrix)
-4. Map: Widget Item → Widget
-5. Map: Widget → Page Layout
-6. Map: Page → Global
-```
-
-### 3.4 Optimized Path — Creation Steps
+All Product Rail variants follow this unified creation path:
 
 ```
-Flow 1 — PLP Ecosystem (state-wise):
+Flow 1 — PLP Ecosystem (state-wise — ALL variants):
     1. Page Layout
     2. Sub-Category Items (per state — Global, JH, CG, WB, + dynamic)
     3. PLP Widget (product_listing)
@@ -133,11 +132,13 @@ Flow 1 — PLP Ecosystem (state-wise):
 
 Flow 2 — Homepage Row:
     7. Row Widget Item (item_rows) — single product list
-    8. Homepage Widget (widget_type from matrix)
+    8. Homepage Widget (widget_type from matrix — _v2 suffix if optimized)
     9. Map: Row Item → Homepage Widget
 
     Homepage Widget → view_all → Page Layout (from Flow 1)
 ```
+
+> The old "Standard Path" (simple Page → Widget Item → Widget without PLP ecosystem) is **no longer used**. All variants create state-wise sub-categories.
 
 ### 3.5 Multimedia Addition (Either Path)
 
@@ -153,45 +154,30 @@ Extra Step — Multimedia Object:
 
 ```mermaid
 flowchart TD
-    Input([User Input: Title, Products, Rows, Optimized?, Multimedia?]) --> CheckOpt{is_optimized?}
+    Input(["User Input: Title, Products, Rows,\nOptimized?, Multimedia?, State-Wise Products"]) --> Creation
 
-    subgraph Standard Path
-        direction TB
-        S_Page[1. Create: Page Layout]
-        S_WI[2. Create: Widget Item - item_rows]
-        S_W[3. Create: Homepage Widget]
-
-        S_WI -->|widget_item mapping| S_W
-        S_W -->|layout_widget mapping| S_Page
-        S_Page -->|global mapping| S_Global[Global Registry]
-    end
-
-    subgraph Optimized Path
+    subgraph Creation["Unified Creation Flow (ALL variants)"]
         direction TB
 
-        subgraph PLP Ecosystem - State-Wise
-            O_Page[1. Create: Page Layout]
-            O_SC[2. Create: Sub-Cat Items per state]
-            O_PLP[3. Create: PLP Widget]
+        subgraph PLPEcosystem["Flow 1: PLP Ecosystem - State-Wise"]
+            O_Page["1. Create: Page Layout"]
+            O_SC["2. Create: Sub-Cat Items per state\n(Global + optional states)"]
+            O_PLP["3. Create: PLP Widget"]
             O_SC -->|widget_item mapping - location CSV| O_PLP
             O_PLP -->|layout_widget mapping| O_Page
-            O_Page -->|global mapping| O_Global[Global Registry]
+            O_Page -->|global mapping| O_Global["Global Registry"]
         end
 
-        subgraph Homepage Row
-            O_WI[7. Create: Row Item - item_rows]
-            O_W[8. Create: Homepage Widget]
+        subgraph HomepageRow["Flow 2: Homepage Row"]
+            O_WI["7. Create: Row Item - item_rows"]
+            O_W["8. Create: Homepage Widget\nwidget_type from variant matrix"]
             O_WI -->|widget_item mapping| O_W
-            O_W -.->|view_all → Page Layout| O_Page
+            O_W -.->|view_all - Page Layout| O_Page
         end
     end
-
-    CheckOpt -- No --> Standard Path
-    CheckOpt -- Yes --> Optimized Path
 
     CheckMM{has_multimedia?}
     CheckMM -- Yes --> MM[Create Multimedia Object]
-    MM -.->|background_multimedia slug| S_W
     MM -.->|background_multimedia slug| O_W
 ```
 
@@ -212,13 +198,12 @@ flowchart TD
 │  ─── Products ───────────────────────────────────    │
 │  Product Codes: [1001, 1002, 1003, 1004______]       │
 │                                                       │
-│  ─── Timing ─────────────────────────────────────    │
-│  Start: [2026-02-15 19:21:37]                        │
-│  End:   [2026-07-01 18:29:00]                        │
+│  ─── Timing (DateTimeInput — calendar + time) ──    │
+│  Start: [📅 2026-02-15  19:21]                       │
+│  End:   [📅 2026-07-01  18:29]                       │
 │                                                       │
 │  ═══════════════════════════════════════════════════  │
-│  ▼ IF Optimized = ON (state-wise products)           │
-│  ─── State-Wise Products ────────────────────────    │
+│  ─── State-Wise Products (ALL variants) ─────────    │
 │                                                       │
 │  Global Products:  [1001, 1002, 1003, 1004___]       │
 │                                                       │
@@ -408,9 +393,9 @@ Final Assembly:
 │  Title (EN):  [________________________]             │
 │  Media-Number: [3.5_] (visible items in carousel)    │
 │                                                       │
-│  ─── Timing ─────────────────────────────────────    │
-│  Start: [2026-02-15 19:21:37]                        │
-│  End:   [2026-07-01 18:29:00]                        │
+│  ─── Timing (DateTimeInput — calendar + time) ──    │
+│  Start: [📅 2026-02-15  19:21]                       │
+│  End:   [📅 2026-07-01  18:29]                       │
 │                                                       │
 │  ═══════════════════════════════════════════════════  │
 │  ─── Carousel Item #1 ──────────────────────────     │
@@ -566,9 +551,9 @@ Final Assembly:
 │  Title (EN):  [________________________]             │
 │  Title (HI):  [________________________]             │
 │                                                       │
-│  ─── Timing ─────────────────────────────────────    │
-│  Start: [2026-02-15 19:21:37]                        │
-│  End:   [2026-07-01 18:29:00]                        │
+│  ─── Timing (DateTimeInput — calendar + time) ──    │
+│  Start: [📅 2026-02-15  19:21]                       │
+│  End:   [📅 2026-07-01  18:29]                       │
 │                                                       │
 │  ═══════════════════════════════════════════════════  │
 │  ─── Category Item #1 ──────────────────────────     │
@@ -738,9 +723,9 @@ The **Primary Masthead** is the simplest widget — a header-only component that
 │  Slug:        [diwali_2024___________________]       │
 │  Master Key:  [1020__________________________]       │
 │                                                       │
-│  ─── Timing ─────────────────────────────────────    │
-│  Start: [2026-02-15 19:21:37]                        │
-│  End:   [2026-07-01 18:29:00]                        │
+│  ─── Timing (DateTimeInput — calendar + time) ──    │
+│  Start: [📅 2026-02-15  19:21]                       │
+│  End:   [📅 2026-07-01  18:29]                       │
 │                                                       │
 │  ─── Background Media (Shared) ──────────────────    │
 │  Media Type:  ○ Image   ○ Video   ○ Lottie           │
@@ -853,9 +838,9 @@ Phase 3 — Final Mapping:
 │  Slug:        [festive_banner________________]       │
 │  Master Key:  [gl_hp_global_category_pane_wi_]       │
 │                                                       │
-│  ─── Timing ─────────────────────────────────────    │
-│  Start: [2026-02-15 19:21:37]                        │
-│  End:   [2026-07-01 18:29:00]                        │
+│  ─── Timing (DateTimeInput — calendar + time) ──    │
+│  Start: [📅 2026-02-15  19:21]                       │
+│  End:   [📅 2026-07-01  18:29]                       │
 │                                                       │
 │  ─── Background Media (Shared) ──────────────────    │
 │  Media Type:  ○ Image   ○ Video   ○ Lottie           │
@@ -994,7 +979,7 @@ deactivated_flag:    no
 
 ## 8. State-Wise Location Mapping (Shared)
 
-All widgets with PLP ecosystem (Optimized Product Rail, Collection Banner, Secondary Masthead) use the **same location-wise mapping** pattern. States are **dynamic** — new states can be added via the "+ Add State" button.
+All widgets with PLP ecosystem (ALL Product Rail variants, Collection Banner, Secondary Masthead) use the **same location-wise mapping** pattern. States are **dynamic** — new states can be added via the "+ Add State" button.
 
 ### State Reference
 
@@ -1042,15 +1027,13 @@ If a slug already exists, append `_1`, `_2`, etc. (up to 5 retries).
 
 | Widget Type | Object | Suffix |
 | :--- | :--- | :--- |
-| **Product Rail (Standard)** | Page Layout | `_page` |
-| | Widget Item | `_wi` |
-| | Widget | `_spr` |
-| **Product Rail (Optimized)** | Sub-Category (Global) | `_sc_wi_global` |
+| **Product Rail (ALL variants)** | Sub-Category (Global) | `_sc_wi_global` |
 | | Sub-Category (State) | `_sc_wi_{state}` |
 | | PLP Widget | `_plp_w` |
-| | Page Layout | `_page` |
+| | Page Layout | `_page_p` |
 | | Row Item | `_pr_wi` |
-| | Widget | `_spr_opt` |
+| | Widget (Standard) | `_spr` |
+| | Widget (Optimized) | `_spr_opt` |
 | **Product Rail (Multimedia)** | Multimedia | `_bg` |
 | **Collection Banner (Scroll)** | Sub-Category | `_sub_cat_wi_{state}` |
 | | PLP Widget | `_plp_w` |
@@ -1096,7 +1079,7 @@ If a slug already exists, append `_1`, `_2`, etc. (up to 5 retries).
 
 ## 11. Related Documentation
 
-- [WIDGET-Product-Rail.md](./WIDGET-Product-Rail.md) — Product Rail variant matrix, filters, state mapping
+- [Product Rail (SPR + DPR)](./Widget-spr.md) — Product Rail variant matrix, filters, state mapping
 - [WIDGET-Collection-Banner.md](./WIDGET-Collection-Banner.md) — Scroll/Stick modes, page type selection
 - [WIDGET-Masthead.md](./WIDGET-Masthead.md) — Primary & Secondary, shared multimedia, 3-phase creation
 - [Feature-Mapping-Widget.md](./Feature-Mapping-Widget.md) — All mapping types and CSV formats

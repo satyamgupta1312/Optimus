@@ -85,21 +85,29 @@ export const PRODUCT_RAIL_VARIANT_MATRIX = [
 export const CREATION_PATHS = {
     // ── Product Rail ──
     product_rail: {
-        // Path depends only on is_optimized. Multimedia adds one extra step to either path.
+        // Both STANDARD and OPTIMIZED follow the same dual-flow creation.
+        // is_optimized only controls widget_type naming (_v2 suffix) and widget slug (_spr vs _spr_opt).
+        // State-wise products are created in ALL variants.
+        // Multimedia adds one extra step (multimedia object creation) to either path.
         STANDARD: {
-            description: 'Standard — no PLP ecosystem, no state-wise sub-categories',
+            description: 'Standard — dual-flow: PLP ecosystem (state-wise) + homepage row. No _v2 suffix.',
             condition: (pnc) => !pnc.is_optimized,
             steps: [
-                { order: 1, entity: 'page_layout', endpoint: 'pageLayout' },
-                { order: 2, entity: 'widget_item', itemType: 'item_rows', endpoint: 'widgetItem' },
-                { order: 3, entity: 'widget', endpoint: 'widget' },
-                { order: 4, action: 'map_widget_item', description: 'Widget Item → Widget' },
-                { order: 5, action: 'map_layout_widget', description: 'Widget → Page Layout' },
-                { order: 6, action: 'map_page_layout', description: 'Page → Global' },
+                // Flow 1: PLP Ecosystem (state-wise — same as OPTIMIZED)
+                { order: 1, entity: 'page_layout', endpoint: 'pageLayout', flow: 'plp' },
+                { order: 2, entity: 'widget_item', itemType: 'sub_category', endpoint: 'widgetItem', flow: 'plp', iterateStates: true },
+                { order: 3, entity: 'widget', widgetType: 'product_listing', endpoint: 'widget', flow: 'plp' },
+                { order: 4, action: 'map_widget_item', description: 'Sub-Cats → PLP (location-wise CSV)', flow: 'plp' },
+                { order: 5, action: 'map_layout_widget', description: 'PLP → Page Layout', flow: 'plp' },
+                { order: 6, action: 'map_page_layout', description: 'Page → Global', flow: 'plp' },
+                // Flow 2: Homepage Row
+                { order: 7, entity: 'widget_item', itemType: 'item_rows', endpoint: 'widgetItem', flow: 'homepage' },
+                { order: 8, entity: 'widget', endpoint: 'widget', flow: 'homepage' },
+                { order: 9, action: 'map_widget_item', description: 'Row Item → Homepage Widget', flow: 'homepage' },
             ],
         },
         OPTIMIZED: {
-            description: 'Optimized — creates PLP ecosystem with state-wise sub-categories',
+            description: 'Optimized — dual-flow: PLP ecosystem (state-wise) + homepage row. _v2 suffix on widget_type.',
             condition: (pnc) => pnc.is_optimized,
             steps: [
                 // Flow 1: PLP Ecosystem (state-wise)

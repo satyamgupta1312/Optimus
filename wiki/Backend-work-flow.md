@@ -648,7 +648,7 @@ import { VALIDATION_RULES, ERROR_CATALOGUE } from 'src/config/BackendFlow';
 - [Feature-Mapping-Widget.md](./Feature-Mapping-Widget.md) — Mapping types aur CSV formats
 - [FEATURE-Fetch-Widget.md](./FEATURE-Fetch-Widget.md) — Existing widgets fetch, edit, re-submit
 - [PLP-PAGE-widget-support.md](./PLP-PAGE-widget-support.md) — 3-layer PLP ecosystem
-- [WIDGET-Product-Rail.md](./WIDGET-Product-Rail.md) — Product Rail variants
+- [Product Rail (SPR + DPR)](./Widget-spr.md) — Product Rail variants
 - [WIDGET-Collection-Banner.md](./WIDGET-Collection-Banner.md) — Carousel + Category Grid
 - [WIDGET-Masthead.md](./WIDGET-Masthead.md) — Primary aur Secondary Masthead
 

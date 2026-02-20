@@ -13,11 +13,11 @@ const ToggleInput = ({
     disabled,
 }) => {
     return (
-        <div className="mb-3 flex items-center justify-between p-3 rounded-lg bg-slate-800 border border-slate-700">
+        <div className="mb-3 flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
             <div>
-                <span className="text-sm font-medium text-slate-200">{label}</span>
+                <span className="text-sm font-medium text-slate-700">{label}</span>
                 {(description || helperText) && (
-                    <p className="text-xs text-slate-500 mt-0.5">{description || helperText}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{description || helperText}</p>
                 )}
             </div>
             <button

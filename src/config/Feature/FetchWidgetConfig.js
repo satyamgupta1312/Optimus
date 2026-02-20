@@ -62,42 +62,42 @@ export const WIDGET_TYPE_MAP = {
     },
     single_product_row: {
         builderType: 'Single Product Row',
-        emulatorComponent: 'ProductRail',
+        emulatorComponent: 'SingleProductRow',
         editor: 'LegacyPropertyEditor',
     },
     single_product_row_v2: {
         builderType: 'Single Product Row Optimize',
-        emulatorComponent: 'ProductRail',
+        emulatorComponent: 'SingleProductRow',
         editor: 'LegacyPropertyEditor',
     },
     double_product_row: {
         builderType: 'Double Product Row',
-        emulatorComponent: 'ProductRail',
+        emulatorComponent: 'SingleProductRow',
         editor: 'PropertyEditor',
     },
     double_product_row_v2: {
         builderType: 'Double Product Row Optimize',
-        emulatorComponent: 'ProductRail',
+        emulatorComponent: 'SingleProductRow',
         editor: 'PropertyEditor',
     },
     multimedia_single_product_row: {
         builderType: 'Multimedia Single Product Row',
-        emulatorComponent: 'ProductRail',
+        emulatorComponent: 'SingleProductRow',
         editor: 'PropertyEditor',
     },
     multimedia_single_product_row_v2: {
         builderType: 'Multimedia Single Product Row V2',
-        emulatorComponent: 'ProductRail',
+        emulatorComponent: 'SingleProductRow',
         editor: 'PropertyEditor',
     },
     multimedia_double_product_row: {
         builderType: 'Multimedia Double Product Row',
-        emulatorComponent: 'ProductRail',
+        emulatorComponent: 'SingleProductRow',
         editor: 'PropertyEditor',
     },
     multimedia_double_product_row_v2: {
         builderType: 'Multimedia Double Product Row V2',
-        emulatorComponent: 'ProductRail',
+        emulatorComponent: 'SingleProductRow',
         editor: 'PropertyEditor',
     },
     product_listing: {
@@ -144,7 +144,7 @@ export const EDITABLE_FIELDS = {
     // ── Product Rail (all 8 variants) ──
     product_rail: {
         editor: 'PropertyEditor',
-        configFile: 'src/config/widgets/ProductRailConfig.js',
+        configFile: 'src/config/widgets/SPRConfig.js',
         fields: [
             { name: 'slug', input: 'SlugBuilder', required: true, apiField: 'slug_name' },
             { name: 'title', input: 'TextInput', required: true, apiField: 'heading_en' },
@@ -155,8 +155,8 @@ export const EDITABLE_FIELDS = {
             { name: 'view_all_link', input: 'TextInput', required: false, apiField: 'view_all_action_params', condition: 'non-optimized only' },
             { name: 'rows', input: 'PillSelector', required: true, apiField: null, note: 'Determines widget_type' },
             { name: 'is_optimized', input: 'CardToggle', required: true, apiField: null, note: 'Determines widget_type' },
-            { name: 'start_time', input: 'DateTimePicker', required: true, apiField: 'start_time' },
-            { name: 'end_time', input: 'DateTimePicker', required: true, apiField: 'end_time' },
+            { name: 'start_time', input: 'DateTimeInput', required: true, apiField: 'start_time' },
+            { name: 'end_time', input: 'DateTimeInput', required: true, apiField: 'end_time' },
         ],
         stateWiseProducts: {
             global: { slugSuffix: '_sc_wi_global', levelTag: 'global', levelProperty: 'global' },
@@ -184,8 +184,8 @@ export const EDITABLE_FIELDS = {
             { name: 'title', input: 'TextInput', required: true, apiField: 'heading_en' },
             { name: 'titleHi', input: 'TextInput', required: false, apiField: 'heading_hi' },
             { name: 'media_number', input: 'NumberInput', required: true, apiField: 'media_number' },
-            { name: 'start_time', input: 'DateTimePicker', required: true, apiField: 'start_time' },
-            { name: 'end_time', input: 'DateTimePicker', required: true, apiField: 'end_time' },
+            { name: 'start_time', input: 'DateTimeInput', required: true, apiField: 'start_time' },
+            { name: 'end_time', input: 'DateTimeInput', required: true, apiField: 'end_time' },
         ],
         perItem: [
             { name: 'image', input: 'ImageUpload', required: true, apiField: 'media_en' },
@@ -205,8 +205,8 @@ export const EDITABLE_FIELDS = {
             { name: 'slug', input: 'TextInput', required: true, apiField: 'slug_name' },
             { name: 'title', input: 'TextInput', required: true, apiField: 'heading' },
             { name: 'titleHi', input: 'TextInput', required: false, apiField: 'heading_hi' },
-            { name: 'start_time', input: 'DateTimePicker', required: true, apiField: 'start_time' },
-            { name: 'end_time', input: 'DateTimePicker', required: true, apiField: 'end_time' },
+            { name: 'start_time', input: 'DateTimeInput', required: true, apiField: 'start_time' },
+            { name: 'end_time', input: 'DateTimeInput', required: true, apiField: 'end_time' },
         ],
         perItem: [
             { name: 'categoryName', input: 'TextInput', required: true, apiField: 'text_en' },
@@ -232,8 +232,8 @@ export const EDITABLE_FIELDS = {
             { name: 'titleHi', input: 'TextInput', required: false, apiField: 'heading_hi' },
             { name: 'media_aspect_ratio', input: 'Dropdown', required: true, apiField: 'media_aspect_ratio', options: ['4', '3', '2', '1'] },
             { name: 'background_multimedia', input: 'FileUpload', required: false, apiField: 'background_multimedia' },
-            { name: 'start_time', input: 'DateTimePicker', required: true, apiField: 'start_time' },
-            { name: 'end_time', input: 'DateTimePicker', required: true, apiField: 'end_time' },
+            { name: 'start_time', input: 'DateTimeInput', required: true, apiField: 'start_time' },
+            { name: 'end_time', input: 'DateTimeInput', required: true, apiField: 'end_time' },
         ],
         perItem: [
             { name: 'text_en', input: 'TextInput', required: true, apiField: 'text_en' },
@@ -255,7 +255,7 @@ export const EDITABLE_FIELDS = {
         fields: [
             { name: 'slug', input: 'TextInput', required: true, apiField: 'slug_name' },
             { name: 'master_key', input: 'TextInput', required: true, apiField: 'master_key' },
-            { name: 'end_time', input: 'DateTimePicker', required: true, apiField: 'end_time' },
+            { name: 'end_time', input: 'DateTimeInput', required: true, apiField: 'end_time' },
             { name: 'multimedia_type', input: 'Dropdown', required: false, apiField: 'background_multimedia.type', options: ['1', '2', '3'] },
             { name: 'multimedia_file', input: 'FileUpload', required: false, apiField: 'background_multimedia.value' },
             { name: 'aspect_ratio', input: 'NumberInput', required: false, apiField: 'multimedia.aspect_ratio' },
@@ -277,8 +277,8 @@ export const EDITABLE_FIELDS = {
             { name: 'products', input: 'ProductCodes', required: true, apiField: 'product_list' },
             { name: 'image', input: 'ImageUpload', required: true, apiField: 'media_en' },
             { name: 'media_aspect_ratio', input: 'NumberInput', required: true, apiField: 'media_aspect_ratio' },
-            { name: 'start_time', input: 'DateTimePicker', required: true, apiField: 'start_time' },
-            { name: 'end_time', input: 'DateTimePicker', required: true, apiField: 'end_time' },
+            { name: 'start_time', input: 'DateTimeInput', required: true, apiField: 'start_time' },
+            { name: 'end_time', input: 'DateTimeInput', required: true, apiField: 'end_time' },
             { name: 'pageType', input: 'Dropdown', required: true, apiField: 'page_type' },
         ],
     },
@@ -310,7 +310,7 @@ export const RELATED_FILES = {
     legacyPropertyEditor: 'src/components/Sidebar/LegacyPropertyEditor.jsx',
     headerConfiguration: 'src/components/Sidebar/HeaderConfiguration.jsx',
     widgetContext: 'src/context/WidgetContext.jsx',
-    productRailConfig: 'src/config/widgets/ProductRailConfig.js',
+    productRailConfig: 'src/config/widgets/SPRConfig.js',
     widgetRegistry: 'src/config/WidgetRegistry.js',
     widgetRenderer: 'src/components/Widgets/WidgetRenderer.jsx',
     googleSheetService: 'src/services/GoogleSheetService.js',

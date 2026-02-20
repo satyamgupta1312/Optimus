@@ -12,7 +12,6 @@
  * Wiki Reference: wiki/Backend-work-flow.md
  */
 
-import { ProductRailConfig } from './widgets/ProductRailConfig';
 import { CollectionBannerConfig } from './widgets/CollectionBannerConfig';
 import { MastheadConfig } from './widgets/MastheadConfig';
 import { SPRConfig } from './widgets/SPRConfig';
@@ -29,10 +28,9 @@ import {
 
 // ── Registry Map: type → config ──
 const configMap = {
-    [ProductRailConfig.type]: ProductRailConfig,
+    [SPRConfig.type]: SPRConfig, // 'product_rail' — all 8 SPR+DPR variants
     [CollectionBannerConfig.type]: CollectionBannerConfig,
     [MastheadConfig.type]: MastheadConfig,
-    [SPRConfig.type]: SPRConfig,
 };
 
 export const WidgetRegistry = {

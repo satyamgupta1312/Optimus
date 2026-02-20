@@ -294,6 +294,8 @@ The **Carousel Media-Number** controls how many carousel items are visible in th
 | Field | Type | Description | Example |
 | :--- | :--- | :--- | :--- |
 | `title` | `String` | Widget title (used for page heading) | `"Summer Sale"` |
+| `start_time` | `DateTime` | Activation start (via `DateTimeInput` calendar + time picker) | `"2026-01-01T00:00:00"` |
+| `end_time` | `DateTime` | Activation end (via `DateTimeInput` calendar + time picker) | `"2026-12-31T23:59:59"` |
 | `image` | `URL` | Banner image URL | `"https://example.com/banner.jpg"` |
 | `productIds` | `String` or `Array` | Product codes (comma-separated, CSV URL, or array) | `"1001,1002,1003"` |
 | `pageType` | `String` | Page type for navigation target | `"product_listing_page"` or `"category_page"` |
@@ -307,8 +309,8 @@ The **Carousel Media-Number** controls how many carousel items are visible in th
 | `title` | String | Yes | Widget heading | `"Rice Mela"` |
 | `heading_en` | String | No | English heading | `"Rice Mela"` |
 | `heading_hi` | String | No | Hindi heading | `"राइस मेला"` |
-| `start_time` | DateTime | No | Activation start | `2024-01-01 00:00:00` |
-| `end_time` | DateTime | No | Activation end | `2034-01-01 00:00:00` |
+| `start_time` | DateTime | Yes | Activation start (via `DateTimeInput` calendar + time picker) | `2024-01-01T00:00:00` |
+| `end_time` | DateTime | Yes | Activation end (via `DateTimeInput` calendar + time picker) | `2034-01-01T00:00:00` |
 
 ### Stick Mode — Category Item Fields
 
@@ -834,7 +836,7 @@ The Collection Banner widget does **NOT** currently support in-place updates. Th
 ## 20. Related Documentation
 
 - [Slug Name Reference](./SLUG_NAME.md) - All slug patterns across widgets
-- [Product Rail Widget](./WIDGET-Product-Rail.md) - Similar product display logic
+- [Product Rail Widget](./Widget-spr.md) - Similar product display logic
 - [Masthead Widget](./WIDGET-Masthead.md) - Similar state-based mapping logic
 - [PLP Page Widget Support](./PLP-PAGE-widget-support.md) - Universal PLP ecosystem
 - [Backend Automation Services](./BACKEND-Automation-Services.md) - Overview of automation scripts

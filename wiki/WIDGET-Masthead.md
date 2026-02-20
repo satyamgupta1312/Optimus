@@ -204,8 +204,8 @@ Widget (masthead_primary)
 | `widget_type` | String | Yes | Must be `masthead_primary` | `masthead_primary` |
 | `master_key` | String | No | Link to category pane widget | `1020` |
 | `background_multimedia` | String | No | Multimedia slug for background | `diwali_2024_bg` |
-| `start_time` | DateTime | No | Activation start | `2024-03-01 10:00:00` |
-| `end_time` | DateTime | No | Activation end | `2025-03-01 10:00:00` |
+| `start_time` | DateTime | Yes | Activation start (via `DateTimeInput` calendar + time picker) | `2024-03-01T10:00:00` |
+| `end_time` | DateTime | Yes | Activation end (via `DateTimeInput` calendar + time picker) | `2025-03-01T10:00:00` |
 | `media_aspect_ratio` | String | No | Aspect ratio (default `"1"`) | `1` |
 
 > Multimedia fields and colors are documented in the **Shared: Multimedia Background** section above.
@@ -566,8 +566,8 @@ Carousel Item #3 → page_type: "category_page"         + state-wise products (G
 | `background_multimedia` | String | No | Multimedia slug (omit if empty) | `festive_banner_bg` |
 | `master_key` | String | No | Link to parent | `gl_hp_global_category_pane_wi` |
 | `media_aspect_ratio` | String | No | Aspect ratio (default `"4"`) | `4` |
-| `start_time` | DateTime | No | Activation start | `2024-03-01 10:00:00` |
-| `end_time` | DateTime | No | Activation end | `2025-03-01 10:00:00` |
+| `start_time` | DateTime | Yes | Activation start (via `DateTimeInput` calendar + time picker) | `2024-03-01T10:00:00` |
+| `end_time` | DateTime | Yes | Activation end (via `DateTimeInput` calendar + time picker) | `2025-03-01T10:00:00` |
 
 ### Carousel Item Fields
 
@@ -918,7 +918,7 @@ The following filters and configurations are **universal** — they apply to the
 
 - [Slug Name Reference](./SLUG_NAME.md) — All slug patterns across widgets
 - [Collection Banner Widget](./WIDGET-Collection-Banner.md) — Carousel (Scroll) and Category Grid (Stick) modes
-- [Product Rail Widget](./WIDGET-Product-Rail.md) — Similar PLP ecosystem
+- [Product Rail Widget](./Widget-spr.md) — Similar PLP ecosystem
 - [Secondary Masthead Strategy](./BACKEND-Secondary-Masthead-Strategy.md) — 3-Phase creation deep dive
 - [Backend Automation Services](./BACKEND-Automation-Services.md) — Overview of automation scripts
 - [Config-Driven System](./ARCH-Config-Driven-System.md) — Future migration target

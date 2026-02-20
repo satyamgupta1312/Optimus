@@ -204,18 +204,24 @@ export const PLP_APP_CONFIGURATIONS = {
         type: 'boolean',
         default: false,
         description: 'Show sub-category tabs on the page',
-        // Widgets that should set this to true:
+        // Widgets that should set this to true (show sub-category tabs on PLP page):
         enabledFor: [
-            'carousel',                            // has multiple state-wise sub-categories
-            'masthead_secondary_category_hp',      // always — has multiple sub-categories
+            'carousel',                            // carousel items have multiple sub-categories with tabs
+            'masthead_secondary_category_hp',      // always — carousel items have multiple sub-categories with tabs
             // category: NOT supported on PLP pages
         ],
-        // Widgets that should leave false or omit:
+        // Widgets that should leave false or omit (sub-categories used for location mapping only, not displayed as tabs):
+        // NOTE: ALL Product Rail variants create sub_category items for state-wise location mapping,
+        // but show_sub_cat stays false because the PLP page renders a flat product grid, not tabbed sub-categories.
         disabledFor: [
-            'single_product_row',                  // uses item_rows, not sub-categories
-            'single_product_row_v2',               // single global sub-category
+            'single_product_row',
+            'single_product_row_v2',
             'multimedia_single_product_row',
             'multimedia_single_product_row_v2',
+            'double_product_row',
+            'double_product_row_v2',
+            'multimedia_double_product_row',
+            'multimedia_double_product_row_v2',
         ],
     },
 };

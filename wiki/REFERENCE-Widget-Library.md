@@ -27,7 +27,7 @@ These widgets are defined by a single config file that controls variant resoluti
 | Multimedia Double Row Optimized | `multimedia_double_product_row` |
 
 > See [ARCH-Config-Driven-System.md](./ARCH-Config-Driven-System.md) for the architecture.
-> See [WIDGET-Product-Rail.md](./WIDGET-Product-Rail.md) for detailed Product Rail documentation.
+> See [Widget-spr.md](./Widget-spr.md) for detailed Product Rail documentation.
 > See [Widget-spr.md](./Widget-spr.md) for Single Product Row deep-dive.
 
 ---

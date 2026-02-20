@@ -57,122 +57,11 @@ MAKER UI                                  CHECKER UI
 
 ---
 
-## 2. Role Assignment
-
-**Source:** `src/services/AuthService.js`, `src/context/AuthContext.jsx`, `src/services/GoogleSheetService.js`
-
-### Roles
-
-| Role | Description | Assigned To |
-| :--- | :--- | :--- |
-| **SUPER_ADMIN** | Full checker powers + can add/remove checkers from UI | `satyam.gupta@apnamart.in` (hardcoded) |
-| **CHECKER** | Can preview, approve, reject, re-open, deploy | Users added to the approval list in Google Sheet |
-| **MAKER** | Can create, edit, delete widgets; submit for review | All other authenticated users (default) |
-
-### How Roles Are Assigned
-
-Roles are resolved dynamically during login in two steps:
-
-1. **AuthService.js** assigns the base role:
-   - `satyam.gupta@apnamart.in` → `SUPER_ADMIN`
-   - Everyone else → `MAKER`
-
-2. **AuthContext.jsx** fetches the checker list from Google Sheet and overrides:
-   - If user email is in the checker list → role becomes `CHECKER`
-   - SUPER_ADMIN is never overridden
-
-```javascript
-// AuthService.js — Base role
-if (lowerUser === 'satyam.gupta@apnamart.in') {
-    role = 'SUPER_ADMIN';
-}
-
-// AuthContext.jsx — Dynamic override during login
-const approvalUsers = await GoogleSheetService.getApprovalUsers();
-if (userData.role !== 'SUPER_ADMIN') {
-    const isInCheckerList = approvalUsers.some(
-        (u) => u.email.toLowerCase() === email.toLowerCase()
-    );
-    if (isInCheckerList) {
-        userData.role = 'CHECKER';
-    }
-}
-```
-
-### Adding / Removing Checkers (Dynamic — via UI)
-
-The **Super Admin** can manage checkers from the UI without touching code:
-
-1. Login as `satyam.gupta@apnamart.in`
-2. Click **"Users"** button in the header
-3. In the Manage Approval Users panel:
-   - **Add**: Enter email + name → click "Add Checker"
-   - **Remove**: Click the trash icon next to any checker
-4. Changes are stored in Google Sheet and take effect on next login
-
-**Google Sheet Actions:**
-
-| Action | Method | Payload |
-| :--- | :--- | :--- |
-| `get_approval_users` | POST | `{action}` → returns `{users: [{email, name, addedAt}]}` |
-| `add_approval_user` | POST | `{action, email, name}` |
-| `remove_approval_user` | POST | `{action, email}` |
-
-### Manage Users Panel
-
-```
-┌─────────────────────────────────────────┐
-│  Manage Approval Users                  │
-│                                         │
-│  Email: [____________] Name: [________] │
-│  [+ Add Checker]                        │
-│                                         │
-│  ── Current Checkers (3) ──────────     │
-│                                         │
-│  🛡 Satyam Gupta                        │
-│    satyam.gupta@apnamart.in             │
-│    [Super Admin]          (not removable)│
-│                                         │
-│  John Doe                               │
-│    john.doe@apnamart.in   Added 2/17    │
-│                              [🗑 Remove] │
-│                                         │
-│  Jane Smith                             │
-│    jane.smith@apnamart.in Added 2/15    │
-│                              [🗑 Remove] │
-└─────────────────────────────────────────┘
-```
-
-### User Object
-
-```javascript
-{
-  name: "Satyam Gupta",
-  email: "satyam.gupta@apnamart.in",
-  role: "SUPER_ADMIN",   // or "CHECKER" or "MAKER"
-  csrfToken: "sVCVPj..."
-}
-```
-
-### Context Helpers
-
-```javascript
-// AuthContext provides:
-isAuthenticated   // !!user
-isSuperAdmin      // user?.role === 'SUPER_ADMIN'
-isChecker         // user?.role === 'CHECKER' || user?.role === 'SUPER_ADMIN'
-isMaker           // user?.role === 'MAKER'
-checkerList       // [{email, name, addedAt}]
-addChecker(email, name)
-removeChecker(email)
-fetchCheckerList()
-```
-
-> **Note:** `isChecker` returns `true` for both CHECKER and SUPER_ADMIN, since the super admin has all checker powers. UI code should use `isChecker` instead of `user?.role === 'CHECKER'` for access control.
+> **Auth & Role Assignment** has moved to **[AUTH-Flow.md](./AUTH-Flow.md)** | Config: `src/config/Feature/AuthConfig.js`
 
 ---
 
-## 3. Page Status Lifecycle
+## 2. Page Status Lifecycle
 
 **Source:** `src/context/WidgetContext.jsx`
 
@@ -240,7 +129,7 @@ const addWidget = (widget) => {
 
 ---
 
-## 4. Maker Flow — Create & Submit
+## 3. Maker Flow — Create & Submit
 
 ### Step-by-Step
 
@@ -280,11 +169,11 @@ const addWidget = (widget) => {
 
 ---
 
-## 5. Fetch Widget → Edit → Submit → Approve Flow
+## 4. Fetch Widget → Edit → Submit → Approve Flow
 
 This section documents the complete lifecycle when a user **fetches an existing widget** from the backend, edits it, and submits it for approval.
 
-### 5.1 Fetch (Retrieve Existing Widget)
+### 4.1 Fetch (Retrieve Existing Widget)
 
 **Source:** `src/components/FetchWidget.jsx`
 
@@ -303,7 +192,7 @@ This section documents the complete lifecycle when a user **fetches an existing 
 5. Widget passed to canvas via onWidgetFetched() callback
 ```
 
-### 5.2 Widget Type Mapping (API → Internal)
+### 4.2 Widget Type Mapping (API → Internal)
 
 | Backend `widget_type` | Internal `type` |
 | :--- | :--- |
@@ -314,7 +203,7 @@ This section documents the complete lifecycle when a user **fetches an existing 
 | `masthead_secondary_category_hp` | Secondary Masthead |
 | `category` | Category Grid |
 
-### 5.3 Edit (Modify Fetched Widget)
+### 4.3 Edit (Modify Fetched Widget)
 
 ```
 1. Fetched widget appears on canvas with original data pre-filled
@@ -327,7 +216,7 @@ This section documents the complete lifecycle when a user **fetches an existing 
 4. Undo/redo history tracks all changes
 ```
 
-### 5.4 Submit (Send Edited Widget for Review)
+### 4.4 Submit (Send Edited Widget for Review)
 
 ```
 1. Maker clicks "Submit" button
@@ -339,7 +228,7 @@ This section documents the complete lifecycle when a user **fetches an existing 
 5. Status changes to PENDING
 ```
 
-### 5.5 Approve (Checker Reviews & Approves)
+### 4.5 Approve (Checker Reviews & Approves)
 
 ```
 1. Checker opens RequestQueue, sees PENDING request
@@ -354,7 +243,7 @@ This section documents the complete lifecycle when a user **fetches an existing 
 8. Status updated to APPROVED
 ```
 
-### 5.6 Data Flow Diagram
+### 4.6 Data Flow Diagram
 
 ```mermaid
 flowchart TD
@@ -390,7 +279,7 @@ flowchart TD
     end
 ```
 
-### 5.7 Fetched vs Created Widget — Comparison
+### 4.7 Fetched vs Created Widget — Comparison
 
 | Property | Newly Created Widget | Fetched + Edited Widget |
 | :--- | :--- | :--- |
@@ -402,7 +291,7 @@ flowchart TD
 
 ---
 
-## 6. Checker Flow — Review & Approve/Reject
+## 5. Checker Flow — Review & Approve/Reject
 
 ### RequestQueue UI
 
@@ -506,7 +395,7 @@ flowchart TD
 
 ---
 
-## 7. Approval Automation — Google Apps Script
+## 6. Approval Automation — Google Apps Script
 
 **Source:** `scripts/Approval_Automation.gs`
 
@@ -586,7 +475,7 @@ var COOKIES = "csrftoken=rahrce1omL...;sessionid=0hr6v9r5pq...;theme=samaan";
 
 ---
 
-## 8. Google Sheet — Data Storage
+## 7. Google Sheet — Data Storage
 
 **Sheet Name:** `Requests`
 **Apps Script ID:** `AKfycbwGI4r4nDqo5iKIYubUGpAUTaDN-Z1Su_fsD8EmQ7bxIP3XB0HmEdfXFG89hk0uMVZfBQ`
@@ -616,7 +505,7 @@ var COOKIES = "csrftoken=rahrce1omL...;sessionid=0hr6v9r5pq...;theme=samaan";
 
 ---
 
-## 9. Activity Logging
+## 8. Activity Logging
 
 **Source:** `src/context/ActivityLogContext.jsx`
 
@@ -637,7 +526,7 @@ All actions are logged for audit trail:
 
 ---
 
-## 10. End-to-End Flow Diagram
+## 9. End-to-End Flow Diagram
 
 ```mermaid
 flowchart TD
@@ -690,7 +579,7 @@ flowchart TD
 
 ---
 
-## 11. UI Components
+## 10. UI Components
 
 | Component | File | Role |
 | :--- | :--- | :--- |
@@ -707,7 +596,7 @@ flowchart TD
 
 ---
 
-## 12. Error Handling
+## 11. Error Handling
 
 | Scenario | Behavior |
 | :--- | :--- |
@@ -722,12 +611,14 @@ flowchart TD
 
 ---
 
-## 13. Related Documentation
+## 12. Related Documentation
 
+- [AUTH-Flow.md](./AUTH-Flow.md) — Login flow, role assignment, CSRF, checker management
+- [DATA-Architecture.md](./DATA-Architecture.md) — Database schema, API routes, local backend
 - [Feature-Creation-Widget.md](./Feature-Creation-Widget.md) — Widget creation steps and API payloads
 - [Feature-Mapping-Widget.md](./Feature-Mapping-Widget.md) — All mapping types and CSV formats
 - [FEATURE-Fetch-Widget.md](./FEATURE-Fetch-Widget.md) — Fetch, edit, and update existing widgets
-- [WIDGET-Product-Rail.md](./WIDGET-Product-Rail.md) — Product Rail variants and filters
+- [Product Rail (SPR + DPR)](./Widget-spr.md) — Product Rail variants and filters
 - [WIDGET-Collection-Banner.md](./WIDGET-Collection-Banner.md) — Carousel (Scroll) and Category Grid (Stick)
 - [WIDGET-Masthead.md](./WIDGET-Masthead.md) — Primary & Secondary Masthead
 - [Homepage_mapping.md](./Homepage_mapping.md) — GL-HP-global homepage mapping

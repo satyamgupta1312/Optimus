@@ -336,7 +336,7 @@ All valid `page_type` values for Page Layout:
 ## 9. Related Documentation
 
 - [Collection Banner Widget](./WIDGET-Collection-Banner.md)
-- [Product Rail Widget](./WIDGET-Product-Rail.md)
+- [Product Rail Widget](./Widget-spr.md)
 - [Masthead Widget](./WIDGET-Masthead.md)
 - [Backend Automation Services](./BACKEND-Automation-Services.md)
 - [Config-Driven System](./ARCH-Config-Driven-System.md)

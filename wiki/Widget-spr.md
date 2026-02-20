@@ -1,33 +1,41 @@
-# WIDGET: Single Product Row (SPR) — Complete Reference
+# WIDGET: Product Rail (SPR + DPR) — Complete Reference
 
 ## 1. Overview
 
-The **Single Product Row (SPR)** is the primary product display widget on the homepage. It renders a horizontal scrollable row of product cards with a "View All" link to a PLP page.
+The **Product Rail** is the core product display widget on the homepage. It renders horizontal scrollable rows of product cards with a "View All" link to a PLP page.
 
-SPR is fully driven by `ProductRailConfig.js` and is part of the **Product Rail** family with **8 backend variants** based on three properties: **Rows** (1 or 2), **Optimized**, and **Multimedia**.
+The Product Rail family includes:
+- **Single Product Row (SPR)** — 1 row of products (`rows=1`)
+- **Double Product Row (DPR)** — 2 rows of products (`rows=2`)
+
+All variants are driven by a single `SPRConfig.js` configuration with **8 backend variants** based on three properties: **Rows**, **Optimized**, and **Multimedia**.
 
 ### System Architecture
 
 ```mermaid
 flowchart TD
-    User(["User Configures SPR Widget"]) --> Form["Fill Sidebar Form\nTitle · Products · Page Type"]
+    User["User Configures Product Rail"] --> Rows{rows?}
+    Rows -->|1| Form1["SPR: Single Product Row"]
+    Rows -->|2| Form2["DPR: Double Product Row"]
+    Form1 --> Form["Fill Sidebar Form\nTitle · Products · Page Type"]
+    Form2 --> Form
+    Form --> StateProducts["State-Wise Products\nGlobal required + optional states\n(ALL variants)"]
     Form --> Opt{is_optimized?}
     Form --> MM{has_multimedia?}
 
-    Opt -->|false| Std["Standard Path\nsingle_product_row"]
-    Opt -->|true|  Opt2["Optimized Path\nsingle_product_row_v2"]
-    MM  -->|true|  Media["+multimedia_ prefix\non widget_type"]
+    Opt -->|false| Std["widget_type: single_product_row\n(no _v2 suffix)"]
+    Opt -->|true| Opt2["widget_type: single_product_row_v2\n(_v2 suffix)"]
 
-    Std  --> API1["POST /api/app/post_page_layout/\nPOST /api/app/post_widget_item/\nPOST /api/app/widget/\n+ 3 mapping CSV calls"]
-    Opt2 --> API2["PLP Ecosystem + Home Row\n8 API calls total"]
-    Media --> MM2["POST /api/app/multimedia/\nbefore widget create"]
+    StateProducts --> API["PLP Ecosystem + Home Row\nSub-Cat Items + PLP Widget +\nPage Layout + Row Item + Widget\n+ mapping CSV calls"]
+    MM -->|true| Media["POST /api/app/multimedia/\nbefore widget create"]
 
-    API1 --> Live(["Widget Live on Backend"])
-    API2 --> Live
-    MM2  --> Live
+    Std --> API
+    Opt2 --> API
+    Media --> API
+    API --> Live["Widget Live on Backend"]
 ```
 
-### Emulator Preview — SPR Widget
+### Emulator Preview — SPR (rows=1)
 
 ```
 ┌─ Phone Emulator (375×812) ─────────────────────┐
@@ -43,7 +51,34 @@ flowchart TD
 │  │  └───────┘ └───────┘ └───────┘ └───── │    │
 │  └──────────────────────────────────────────┘    │
 │                                                   │
-│  ── Multimedia Variant ───────────────────────   │
+└───────────────────────────────────────────────────┘
+```
+
+### Emulator Preview — DPR (rows=2)
+
+```
+┌─ Phone Emulator (375×812) ─────────────────────┐
+│                                                   │
+│  ┌──────────────────────────────────────────┐    │
+│  │  ★ Namkeens                    View All  │    │  ← heading + CTA
+│  │  ┌───────┐ ┌───────┐ ┌───────┐ ┌───── │    │
+│  │  │  img  │ │  img  │ │  img  │ │ img  │    │  ← row 1
+│  │  │  ₹99  │ │ ₹149  │ │ ₹199  │ │ ₹89  │    │
+│  │  └───────┘ └───────┘ └───────┘ └───── │    │
+│  │  ┌───────┐ ┌───────┐ ┌───────┐ ┌───── │    │
+│  │  │  img  │ │  img  │ │  img  │ │ img  │    │  ← row 2
+│  │  │  ₹79  │ │ ₹129  │ │ ₹159  │ │ ₹69  │    │
+│  │  └───────┘ └───────┘ └───────┘ └───── │    │
+│  └──────────────────────────────────────────┘    │
+│                                                   │
+└───────────────────────────────────────────────────┘
+```
+
+### Emulator Preview — Multimedia Variant (SPR/DPR)
+
+```
+┌─ Phone Emulator (375×812) ─────────────────────┐
+│                                                   │
 │  ┌──────────────────────────────────────────┐    │
 │  │ ▓▓▓▓▓▓▓ BACKGROUND MEDIA ▓▓▓▓▓▓▓▓▓▓▓▓ │    │  ← image/video bg
 │  │  ★ Diwali Offers               View All  │    │
@@ -65,11 +100,11 @@ Three properties determine the exact `widget_type`:
 
 | Property | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `rows` | `1 \| 2` | `1` | Number of product rows: 1 = Single, 2 = Double |
-| `is_optimized` | Boolean | `true` | Enables PLP ecosystem creation with sub-categories |
+| `rows` | `1 \| 2` | `1` | Number of product rows: 1 = Single (SPR), 2 = Double (DPR) |
+| `is_optimized` | Boolean | `true` | Adds `_v2` suffix to widget_type for optimized rendering |
 | `has_multimedia` | Boolean (implicit) | `false` | Auto-set to `true` when `background_media` is uploaded |
 
-### Complete 8-Variant Matrix (Product Rail Family)
+### Complete 8-Variant Matrix
 
 | # | Rows | Optimized? | Multimedia? | Resolved `widget_type` |
 | :---: | :---: | :---: | :---: | :--- |
@@ -82,9 +117,7 @@ Three properties determine the exact `widget_type`:
 | 7 | **2** | `false` | `true` | `multimedia_double_product_row` |
 | 8 | **2** | `true` | `true` | `multimedia_double_product_row_v2` |
 
-> **Multimedia Constraint:** `single_product_row`, `single_product_row_v2`, `double_product_row`, and `double_product_row_v2` **IGNORE** `background_multimedia`. Only `multimedia_*` variants render backgrounds.
->
-> See [WIDGET-Product-Rail.md](./WIDGET-Product-Rail.md) for the complete Product Rail reference.
+> **Multimedia Constraint:** Non-multimedia variants (`single_product_row`, `single_product_row_v2`, `double_product_row`, `double_product_row_v2`) **IGNORE** `background_multimedia`. Only `multimedia_*` variants render backgrounds.
 
 ---
 
@@ -124,7 +157,7 @@ Single Product Row: "Rice Mela Rail"
 
 ## 4. Form Fields & Validation
 
-Driven from `ProductRailConfig.fields`:
+Driven from `SPRConfig.fields`:
 
 | Field | Component | Required | Validation | Condition |
 | :--- | :--- | :---: | :--- | :--- |
@@ -136,65 +169,32 @@ Driven from `ProductRailConfig.fields`:
 | **Background Media** | `ImageUpload` | No | Supported formats: `.jpeg/.jpg/.png/.webp/.gif/.svg` | Always |
 | **Background Video URL** | `UrlInput` | No | Valid URL ending `.mp4/.mov/.webm` | Always |
 | **View All Page Slug** | `TextInput` | No | `/^[a-z0-9_-]*$/` | Only when `is_optimized = false` |
+| **Start Date & Time** | `DateTimeInput` | Yes | ISO 8601 datetime via calendar + time picker | Always |
+| **End Date & Time** | `DateTimeInput` | Yes | ISO 8601 datetime via calendar + time picker | Always |
 
 ---
 
 ## 5. Deploy Strategies
 
-### 5.1 STANDARD (`single_product_row` / `multimedia_single_product_row`)
+### 5.1 Unified Creation Flow (ALL Variants — Standard & Optimized)
 
-**When:** `is_optimized = false`
+**All Product Rail variants** — regardless of `is_optimized` — create **two parallel flows**: a PLP ecosystem with state-wise `sub_category` items AND a home row widget with `item_rows`.
 
-**Flow:** Page Layout → Widget Item → Widget → Mappings
-
-```
-Step 1: Create Page Layout          POST /api/app/post_page_layout/      (slug: {base}_page)
-Step 2: Create Widget Item          POST /api/app/post_widget_item/      (slug: {base}_wi)
-Step 3: Create Widget               POST /api/app/widget/                (slug: {base}_spr)
-Step 4: Map Widget <-> Widget Item  (parent: _spr, child: _wi)
-Step 5: Map Page <-> Widget         (parent: _page, child: _spr)
-```
-
-```mermaid
-flowchart TD
-    WI["Widget Item\nslug: {base}_wi\nitem_type: item_rows\nproduct_list: 1001,1002,..."]
-    SPR["SPR Widget\nslug: {base}_spr\nwidget_type: single_product_row"]
-    Page["Page Layout\nslug: {base}_page\npage_type: product_listing_page / category_page"]
-
-    WI -->|"widget_item mapping"| SPR
-    SPR -->|"layout_widget mapping"| Page
-    SPR -.->|"view_all_action_params"| Page
-```
-
-**Field Mapping:**
-
-| Step | Entity | Key Fields |
-| :--- | :--- | :--- |
-| 1 | Page Layout | `slug_name`, `page_heading: $title`, `page_layout_type: 2`, `page_type: $selectedPageType` |
-| 2 | Widget Item | `slug_name`, `item_type: item_rows`, `text_en: $title`, `text_hi: $titleHi`, `product_list: $productCodes`, `filter_lst: $inStockFilter` |
-| 3 | Widget | `slug_name`, `widget_type: $resolvedWidgetType`, `heading_en/hi`, `view_all_action_name: redirect-to-page`, `view_all_action_params`, `background_multimedia`, `filter_dict`, `app_configurations` |
-
----
-
-### 5.2 OPTIMIZED (`single_product_row_v2` / `multimedia_single_product_row_v2`)
-
-**When:** `is_optimized = true`
-
-Creates **two parallel flows** — a PLP ecosystem with `sub_category` items AND a home row widget with `item_rows`.
+> The `is_optimized` flag only affects the `widget_type` name (`_v2` suffix) and the home widget slug suffix (`_spr` vs `_spr_opt`). The creation flow, including state-wise products, is **identical** for all variants.
 
 ```
--- Flow 1: PLP Ecosystem --
-Step 1: Create Sub-Cat Widget Item   POST /api/app/post_widget_item/   (slug: {base}_sc_wi)
+-- Flow 1: PLP Ecosystem (state-wise — ALL variants) --
+Step 1: Create Sub-Cat Widget Item   POST /api/app/post_widget_item/   (slug: {base}_sc_wi_{state})
 Step 2: Create PLP Widget            POST /api/app/widget/              (slug: {base}_plp_w)
 Step 3: Create Page Layout            POST /api/app/post_page_layout/   (slug: {base}_page_p)
-Step 4: Map PLP Widget <-> Sub-Cat   (parent: _plp_w, child: _sc_wi)
+Step 4: Map PLP Widget <-> Sub-Cat   (parent: _plp_w, child: _sc_wi — location CSV)
 Step 5: Map Page <-> PLP Widget      (parent: _page_p, child: _plp_w)
 Step 6: Map Page → Global Registry   (parent: _page_p)
 
 -- Flow 2: Home Row --
 Step 7: Create Row Widget Item        POST /api/app/post_widget_item/   (slug: {base}_pr_wi)
-Step 8: Create SPR V2 Widget          POST /api/app/widget/              (slug: {base}_spr_opt)
-Step 9: Map SPR V2 <-> Row Item      (parent: _spr_opt, child: _pr_wi)
+Step 8: Create Homepage Widget        POST /api/app/widget/              (slug: {base}_spr / {base}_spr_opt)
+Step 9: Map Widget <-> Row Item      (parent: widget, child: _pr_wi)
 ```
 
 ```mermaid
@@ -219,7 +219,7 @@ flowchart TD
     subgraph Flow 2 - Home Row
         direction TB
         RI["Row Widget Item\nslug: {base}_pr_wi\nitem_type: item_rows"]
-        SPR["SPR V2 Widget\nslug: {base}_spr_opt\nwidget_type: single_product_row_v2"]
+        SPR["Homepage Widget\nslug: {base}_spr or {base}_spr_opt\nwidget_type: from variant matrix"]
 
         RI -->|"widget_item mapping"| SPR
     end
@@ -231,25 +231,17 @@ flowchart TD
 
 | Step | Entity | Slug Suffix | Key Fields |
 | :--- | :--- | :--- | :--- |
-| 1 | Sub-Cat Widget Item | `_sc_wi` | `item_type: sub_category`, `product_list`, `filter_lst` |
+| 1 | Sub-Cat Widget Item | `_sc_wi_{state}` | `item_type: sub_category`, `product_list`, `filter_lst` |
 | 2 | PLP Widget | `_plp_w` | `widget_type: product_listing`, `heading: $title` |
 | 3 | Page Layout | `_page_p` | `page_type: $selectedPageType`, `page_heading: $title`, `page_layout_type: 2` |
 | 7 | Row Widget Item | `_pr_wi` | `item_type: item_rows`, `product_list` |
-| 8 | SPR V2 Widget | `_spr_opt` | `widget_type: $resolvedWidgetType`, `heading_en/hi`, `view_all: redirect-to-page`, `background_multimedia`, `filter_dict`, `app_configurations` |
+| 8 | Homepage Widget | `_spr` / `_spr_opt` | `widget_type: $resolvedWidgetType`, `heading_en/hi`, `view_all: redirect-to-page`, `background_multimedia`, `filter_dict`, `app_configurations` |
 
 ---
 
 ## 6. Slug Naming Convention
 
-### Standard Variant
-
-| Object | Slug Pattern | Example |
-| :--- | :--- | :--- |
-| Page Layout | `{base}_page` | `rice_mela_rail_page` |
-| Widget Item | `{base}_wi` | `rice_mela_rail_wi` |
-| SPR Widget | `{base}_spr` | `rice_mela_rail_spr` |
-
-### Optimized Variant
+### ALL Variants (Unified Slug Pattern)
 
 | Object | Slug Pattern | Example |
 | :--- | :--- | :--- |
@@ -258,13 +250,14 @@ flowchart TD
 | PLP Widget | `{base}_plp_w` | `rice_mela_rail_plp_w` |
 | Page Layout | `{base}_page_p` | `rice_mela_rail_page_p` |
 | Row Widget Item | `{base}_pr_wi` | `rice_mela_rail_pr_wi` |
-| SPR V2 Widget | `{base}_spr_opt` | `rice_mela_rail_spr_opt` |
+| Homepage Widget (Standard) | `{base}_spr` | `rice_mela_rail_spr` |
+| Homepage Widget (Optimized) | `{base}_spr_opt` | `rice_mela_rail_spr_opt` |
 
 ---
 
 ## 7. Location / State-Based Product Mapping
 
-Applies to **Optimized** variant only. Creates one sub-category widget item per state for location-specific product lists. States are **dynamic** — added via "+ Add State" button.
+Applies to **ALL** Product Rail variants (Standard and Optimized, Single and Double, with or without Multimedia). Creates one sub-category widget item per state for location-specific product lists. States are **dynamic** — added via "+ Add State" button.
 
 ### State Reference
 
@@ -294,7 +287,7 @@ rice_mela_rail_sc_wi_up,state,uttar pradesh,4,
 
 ## 8. Filters & Configurations
 
-All filters are **universal** across all 4 SPR variants — handled by `WidgetItemHelper` / `PageViewUtils`.
+All filters are **universal** across all 8 variants (SPR + DPR) — handled by `WidgetItemHelper` / `PageViewUtils`.
 
 ### Widget-Level Filters (`filter_dict` on Widget)
 
@@ -362,10 +355,15 @@ Both `product_listing_page` and `category_page` are supported — user selects d
 
 | Property | Value |
 | :--- | :--- |
-| React Component | `ProductRail` |
-| Config Source | `ProductRailConfig.js` |
-| Registry | Config-driven via `WidgetRegistry.configMap` |
-| Renderer | `WidgetRenderer.jsx` → `configComponentMap['ProductRail']` |
+| Config Source | `SPRConfig.js` |
+| Registry | Config-driven via `WidgetRegistry.configMap` (type: `product_rail`) |
+| SPR Renderer | `WidgetRenderer.jsx` → `configComponentMap['SingleProductRow']` |
+| DPR Renderer | `WidgetRenderer.jsx` → `configComponentMap['ProductRail']` |
+
+| Variant | Emulator Component |
+| :--- | :--- |
+| `single_product_row*` (all 4 SPR) | `SingleProductRow` |
+| `double_product_row*` (all 4 DPR) | `ProductRail` |
 
 ### Initial State
 
@@ -374,6 +372,9 @@ Both `product_listing_page` and `category_page` are supported — user selects d
     type: 'product_rail',
     title: 'New Collection',
     products: [],
+    pageType: 'product_listing_page',
+    start_time: '',
+    end_time: '',
     pnc: { rows: 1, is_optimized: true, has_multimedia: false }
 }
 ```
@@ -395,7 +396,6 @@ Both `product_listing_page` and `category_page` are supported — user selects d
 
 ## 12. Related Documentation
 
-- [Product Rail Widget](./WIDGET-Product-Rail.md) — Variant composition and backend mapping
 - [PLP Page Widget Support](./PLP-PAGE-widget-support.md) — Universal 3-layer PLP ecosystem, location mapping
 - [Slug Name Reference](./SLUG_NAME.md) — All slug patterns across widgets
 - [Widget Library Reference](./REFERENCE-Widget-Library.md) — All supported widgets and variants

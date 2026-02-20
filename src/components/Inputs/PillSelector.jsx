@@ -14,12 +14,12 @@ const PillSelector = ({
 }) => {
     return (
         <div className="mb-3">
-            <label className="block text-xs font-medium text-slate-400 mb-2">
+            <label className="block text-xs font-medium text-slate-500 mb-2">
                 {label}
             </label>
             <div className="flex gap-2">
                 {options.map((option) => {
-                    const isSelected = value === option;
+                    const isSelected = value === (typeof option === 'object' ? option.value : option);
                     const displayLabel = typeof option === 'object' ? option.label : option;
                     const optionValue = typeof option === 'object' ? option.value : option;
 
@@ -32,7 +32,7 @@ const PillSelector = ({
                             className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all
                                 ${isSelected
                                     ? 'bg-blue-600 text-white ring-2 ring-blue-500/30'
-                                    : 'bg-slate-800 text-slate-400 border border-slate-700 hover:border-slate-500'
+                                    : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-blue-300 hover:bg-blue-50'
                                 }
                                 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                         >

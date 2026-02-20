@@ -20,8 +20,13 @@ export default defineConfig(({ mode }) => {
     envDir: './',           // Load from url.env in project root
     envPrefix: 'VITE_',
     server: {
-      port: 9999,
+      port: 8888,
       proxy: {
+        // Proxy local Express API (MUST be before /api to match first)
+        '/api/local': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+        },
         // Proxy Google Apps Script API (MUST be before /api to match first)
         '/api/google-sheet': {
           target: 'https://script.google.com',
@@ -101,7 +106,7 @@ export default defineConfig(({ mode }) => {
       }
     },
     preview: {
-      port: 9999
+      port: 8888
     }
   }
 })

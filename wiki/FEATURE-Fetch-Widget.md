@@ -152,8 +152,8 @@ After fetching, the widget is added to the canvas and can be edited via the Prop
 | View All Link | TextInput | Conditional | Only for non-optimized variants | `view_all_action_params` |
 | Rows | PillSelector | Yes | `1` or `2` | Determines `widget_type` |
 | Optimized | CardToggle | Yes | `true` / `false` | Determines `widget_type` |
-| Start Time | DateTimePicker | Yes | — | `start_time` |
-| End Time | DateTimePicker | Yes | — | `end_time` |
+| Start Time | DateTimeInput | Yes | — | `start_time` |
+| End Time | DateTimeInput | Yes | — | `end_time` |
 
 **State-wise Products (Location Mapping):**
 
@@ -187,8 +187,8 @@ After fetching, the widget is added to the canvas and can be edited via the Prop
 | Title (English) | TextInput | Yes | `heading_en` |
 | Title (Hindi) | TextInput | No | `heading_hi` |
 | Aspect Ratio | NumberInput | Yes | `media_aspect_ratio` |
-| Start Time | DateTimePicker | Yes | `start_time` |
-| End Time | DateTimePicker | Yes | `end_time` |
+| Start Time | DateTimeInput | Yes | `start_time` |
+| End Time | DateTimeInput | Yes | `end_time` |
 
 **Per Carousel Item:**
 
@@ -216,8 +216,8 @@ After fetching, the widget is added to the canvas and can be edited via the Prop
 | Slug Name | TextInput | Yes | `slug_name` |
 | Title (English) | TextInput | Yes | `heading` |
 | Title (Hindi) | TextInput | No | `heading_hi` |
-| Start Time | DateTimePicker | Yes | `start_time` |
-| End Time | DateTimePicker | Yes | `end_time` |
+| Start Time | DateTimeInput | Yes | `start_time` |
+| End Time | DateTimeInput | Yes | `end_time` |
 
 **Per Category Item:**
 
@@ -254,8 +254,8 @@ After fetching, the widget is added to the canvas and can be edited via the Prop
 | Title (Hindi) | TextInput | No | `heading_hi` |
 | Aspect Ratio | Dropdown (4/3/2/1) | Yes | `media_aspect_ratio` |
 | Background Multimedia | FileUpload / DriveURL | No | `background_multimedia` |
-| Start Time | DateTimePicker | Yes | `start_time` |
-| End Time | DateTimePicker | Yes | `end_time` |
+| Start Time | DateTimeInput | Yes | `start_time` |
+| End Time | DateTimeInput | Yes | `end_time` |
 
 **Per Carousel Item:**
 
@@ -285,7 +285,7 @@ After fetching, the widget is added to the canvas and can be edited via the Prop
 | :--- | :--- | :---: | :--- |
 | Slug Name | TextInput | Yes | `slug_name` |
 | Master Key | TextInput | Yes | `master_key` |
-| End Time | DateTimePicker | Yes | `end_time` |
+| End Time | DateTimeInput | Yes | `end_time` |
 | Multimedia Type | Dropdown | No | `background_multimedia` type (1=Lottie, 2=Video, 3=Image) |
 | Multimedia File | FileUpload / DriveURL | No | `background_multimedia` value |
 | Aspect Ratio | NumberInput | No | Multimedia `aspect_ratio` |
@@ -309,8 +309,8 @@ After fetching, the widget is added to the canvas and can be edited via the Prop
 | Products | ProductCodes / CSV URL | Yes | `product_list` |
 | Image | ImageUpload / URL | Yes | `media_en` (carousel item) |
 | Aspect Ratio | NumberInput | Yes | `media_aspect_ratio` |
-| Start Time | DateTimePicker | Yes | `start_time` |
-| End Time | DateTimePicker | Yes | `end_time` |
+| Start Time | DateTimeInput | Yes | `start_time` |
+| End Time | DateTimeInput | Yes | `end_time` |
 | Page Type | Dropdown | Yes | `page_type` on Page Layout |
 
 ---
@@ -615,7 +615,7 @@ Each widget type has a corresponding Google Apps Script that handles the API cal
 - [Homepage Widget Mapping](./Homepage_mapping.md) — GL-HP-global mapping, location filtering, API endpoints (Prod & UAT)
 - [PLP Page Widget Support](./PLP-PAGE-widget-support.md) — 3-layer ecosystem, all widget types, page types
 - [Slug Name Reference](./SLUG_NAME.md) — All slug patterns to use as fetch input
-- [Product Rail Widget](./WIDGET-Product-Rail.md) — All 8 SPR/DPR variants
+- [Product Rail Widget](./Widget-spr.md) — All 8 SPR/DPR variants
 - [Collection Banner Widget](./WIDGET-Collection-Banner.md) — Carousel (scroll) + Category Grid (stick)
 - [Masthead Widget](./WIDGET-Masthead.md) — Primary + Secondary Masthead
 - [Widget Library Reference](./REFERENCE-Widget-Library.md) — All supported widgets and configs

@@ -495,7 +495,7 @@ flowchart TD
 
 - [PLP Page Widget Support](./PLP-PAGE-widget-support.md) — 3-layer PLP ecosystem, page types, location mapping
 - [Slug Name Reference](./SLUG_NAME.md) — All slug patterns and naming conventions
-- [Product Rail Widget](./WIDGET-Product-Rail.md) — SPR / DPR widget variants
+- [Product Rail Widget](./Widget-spr.md) — SPR / DPR widget variants
 - [Collection Banner Widget](./WIDGET-Collection-Banner.md) — Carousel (scroll) and Category Grid (stick)
 - [Masthead Widget](./WIDGET-Masthead.md) — Primary and Secondary Masthead
 - [Widget Library Reference](./REFERENCE-Widget-Library.md) — All supported widgets

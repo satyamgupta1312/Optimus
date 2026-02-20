@@ -1,21 +1,25 @@
 /**
  * Maker-Checker Configuration — Source of Truth
  *
- * Defines the approval workflow: roles, page status lifecycle,
- * transition rules, edit guards, Google Sheet storage, activity logging,
+ * Defines the approval workflow: page status lifecycle,
+ * transition rules, edit guards, submit/approve/reject actions,
  * and approval automation routing.
  *
+ * Auth & Role Assignment has been moved to AuthConfig.js
+ *
  * Wiki Reference: wiki/Feature-Maker-Checker.md
+ * Auth Reference: wiki/AUTH-Flow.md (roles, login, checker management)
+ * Config Reference: src/config/Feature/AuthConfig.js
  *
  * Flow:
  *   Maker (creates/edits) → Submit → Checker (reviews) → Approve/Reject → Backend API Update
  */
 
-// ── Roles ──
-export const ROLES = {
+// ── Role Permissions (what each role can DO) ──
+// Role assignment rules are in AuthConfig.js
+export const ROLE_PERMISSIONS = {
     SUPER_ADMIN: {
         label: 'Super Admin',
-        description: 'Full checker powers + can add/remove checkers from UI',
         canCreate: true,
         canEdit: true,
         canDelete: true,
@@ -29,7 +33,6 @@ export const ROLES = {
     },
     CHECKER: {
         label: 'Checker',
-        description: 'Can preview, approve, reject, re-open, deploy',
         canCreate: false,
         canEdit: false,
         canDelete: false,
@@ -43,7 +46,6 @@ export const ROLES = {
     },
     MAKER: {
         label: 'Maker',
-        description: 'Can create, edit, delete widgets; submit for review',
         canCreate: true,
         canEdit: true,
         canDelete: true,
@@ -55,64 +57,6 @@ export const ROLES = {
         canDeploy: false,
         canManageCheckers: false,
     },
-};
-
-// ── Role Assignment ──
-export const ROLE_ASSIGNMENT = {
-    superAdminEmail: 'satyam.gupta@apnamart.in',
-    // Step 1: AuthService.js assigns base role
-    baseRoleLogic: 'superAdminEmail → SUPER_ADMIN, everyone else → MAKER',
-    // Step 2: AuthContext.jsx overrides from Google Sheet checker list
-    dynamicOverride: 'If email in checker list and not SUPER_ADMIN → CHECKER',
-    sourceFiles: {
-        authService: 'src/services/AuthService.js',
-        authContext: 'src/context/AuthContext.jsx',
-        googleSheetService: 'src/services/GoogleSheetService.js',
-    },
-};
-
-// ── Context Helpers ──
-// Provided by AuthContext.jsx
-export const AUTH_CONTEXT_HELPERS = {
-    isAuthenticated: '!!user',
-    isSuperAdmin: "user?.role === 'SUPER_ADMIN'",
-    isChecker: "user?.role === 'CHECKER' || user?.role === 'SUPER_ADMIN'",
-    isMaker: "user?.role === 'MAKER'",
-    checkerList: '[{email, name, addedAt}]',
-    actions: ['addChecker(email, name)', 'removeChecker(email)', 'fetchCheckerList()'],
-};
-
-// ── Checker Management (Google Sheet Actions) ──
-export const CHECKER_MANAGEMENT = {
-    getCheckers: {
-        action: 'get_approval_users',
-        method: 'POST',
-        payload: { action: 'get_approval_users' },
-        response: '{ users: [{ email, name, addedAt }] }',
-    },
-    addChecker: {
-        action: 'add_approval_user',
-        method: 'POST',
-        payload: { action: 'add_approval_user', email: '$email', name: '$name' },
-    },
-    removeChecker: {
-        action: 'remove_approval_user',
-        method: 'POST',
-        payload: { action: 'remove_approval_user', email: '$email' },
-    },
-    ui: {
-        component: 'ManageApprovalUsers',
-        visibleTo: 'SUPER_ADMIN',
-        trigger: '"Users" button in header',
-    },
-};
-
-// ── User Object Shape ──
-export const USER_OBJECT = {
-    name: '$name',
-    email: '$email',
-    role: '$role', // SUPER_ADMIN | CHECKER | MAKER
-    csrfToken: '$csrfToken',
 };
 
 // ── Page Status Lifecycle ──
@@ -181,46 +125,18 @@ export const BUTTON_VISIBILITY = {
     REJECTED: { submit: true, approve: false, reject: false, reopen: false, deploy: false }, // submit acts as "re-submit"
 };
 
-// ── Submit Payload (Maker → Google Sheet) ──
+// ── Submit Payload (Maker → Local API) ──
 export const SUBMIT_PAYLOAD = {
     fields: {
-        action: 'create',
-        id: '$uuid', // crypto.randomUUID()
-        user: '$userName', // AuthContext.user.name
-        type: 'Homepage Update',
-        status: 'PENDING',
-        widgets: '$canvasWidgets', // All canvas widgets (JSON)
+        widgetIds: '$canvasWidgetIds', // Array of widget IDs to include
         headerWidgets: '$headerWidgets', // { primaryMasthead, secondaryMasthead } (cleaned JSON)
     },
     headerCleaning: 'File objects removed from headerWidgets for serialization',
-    service: 'GoogleSheetService.createRequest()',
+    service: 'LocalApiService.createRequest() + LocalApiService.submitRequest()',
     onSuccess: {
         statusChange: 'PENDING',
         toast: 'Page submitted for review!',
         editLocked: true,
-    },
-};
-
-// ── Google Sheet Storage ──
-export const GOOGLE_SHEET = {
-    sheetName: 'Requests',
-    appsScriptId: 'AKfycbwGI4r4nDqo5iKIYubUGpAUTaDN-Z1Su_fsD8EmQ7bxIP3XB0HmEdfXFG89hk0uMVZfBQ',
-    columns: [
-        { column: 'A', field: 'id', type: 'UUID', example: '550e8400-e29b-41d4-a716-446655440000' },
-        { column: 'B', field: 'user', type: 'string', example: 'john.doe@apnamart.in' },
-        { column: 'C', field: 'type', type: 'string', example: 'Homepage Update' },
-        { column: 'D', field: 'status', type: 'string', example: 'PENDING' },
-        { column: 'E', field: 'date', type: 'ISO datetime', example: '2026-02-17T10:30:00.000Z' },
-        { column: 'F', field: 'widgets', type: 'JSON string', example: '[{type:"Single Product Row",...}]' },
-        { column: 'G', field: 'headerWidgets', type: 'JSON string', example: '{primaryMasthead:{...},secondaryMasthead:{...}}' },
-    ],
-    actions: {
-        create: { method: 'POST', payload: 'Full request object', description: 'Maker submits new request' },
-        update_status: { method: 'POST', payload: '{id, status}', description: 'Checker approves/rejects' },
-        approve: { method: 'POST', payload: '{id, widgets, headerWidgets}', description: 'Checker approves + triggers automation' },
-        fetch_products: { method: 'POST', payload: '{item_codes: [...]}', description: 'Lookup product details' },
-        uploadMedia: { method: 'POST', payload: '{fileName, mimeType, fileData (base64)}', description: 'Upload media to Google Drive' },
-        getAll: { method: 'GET', payload: null, description: 'Fetch all requests' },
     },
 };
 
@@ -232,26 +148,27 @@ export const CHECKER_ACTIONS = {
         toast: "Previewing {user}'s request",
     },
     approve: {
-        description: 'Selected widgets sent to Apps Script for backend creation/update',
-        service: 'GoogleSheetService.approveRequest()',
-        payload: { action: 'approve', id: '$requestId', widgets: '$selectedWidgets', headerWidgets: '$selectedHeaderWidgets' },
+        description: 'Selected widgets approved. Backend API calls triggered for deployment.',
+        service: 'LocalApiService.approveRequest()',
+        payload: { selectedWidgetIds: '$selectedWidgetIds' },
         statusChange: 'APPROVED',
         toast: 'Widgets approved! Automation triggered successfully',
     },
     reject: {
-        description: 'Status updated to REJECTED, maker can re-edit',
-        service: 'GoogleSheetService.updateStatus(id, "REJECTED")',
+        description: 'Status updated to REJECTED with optional reason. Maker can re-edit.',
+        service: 'LocalApiService.rejectRequest()',
+        payload: { reason: '$rejectionReason' },
         statusChange: 'REJECTED',
         toast: 'Page rejected. Maker can edit and resubmit',
     },
     reopen: {
-        description: 'Reset APPROVED page back to DRAFT for editing',
-        service: 'WidgetContext.resetToDraft()',
+        description: 'Reset APPROVED/REJECTED page back to DRAFT for editing',
+        service: 'LocalApiService.reopenRequest()',
         statusChange: 'DRAFT',
         toast: 'Page reset to draft mode',
     },
     deploy: {
-        description: 'Manual re-deployment bypassing Google Sheet (if automation failed)',
+        description: 'Manual re-deployment bypassing local API (if automation failed)',
         service: 'BackendSyncService.deployRequest()',
         requiresCsrf: true,
         toast: null, // varies by result
@@ -350,10 +267,9 @@ export const UI_COMPONENTS = {
     RequestQueue: { file: 'src/components/Dashboard/RequestQueue.jsx', role: 'Checker review UI, approve/reject/deploy' },
     FetchWidget: { file: 'src/components/FetchWidget.jsx', role: 'Fetch existing widgets by slug' },
     WidgetContext: { file: 'src/context/WidgetContext.jsx', role: 'State management, submit/approve/reject functions' },
-    AuthContext: { file: 'src/context/AuthContext.jsx', role: 'Role assignment (SUPER_ADMIN/CHECKER/MAKER), dynamic checker management' },
+    AuthContext: { file: 'src/context/AuthContext.jsx', role: 'User state, checker list, role helpers' },
     ActivityLogContext: { file: 'src/context/ActivityLogContext.jsx', role: 'Audit trail' },
-    GoogleSheetService: { file: 'src/services/GoogleSheetService.js', role: 'Google Sheet API client, approval user management' },
     BackendSyncService: { file: 'src/services/BackendSyncService.js', role: 'Direct backend deployment' },
-    AuthService: { file: 'src/services/AuthService.js', role: 'Login, base role assignment (SUPER_ADMIN/MAKER), CSRF' },
+    LocalApiService: { file: 'src/services/LocalApiService.js', role: 'Local Express API client' },
     ApprovalAutomation: { file: 'scripts/Approval_Automation.gs', role: 'Server-side approval routing' },
 };

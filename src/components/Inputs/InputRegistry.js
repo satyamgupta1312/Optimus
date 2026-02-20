@@ -16,10 +16,13 @@ import VersionInput from './VersionInput';
 import ImageUpload from '../ImageUpload';
 import ColorPicker from '../ColorPickerInput';
 import SlugBuilder from './SlugBuilder';
-
-// ProductListInput is the existing product entry component
-// It will be added here once it's extracted/created
-// import ProductListInput from './ProductListInput';
+import ProductListInput from './ProductListInput';
+import SelectInput from './SelectInput';
+import DateTimeInput from './DateTimeInput';
+import StateProductEditor from './StateProductEditor';
+import ScrollItemEditor from '../Editors/ScrollItemEditor';
+import CategoryItemEditor from '../Editors/CategoryItemEditor';
+import CarouselItemEditor from '../Editors/CarouselItemEditor';
 
 export const InputRegistry = {
     TextInput,
@@ -31,7 +34,13 @@ export const InputRegistry = {
     ImageUpload,
     ColorPicker,
     SlugBuilder,
-    // ProductListInput, // TODO: Wire in once extracted
+    ProductListInput,
+    SelectInput,
+    DateTimeInput,
+    StateProductEditor,
+    ScrollItemEditor,
+    CategoryItemEditor,
+    CarouselItemEditor,
 };
 
 /**

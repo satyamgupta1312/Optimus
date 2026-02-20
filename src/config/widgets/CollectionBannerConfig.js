@@ -75,6 +75,22 @@ export const CollectionBannerConfig = {
             validation: { required: false },
         },
 
+        // ── Date/Time Fields (both modes) ──
+        {
+            name: 'start_time',
+            component: 'DateTimeInput',
+            label: 'Start Date & Time',
+            validation: { required: true },
+            errorMessage: 'Start time is required',
+        },
+        {
+            name: 'end_time',
+            component: 'DateTimeInput',
+            label: 'End Date & Time',
+            validation: { required: true },
+            errorMessage: 'End time is required',
+        },
+
         // ── Scroll Mode Only ──
         {
             name: 'media_number',

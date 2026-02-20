@@ -17,14 +17,15 @@
     *   [Secondary Masthead Strategy](./BACKEND-Secondary-Masthead-Strategy.md)
 4.  **Features**
     *   [Maker-Checker Approval Workflow](./Feature-Maker-Checker.md)
-    *   [Widget Creation](./Feature-Creation-Widget.md)
+    *   **[Create Widget — User Selection Journey](./STEP-Create-Widget.md)** — Step-by-step: what users select when creating each widget type
+    *   [Widget Creation (Backend Flow)](./Feature-Creation-Widget.md)
     *   [Fetch & Edit Widgets](./FEATURE-Fetch-Widget.md)
     *   [Widget Mapping](./Feature-Mapping-Widget.md)
     *   [Widget Drag & Drop (Emulator Reorder)](./FEATURE-WIDGET-drag-and-drop.md)
 5.  **Widget Deep-Dives**
     *   [Collection Banner](./WIDGET-Collection-Banner.md) — Carousel (Scroll) and Category Grid (Stick) modes
     *   [Masthead (Primary & Secondary)](./WIDGET-Masthead.md)
-    *   [Product Rail](./WIDGET-Product-Rail.md) — All 8 variants (SPR + DPR × Optimized × Multimedia)
+    *   [Product Rail (SPR + DPR)](./Widget-spr.md) — All 8 variants (SPR + DPR × Optimized × Multimedia)
     *   [Single Product Row (SPR)](./Widget-spr.md) — SPR-focused deep-dive; see Product Rail for the full 8-variant matrix
 6.  **Data & Mappings**
     *   [Homepage Mapping](./Homepage_mapping.md)
@@ -43,9 +44,10 @@
 
 | Date | Change |
 | :--- | :--- |
+| Feb 2026 | `STEP-Create-Widget.md` — **new wiki**: complete user selection journey for all 3 widget types, decision trees, field tables, nesting depth |
 | Feb 2026 | `FEATURE-WIDGET-drag-and-drop.md` — new wiki: widget drag & drop reorder, priority logic, GL-HP-global mapping |
 | Feb 2026 | `PLP-PAGE-widget-support.md` — rewritten with Expand Page toggle logic, API endpoints, removed Category Grid |
 | Feb 2026 | `WIDGET-Collection-Banner.md` — Carousel & Category Grid merged into single "Collection Banner" doc |
-| Feb 2026 | `WIDGET-Product-Rail.md` — fixed variant matrix (row 8 was missing `_v2`) |
+| Feb 2026 | `Widget-spr.md` — fixed variant matrix (row 8 was missing `_v2`) |
 | Feb 2026 | `Widget-spr.md` — expanded to full 8-variant Product Rail matrix |
 | Feb 2026 | All wiki files — Mermaid diagrams & ASCII skeleton UIs added |

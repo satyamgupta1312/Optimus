@@ -174,6 +174,22 @@ export const MastheadConfig = {
             errorMessage: 'Master key must be numeric',
         },
 
+        // ── Date/Time Fields (both variants) ──
+        {
+            name: 'start_time',
+            component: 'DateTimeInput',
+            label: 'Start Date & Time',
+            validation: { required: true },
+            errorMessage: 'Start time is required',
+        },
+        {
+            name: 'end_time',
+            component: 'DateTimeInput',
+            label: 'End Date & Time',
+            validation: { required: true },
+            errorMessage: 'End time is required',
+        },
+
         // ── Secondary-Only Fields ──
         {
             name: 'carouselItems',

@@ -19,6 +19,7 @@ import SlugBuilder from './SlugBuilder';
 import ProductListInput from './ProductListInput';
 import SelectInput from './SelectInput';
 import DateTimeInput from './DateTimeInput';
+import DateRangePicker from './DateRangePicker';
 import StateProductEditor from './StateProductEditor';
 import ScrollItemEditor from '../Editors/ScrollItemEditor';
 import CategoryItemEditor from '../Editors/CategoryItemEditor';
@@ -37,6 +38,7 @@ export const InputRegistry = {
     ProductListInput,
     SelectInput,
     DateTimeInput,
+    DateRangePicker,
     StateProductEditor,
     ScrollItemEditor,
     CategoryItemEditor,

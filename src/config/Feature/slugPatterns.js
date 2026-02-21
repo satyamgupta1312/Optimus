@@ -135,12 +135,46 @@ export const WIDGET_TYPE_SHORT_CODES = {
 };
 
 // ── Widget Item Type Short Codes ──
-// Used by SlugBuilder Part 4.
+// Reference map: backend item_type string → slug short code
 export const WIDGET_ITEM_TYPE_SHORT_CODES = {
     sub_category: 'sc',
     carousel: 'cl',
     item_rows: 'ir',
     category: 'cat',
+};
+
+// ── Widget Item Type Auto-Map ──
+// SlugBuilder Part 4: backend widget_type → item type short code (auto-derived, no user input).
+// Non-optimized Product Rail → ir (item_rows)
+// Optimized Product Rail (_v2) → sc (sub_category)
+// Carousel / Collection Banner → cl (carousel)
+// Category Grid → cat (category)
+// Mastheads → cl (carousel items)
+// PLP Widget → sc (sub_category)
+export const WIDGET_ITEM_TYPE_AUTO_MAP = {
+    // Product Rail — non-optimized → item_rows
+    single_product_row: 'ir',
+    double_product_row: 'ir',
+    multimedia_single_product_row: 'ir',
+    multimedia_double_product_row: 'ir',
+    // Product Rail — optimized → sub_category
+    single_product_row_v2: 'sc',
+    double_product_row_v2: 'sc',
+    multimedia_single_product_row_v2: 'sc',
+    multimedia_double_product_row_v2: 'sc',
+    // Carousel / Collection Banner → carousel items
+    carousel: 'cl',
+    collection_banner: 'cl',
+    banner_with_product_listing: 'cl',
+    // Category Grid → category items
+    category: 'cat',
+    category_grid: 'cat',
+    // Mastheads → carousel items
+    masthead_primary: 'cl',
+    masthead_secondary: 'cl',
+    masthead_secondary_category_hp: 'cl',
+    // PLP Widget → sub_category
+    product_listing: 'sc',
 };
 
 // ── Backend Widget Type Values ──

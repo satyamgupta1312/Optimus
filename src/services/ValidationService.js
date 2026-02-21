@@ -8,6 +8,7 @@
  */
 
 import { WidgetRegistry } from '../config/WidgetRegistry';
+import { LocalApiService } from './LocalApiService';
 
 // ── Field Validation Helpers ───────────────────────────────────────────────
 
@@ -23,9 +24,10 @@ const validators = {
     'minLength:3': (value) =>
         typeof value === 'string' && value.trim().length >= 3,
     'format:datetime': (value) => {
-        if (!value) return false;
-        // Accept YYYY-MM-DD HH:MM:SS or ISO format
-        return /^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}(:\d{2})?/.test(value);
+        if (!value) return true; // Optional — only validate format if present
+        // Accept multiple formats:
+        //   YYYY-MM-DD HH:MM:SS, YYYY-MM-DDTHH:MM, DD Mon YYYY HH:MM
+        return /^(\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}(:\d{2})?|\d{1,2} \w{3} \d{4} \d{2}:\d{2})/.test(value);
     },
 };
 
@@ -58,20 +60,9 @@ export const validateWidgets = (widgets = []) => {
                     widgetId: widget.id,
                     widgetTitle: widget.title || widget.type || 'Untitled Widget',
                     field: rule.field,
-                    message: rule.errorMessage || `${rule.field} is invalid.`,
+                    message: rule.errorMessage || rule.error || `${rule.field} is invalid.`,
                 });
             }
-        }
-
-        // slug-specific: must have value if type not in exclusions
-        const slugVal = widget.slug || widget.slug_name || '';
-        if (!slugVal || slugVal.trim() === '') {
-            errors.push({
-                widgetId: widget.id,
-                widgetTitle: widget.title || widget.type || 'Untitled Widget',
-                field: 'slug',
-                message: 'Slug name is required.',
-            });
         }
     }
 
@@ -92,23 +83,11 @@ export const checkSlugAvailability = async (slugName) => {
     }
 
     try {
-        // Check via local backend (Prisma) — avoids CORS issues with production API
-        const res = await fetch(`/api/local/widgets?slug=${encodeURIComponent(slugName.trim())}`);
-
-        if (!res.ok) {
-            // 404 = not found = available ✅
-            if (res.status === 404) return { available: true };
-            throw new Error(`HTTP ${res.status}`);
-        }
-
-        const data = await res.json();
+        // Check via local backend (Prisma) with proper auth headers
+        const results = await LocalApiService.getWidgets({ slug: slugName.trim() });
 
         // If backend returns non-empty results, slug is taken
-        const taken =
-            (Array.isArray(data) && data.length > 0) ||
-            (data?.results && data.results.length > 0) ||
-            (data?.id); // single object return
-
+        const taken = Array.isArray(results) ? results.length > 0 : !!results?.id;
         return { available: !taken };
     } catch (e) {
         console.warn('[ValidationService] Slug check failed (network):', e.message);

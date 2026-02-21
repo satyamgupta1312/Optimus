@@ -4,7 +4,7 @@ import {
     HEADER_OPTIONS,
     WIDGET_TYPE_CODES,
     LEGACY_WIDGET_TYPE_CODES,
-    WIDGET_ITEM_TYPE_OPTIONS,
+    WIDGET_ITEM_TYPE_AUTO_MAP,
     ZONE_OPTIONS,
     LOCATION_LEVELS,
     LOCATION_DATA,
@@ -72,11 +72,10 @@ const SmartLocationSelect = ({ level, setLevel, locations, setLocations }) => {
                                 key={loc}
                                 type="button"
                                 onClick={() => toggleLocation(loc)}
-                                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
-                                    isSelected
+                                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${isSelected
                                         ? 'bg-blue-600 text-white ring-1 ring-blue-500/30'
                                         : 'bg-slate-50 text-slate-500 border border-slate-200 hover:border-blue-300 hover:bg-blue-50'
-                                }`}
+                                    }`}
                             >
                                 {loc}
                             </button>
@@ -101,7 +100,7 @@ const SlugBuilder = ({ label, value, onChange, error, helperText, required, widg
     // ── Parse existing slug into parts (best-effort) ──
     const [header, setHeader] = useState('');
     const [identifier, setIdentifier] = useState('');
-    const [widgetItemType, setWidgetItemType] = useState('');
+
     const [zone, setZone] = useState('');
     const [locationLevel, setLocationLevel] = useState('');
     const [locations, setLocations] = useState([]);
@@ -125,10 +124,29 @@ const SlugBuilder = ({ label, value, onChange, error, helperText, required, widg
         return LEGACY_WIDGET_TYPE_CODES[widget.type] || '';
     }, [widget?.type, widget?.pnc]);
 
-    // ── Get display label for widget item type ──
+    // ── Auto-derive widget item type code (Part 4) — no user input needed ──
     const widgetItemTypeCode = useMemo(() => {
-        return WIDGET_ITEM_TYPE_OPTIONS[widgetItemType] || widgetItemType;
-    }, [widgetItemType]);
+        if (!widget) return '';
+
+        // Config-driven: resolve backend type first, then map to item type
+        const config = WidgetRegistry.getConfig(widget.type);
+        if (config) {
+            const pnc = widget.pnc || config.initialState?.pnc || {};
+            const backendType = WidgetRegistry.resolveVariant(widget.type, pnc, widget);
+            return WIDGET_ITEM_TYPE_AUTO_MAP[backendType] || '';
+        }
+
+        // Legacy fallback — map from legacy UI type names
+        const legacyItemMap = {
+            'Primary Masthead': 'cl',
+            'Secondary Masthead': 'cl',
+            'Category Grid': 'cat',
+            'Product Listing Page (CLP)': 'sc',
+            'Single Product Row Optimize': 'sc',
+            'Banner With Product Listing': 'cl',
+        };
+        return legacyItemMap[widget.type] || '';
+    }, [widget?.type, widget?.pnc]);
 
     // ── Compose slug on any change ──
     const composedSlug = useMemo(() => {
@@ -173,14 +191,6 @@ const SlugBuilder = ({ label, value, onChange, error, helperText, required, widg
         });
     }, [composedSlug]);
 
-    // ── Widget item type dropdown options ──
-    const witOptions = useMemo(
-        () => Object.entries(WIDGET_ITEM_TYPE_OPTIONS).map(([key, code]) => ({
-            value: key,
-            label: `${key} (${code})`,
-        })),
-        []
-    );
 
     return (
         <div className="mb-3">
@@ -211,7 +221,7 @@ const SlugBuilder = ({ label, value, onChange, error, helperText, required, widg
                     </div>
                 </div>
 
-                {/* Row 2: Widget Type (auto) + Widget Item Type */}
+                {/* Row 2: Widget Type (auto) + Widget Item Type (auto) */}
                 <div className="grid grid-cols-2 gap-2">
                     <div>
                         <label className="block text-[10px] font-medium text-slate-500 mb-1">3. Widget Type</label>
@@ -219,13 +229,12 @@ const SlugBuilder = ({ label, value, onChange, error, helperText, required, widg
                             {widgetTypeCode || <span className="text-slate-400 italic font-sans">auto-detected</span>}
                         </div>
                     </div>
-                    <SlugSelect
-                        label="4. Widget Item Type"
-                        value={widgetItemType}
-                        onChange={setWidgetItemType}
-                        options={witOptions}
-                        placeholder="Select item type"
-                    />
+                    <div>
+                        <label className="block text-[10px] font-medium text-slate-500 mb-1">4. Item Type</label>
+                        <div className="px-2 py-1.5 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-700 font-mono min-h-[28px] flex items-center">
+                            {widgetItemTypeCode || <span className="text-slate-400 italic font-sans">auto-detected</span>}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Row 3: Zone + Location */}

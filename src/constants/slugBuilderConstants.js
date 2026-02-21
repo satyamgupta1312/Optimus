@@ -50,12 +50,41 @@ export const LEGACY_WIDGET_TYPE_CODES = {
     'Banner With Product Listing': 'bplp',
 };
 
-// Part 4: Widget item type options (display → code)
+// Part 4: Widget item type → short code (for reference)
 export const WIDGET_ITEM_TYPE_OPTIONS = {
     sub_category: 'sc',
     carousel: 'cl',
     item_rows: 'ir',
     category: 'cat',
+};
+
+// Part 4 (Auto): backend widget_type → item type code
+// Used by SlugBuilder to auto-derive widgetItemType without user input.
+// For optimized SPR/DPR variants, sub_category (sc) is used; otherwise item_rows (ir).
+export const WIDGET_ITEM_TYPE_AUTO_MAP = {
+    // Product Rail — non-optimized → item_rows
+    single_product_row: 'ir',
+    double_product_row: 'ir',
+    multimedia_single_product_row: 'ir',
+    multimedia_double_product_row: 'ir',
+    // Product Rail — optimized → sub_category
+    single_product_row_v2: 'sc',
+    double_product_row_v2: 'sc',
+    multimedia_single_product_row_v2: 'sc',
+    multimedia_double_product_row_v2: 'sc',
+    // Carousel / Collection Banner → carousel items
+    carousel: 'cl',
+    collection_banner: 'cl',
+    banner_with_product_listing: 'cl',
+    // Category Grid → category items
+    category: 'cat',
+    category_grid: 'cat',
+    // Mastheads → carousel items
+    masthead_primary: 'cl',
+    masthead_secondary: 'cl',
+    masthead_secondary_category_hp: 'cl',
+    // PLP widget → sub_category
+    product_listing: 'sc',
 };
 
 // Part 5: Zone options

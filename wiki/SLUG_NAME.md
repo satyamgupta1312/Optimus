@@ -23,7 +23,7 @@ All parts joined with underscore `_`. Multiple location selections also joined w
 | 1 | **Header** | Select dropdown | `monthly_list`, `kirana`, `fresh`, `body_care`, `categories`, `deals`, `electronics`, `kitchen`, `stationery`, `search_page` | `kirana` |
 | 2 | **Identifier** | Free text | Any text (sanitized to lowercase + underscores) | `buy_1_get_1` |
 | 3 | **Widget Type** | Auto badge (read-only) | Auto-resolved from widget config or legacy type (see code mapping below) | `spr` |
-| 4 | **Widget Item Type** | Select dropdown | `sub_category` → `sc`, `carousel` → `cl`, `item_rows` → `ir`, `category` → `cat` | `ir` |
+| 4 | **Widget Item Type** | Auto badge (read-only) | Auto-derived from widget type — see auto-map below | `ir`, `sc`, `cl`, `cat` |
 | 5 | **Zone** | Select dropdown | `intermediate_zone`, `all_masthead`, `category_section`, `rohp`, `rocp`, `cp_masthead` | `rohp` |
 | 6 | **Location** | Smart 2-step select | Level: `Global`, `State`, `City`, `Store` → then multi-select values | `jh` or `jh_wb` or `global` |
 | 7 | **User** | Select dropdown | `FTU`, `allusers` | `allusers` |
@@ -39,11 +39,30 @@ All parts joined with underscore `_`. Multiple location selections also joined w
 | Carousel | `categories` | `electronics_fest` | `cl` | `cl` | `intermediate_zone` | `jh_cg_up` | `FTU` | `android` | `categories_electronics_fest_cl_cl_intermediate_zone_jh_cg_up_FTU_android` |
 | Category Grid | `kitchen` | `cookware` | `cg` | `cat` | `category_section` | `global` | `allusers` | `both` | `kitchen_cookware_cg_cat_category_section_global_allusers_both` |
 
-### Widget Type Auto-Resolution (Part 3)
+### Widget Item Type Auto-Derivation (Part 4)
 
-The Widget Type field is **auto-populated** — users never type it. It is resolved from:
+The Widget Item Type field is **auto-populated** from the resolved backend `widget_type` — users never select it.
 
-**Config-driven widgets** (via `WidgetRegistry.resolveVariant()`):
+**Source:** `WIDGET_ITEM_TYPE_AUTO_MAP` in `src/constants/slugBuilderConstants.js`
+
+| Backend `widget_type` | Item Type Code | Item Type |
+|:---|:---:|:---|
+| `single_product_row` | `ir` | item_rows |
+| `double_product_row` | `ir` | item_rows |
+| `multimedia_single_product_row` | `ir` | item_rows |
+| `multimedia_double_product_row` | `ir` | item_rows |
+| `single_product_row_v2` | `sc` | sub_category |
+| `double_product_row_v2` | `sc` | sub_category |
+| `multimedia_single_product_row_v2` | `sc` | sub_category |
+| `multimedia_double_product_row_v2` | `sc` | sub_category |
+| `carousel`, `collection_banner`, `banner_with_product_listing` | `cl` | carousel |
+| `category`, `category_grid` | `cat` | category |
+| `masthead_primary`, `masthead_secondary`, `masthead_secondary_category_hp` | `cl` | carousel |
+| `product_listing` | `sc` | sub_category |
+
+> **Rule:** Non-optimized Product Rail → `ir` (item_rows). Optimized Product Rail → `sc` (sub_category). Everything else maps by widget family.
+
+
 
 | Backend `widget_type` | Short Code |
 |:---|:---|

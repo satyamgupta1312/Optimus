@@ -52,7 +52,11 @@ export const validateWidgets = (widgets = []) => {
         const rules = WidgetRegistry.getValidationRules(widget.type) || [];
 
         for (const rule of rules) {
-            const fieldValue = widget[rule.field];
+            // Normalize: slug field may live in 'slug_name' on fetched widgets
+            let fieldValue = widget[rule.field];
+            if (rule.field === 'slug' && !fieldValue) {
+                fieldValue = widget.slug_name;
+            }
             const passes = runRule(rule.rule, fieldValue);
 
             if (!passes) {

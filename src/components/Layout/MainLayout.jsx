@@ -1,6 +1,5 @@
 import React from 'react';
 import Sidebar from '../Sidebar/Sidebar';
-import HeaderConfiguration from '../Sidebar/HeaderConfiguration';
 import PhoneFrame from '../Preview/PhoneFrame';
 import HelpGuide from '../HelpGuide';
 import { useAuth } from '../../context/AuthContext';
@@ -12,21 +11,21 @@ import ManageApprovalUsers from '../AdminPanel/ManageApprovalUsers';
 import HomepageMappingDashboard from '../Dashboard/HomepageMappingDashboard';
 import WidgetVersionHistory from '../Dashboard/WidgetVersionHistory';
 import DeploymentStatusPanel from '../Dashboard/DeploymentStatusPanel';
-import { ACTIVE_ENV } from '../../config/apiConfig';
-import { LogOut, Save, CheckCircle, XCircle, Send, RotateCcw, Smartphone, ChevronDown, ListTodo, History, Undo2, Redo2, Settings, X, Users, Map, Rocket } from 'lucide-react';
+import { ACTIVE_ENV, switchEnv } from '../../config/apiConfig';
+import { LogOut, Save, CheckCircle, XCircle, Send, RotateCcw, Smartphone, ListTodo, History, Undo2, Redo2, X, Users, Map, Rocket } from 'lucide-react';
 
 
 const MainLayout = () => {
     const { user, logout, isChecker, isSuperAdmin } = useAuth();
     const {
         pageStatus, setPageStatus, submitForReview, approvePage, rejectPage, resetToDraft,
-        headerWidgets, updateHeaderWidget, canUndo, canRedo, undo, redo
+        canUndo, canRedo, undo, redo
     } = useWidgetContext();
     const { theme, toggleTheme, osType, toggleOS } = useAppSettings();
     const [sidebarWidth, setSidebarWidth] = React.useState(420);
     const [isResizing, setIsResizing] = React.useState(false);
     const [showQueue, setShowQueue] = React.useState(false);
-    const [showHeaderConfig, setShowHeaderConfig] = React.useState(false);
+    const [queueFilter, setQueueFilter] = React.useState('PENDING');
     const [showManageUsers, setShowManageUsers] = React.useState(false);
     const [showMapping, setShowMapping] = React.useState(false);
     const [showVersionHistory, setShowVersionHistory] = React.useState(false);
@@ -89,12 +88,17 @@ const MainLayout = () => {
                         alt="Optimus"
                         className="h-10 w-auto"
                     />
-                    {/* Feature 7: UAT Environment Badge */}
-                    {ACTIVE_ENV === 'UAT' && (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700 border border-orange-300 animate-pulse select-none" title="You are connected to the UAT (test) environment">
-                            🧪 UAT
-                        </span>
-                    )}
+                    {/* Environment Toggle: UAT / PROD */}
+                    <button
+                        onClick={() => switchEnv()}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border cursor-pointer select-none transition-colors ${ACTIVE_ENV === 'UAT'
+                                ? 'bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200'
+                                : 'bg-green-100 text-green-700 border-green-300 hover:bg-green-200'
+                            }`}
+                        title={`Currently on ${ACTIVE_ENV}. Click to switch to ${ACTIVE_ENV === 'UAT' ? 'PROD' : 'UAT'}`}
+                    >
+                        {ACTIVE_ENV === 'UAT' ? '🧪 UAT' : '🚀 PROD'}
+                    </button>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -157,11 +161,10 @@ const MainLayout = () => {
                     {/* Mapping Dashboard Button */}
                     <button
                         onClick={() => setShowMapping(true)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs font-medium ${
-                            showMapping
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs font-medium ${showMapping
                                 ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                                 : 'border-slate-200 text-slate-700 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700'
-                        }`}
+                            }`}
                         title="Homepage Mappings"
                     >
                         <Map size={14} />
@@ -171,11 +174,10 @@ const MainLayout = () => {
                     {/* Version History Button */}
                     <button
                         onClick={() => setShowVersionHistory(true)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs font-medium ${
-                            showVersionHistory
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs font-medium ${showVersionHistory
                                 ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
                                 : 'border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700'
-                        }`}
+                            }`}
                         title="Version History"
                     >
                         <History size={14} />
@@ -312,23 +314,7 @@ const MainLayout = () => {
                     style={{ width: sidebarWidth }}
                     className="bg-white border-r border-slate-200 flex flex-col h-full overflow-hidden shrink-0"
                 >
-                    {/* Header Configuration Trigger Button */}
-                    <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-blue-50 to-purple-50">
-                        <button
-                            onClick={() => setShowHeaderConfig(true)}
-                            className="w-full flex items-center justify-between px-4 py-3 bg-white border-2 border-blue-200 rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-colors shadow-sm group"
-                            aria-label="Open header configuration"
-                        >
-                            <div className="flex items-center gap-2">
-                                <Settings size={18} className="text-blue-600" />
-                                <span className="font-semibold text-slate-800">Configure Header</span>
-                            </div>
-                            <ChevronDown size={16} className="text-slate-400 group-hover:text-blue-600 transform group-hover:translate-x-1 transition-transform" />
-                        </button>
-                        <p className="text-xs text-slate-500 mt-2 px-1">Primary & Secondary Masthead settings</p>
-                    </div>
-
-                    {/* Standard Widget Library - Now Always Visib le */}
+                    {/* Widget Library & Property Editor */}
                     <div className="flex-1 overflow-y-auto">
                         <Sidebar />
                     </div>
@@ -350,62 +336,6 @@ const MainLayout = () => {
                     <PhoneFrame />
                 </div>
             </div>
-
-            {/* Header Configuration Modal Panel */}
-            {showHeaderConfig && (
-                <>
-                    {/* Backdrop */}
-                    <div
-                        className="fixed inset-0 bg-black/50 z-40 animate-in fade-in duration-200"
-                        onClick={() => setShowHeaderConfig(false)}
-                    />
-
-                    {/* Modal Panel */}
-                    <div className="fixed inset-y-0 left-0 w-full max-w-2xl bg-white shadow-2xl z-50 flex flex-col animate-in slide-in-from-left duration-300">
-                        {/* Modal Header */}
-                        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 shrink-0">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <Settings size={24} />
-                                    <div>
-                                        <h2 className="text-xl font-bold">Header Configuration</h2>
-                                        <p className="text-sm text-blue-100 mt-1">Configure Primary & Secondary Masthead</p>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => setShowHeaderConfig(false)}
-                                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                                    title="Close (ESC)"
-                                    aria-label="Close modal"
-                                >
-                                    <X size={20} />
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Modal Content */}
-                        <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
-                            {headerWidgets && (
-                                <HeaderConfiguration
-                                    headerWidgets={headerWidgets}
-                                    onUpdate={updateHeaderWidget}
-                                />
-                            )}
-                        </div>
-
-                        {/* Modal Footer */}
-                        <div className="border-t border-slate-200 p-4 bg-white shrink-0 flex items-center justify-between">
-                            <p className="text-xs text-slate-500">Changes are saved automatically</p>
-                            <button
-                                onClick={() => setShowHeaderConfig(false)}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
-                            >
-                                Done
-                            </button>
-                        </div>
-                    </div>
-                </>
-            )}
 
             {/* Manage Users Modal Panel (Super Admin) */}
             {showManageUsers && (

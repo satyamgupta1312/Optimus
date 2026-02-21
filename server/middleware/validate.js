@@ -66,7 +66,12 @@ export function validateWidget(widget) {
 
   // Universal
   for (const rule of UNIVERSAL_RULES) {
-    if (!checkRule(widget[rule.field], rule.rule)) {
+    // Normalize: slug may live in 'slug_name' on fetched widgets
+    let value = widget[rule.field];
+    if (rule.field === 'slug' && !value) {
+      value = widget.slug_name;
+    }
+    if (!checkRule(value, rule.rule)) {
       errors.push(rule.error);
     }
   }

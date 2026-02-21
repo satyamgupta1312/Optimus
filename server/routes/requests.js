@@ -40,13 +40,97 @@ router.get('/', async (req, res, next) => {
 });
 
 // ── POST /requests ──
-// Create a new request (DRAFT)
+// Create a new request.
+// Accepts EITHER { widgetIds } (existing DB widgets) OR { widgets, headerWidgets }
+// (inline frontend widgets — creates Widget records + Request in one transaction).
 router.post('/', async (req, res, next) => {
   try {
-    const { widgetIds, headerWidgets } = req.body;
+    const { widgetIds, widgets: inlineWidgets, headerWidgets } = req.body;
 
+    // ── Path A: Inline widgets from frontend (create + submit in one step) ──
+    if (Array.isArray(inlineWidgets) && inlineWidgets.length > 0) {
+      // Validate each inline widget
+      const allErrors = [];
+      for (let i = 0; i < inlineWidgets.length; i++) {
+        const errors = validateWidget(inlineWidgets[i]);
+        if (errors.length > 0) {
+          allErrors.push({ index: i, widget: inlineWidgets[i].title || `Widget ${i}`, errors });
+        }
+      }
+      if (allErrors.length > 0) {
+        return res.status(400).json({ error: 'Validation failed', details: allErrors });
+      }
+
+      // Create Widget records + Request + RequestWidgets in a single transaction
+      const request = await prisma.$transaction(async (tx) => {
+        // Create widgets in DB
+        const createdWidgets = [];
+        for (let i = 0; i < inlineWidgets.length; i++) {
+          const w = inlineWidgets[i];
+          const slug = w.slug || w.slug_name || `widget-${Date.now()}-${i}`;
+          const widget = await tx.widget.create({
+            data: {
+              type: w.type || 'unknown',
+              slug,
+              title: w.title || '',
+              titleHi: w.titleHi || '',
+              status: 'PENDING',
+              sortOrder: i,
+              pnc: JSON.stringify(w.pnc || {}),
+              config: JSON.stringify(w.config || {}),
+              products: JSON.stringify(w.products || []),
+              createdBy: req.user.id,
+            },
+          });
+          createdWidgets.push({ widget, original: w });
+        }
+
+        // Create Request with status PENDING (combined create + submit)
+        const req_ = await tx.request.create({
+          data: {
+            status: 'PENDING',
+            submittedBy: req.user.id,
+            headerWidgets: JSON.stringify(headerWidgets || {}),
+            requestWidgets: {
+              create: createdWidgets.map(({ widget, original }, i) => ({
+                widgetId: widget.id,
+                snapshot: JSON.stringify(original),
+                sortOrder: i,
+              })),
+            },
+          },
+          include: {
+            submitter: { select: { email: true, name: true } },
+            requestWidgets: true,
+          },
+        });
+
+        // Log activity
+        await tx.activityLog.create({
+          data: {
+            action: 'submit',
+            userId: req.user.id,
+            targetId: req_.id,
+            details: JSON.stringify({ widgetCount: createdWidgets.length }),
+          },
+        });
+
+        return req_;
+      });
+
+      return res.status(201).json({
+        ...request,
+        headerWidgets: JSON.parse(request.headerWidgets),
+        requestWidgets: request.requestWidgets.map(rw => ({
+          ...rw,
+          snapshot: JSON.parse(rw.snapshot),
+        })),
+      });
+    }
+
+    // ── Path B: Existing widget IDs (original behavior) ──
     if (!widgetIds || !Array.isArray(widgetIds) || widgetIds.length === 0) {
-      return res.status(400).json({ error: 'widgetIds array is required' });
+      return res.status(400).json({ error: 'widgetIds array or widgets array is required' });
     }
 
     // Fetch widgets and snapshot them

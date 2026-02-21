@@ -1,124 +1,72 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useWidgetContext } from '../../context/WidgetContext';
-import { searchProduct } from '../../services/CatalogService';
+import { useCatalog } from '../../hooks/useCatalog';
 
+/**
+ * BannerWithProductListing
+ *
+ * Carousel/banner widget that navigates to a Product Listing Page on click.
+ * On click, resolves item codes from `widget.products` using the Google Sheet
+ * catalog via `useCatalog`, then navigates to the PLP view with real product data.
+ *
+ * Widget fields used:
+ *   widget.products   — string[] of item codes (set via ProductListInput in sidebar)
+ *   widget.items      — ScrollItem[] (each has item.productIds / item.stateProducts)
+ *   widget.title      — Page heading
+ *   widget.image      — Banner image
+ *   widget.aspectRatio
+ *
+ * Catalog: src/hooks/useCatalog.js → ProductCatalogConfig.js
+ * Wiki:    wiki/DATA-Catalog-Integration.md
+ */
 const BannerWithProductListing = ({ widget }) => {
     const { navigateTo } = useWidgetContext();
+    const { getProduct } = useCatalog();
 
-    const handleClick = async () => {
-        let mockProducts = [];
-
-        // Priority 1: Use Pre-fetched products (Populated via Enter key in Property Editor)
-        if (widget.products && widget.products.length > 0) {
-            console.log("[Banner] Using pre-fetched products:", widget.products);
-            mockProducts = widget.products.map(p => {
-                const salePrice = parseFloat(p.price.toString().replace(/[^0-9.]/g, '')) || 0;
-                const mrp = parseFloat(p.mrp || 0) || 0;
-
-                return {
-                    id: p.itemCode || p.id,
-                    name: p.name,
-                    selling_price: salePrice,
-                    mrp: mrp || (salePrice * 1.2), // Fake MRP if missing for preview
-                    image_url: p.image || 'https://placehold.co/150',
-                    quantity_text: '1 unit',
-                    discount_percentage: mrp > salePrice ? Math.round(((mrp - salePrice) / mrp) * 100) : 0
-                };
-            });
-
-            navigateTo('listing', {
-                title: widget.title || 'Product Listing',
-                products: mockProducts
-            });
-            return;
-        }
-
-        const rawIds = widget.productIds || "";
-
-        // Priority 2: CSV URL
-        if (rawIds.includes("http")) {
-            try {
-                const csvUrl = rawIds.trim();
-                const response = await fetch(csvUrl);
-                if (!response.ok) throw new Error("Network response was not ok");
-                const text = await response.text();
-
-                const lines = text.split('\n').filter(l => l.trim());
-                if (lines.length > 1) {
-                    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/_/g, ' '));
-
-                    const idxCode = headers.findIndex(h => h.includes('item code'));
-                    const idxName = headers.findIndex(h => h.includes('display name') || h.includes('name'));
-                    const idxPrice = headers.findIndex(h => h === 'price');
-                    const idxMrp = headers.findIndex(h => h.includes('mrp'));
-                    const idxImage = headers.findIndex(h => h.includes('main image') || h.includes('image'));
-
-                    mockProducts = lines.slice(1).map(line => {
-                        const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.trim().replace(/^"|"$/g, ''));
-                        if (cols.length < 2) return null;
-
-                        const price = idxPrice > -1 ? (parseFloat(cols[idxPrice]) || 0) : 0;
-                        const mrp = idxMrp > -1 ? (parseFloat(cols[idxMrp]) || 0) : 0;
-                        const discount = mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0;
-                        const pName = idxName > -1 ? cols[idxName] : `Product ${cols[idxCode] || '?'}`;
-                        const pImage = idxImage > -1 ? cols[idxImage] : 'https://placehold.co/150';
-
-                        return {
-                            id: (idxCode > -1 ? cols[idxCode] : '0') || '0',
-                            name: pName,
-                            selling_price: price,
-                            mrp: mrp,
-                            image_url: pImage,
-                            quantity_text: '1 pc',
-                            discount_percentage: discount
-                        };
-                    }).filter(Boolean);
-                }
-            } catch (e) {
-                console.error("CSV Fetch Error", e);
-                alert("Failed to load CSV. " + e.message);
-                mockProducts = [{ name: "Error Loading Sheet", price: 0 }];
-            }
-        } else {
-            // Priority 3: Simple IDs (Enhanced with Catalog Lookup)
-            const codes = rawIds.toString().split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
-
-            mockProducts = codes.map(code => {
-                const catalogItem = searchProduct(code);
-
-                if (catalogItem) {
-                    // Parse price from formatted string ("₹100" -> 100)
-                    const priceVal = catalogItem.price || 0;
-                    // Mock MRP as 20% higher since catalog CSV might only have selling price
-                    const mrpVal = priceVal * 1.2;
-
+    /** Resolve a list of item code strings to product objects for PLP */
+    const resolveProducts = (codes) => {
+        if (!codes || !codes.length) return [];
+        return codes
+            .map(code => {
+                const c = String(code).trim();
+                if (!c) return null;
+                const cat = getProduct(c);
+                if (cat) {
                     return {
-                        id: catalogItem.itemCode,
-                        name: catalogItem.name,
-                        selling_price: priceVal,
-                        mrp: mrpVal,
-                        image_url: catalogItem.image || 'https://placehold.co/150',
+                        id: c,
+                        name: cat.displayName,
+                        selling_price: cat.price,
+                        mrp: cat.mrp > cat.price ? cat.mrp : cat.price * 1.2,
+                        image_url: cat.imageUrl || 'https://placehold.co/150',
                         quantity_text: '1 pc',
-                        discount_percentage: 20
-                    };
-                } else {
-                    // Fallback for unknown IDs
-                    return {
-                        id: code,
-                        name: `Preview Product (${code})`,
-                        selling_price: 100,
-                        mrp: 120,
-                        image_url: 'https://placehold.co/150',
-                        quantity_text: '1 unit',
-                        discount_percentage: 16
+                        discount_percentage: cat.mrp > cat.price
+                            ? Math.round(((cat.mrp - cat.price) / cat.mrp) * 100)
+                            : 0,
                     };
                 }
-            });
-        }
+                // Unknown code — show placeholder
+                return {
+                    id: c,
+                    name: `Product #${c}`,
+                    selling_price: 0,
+                    mrp: 0,
+                    image_url: 'https://placehold.co/150',
+                    quantity_text: '1 pc',
+                    discount_percentage: 0,
+                };
+            })
+            .filter(Boolean);
+    };
 
+    const handleClick = () => {
+        // Priority 1: widget.products is a string[] of item codes (from ProductListInput)
+        const rawCodes = widget.products || [];
+        const products = resolveProducts(
+            Array.isArray(rawCodes) ? rawCodes : String(rawCodes).split(/[,\n\s]+/).filter(Boolean)
+        );
         navigateTo('listing', {
             title: widget.title || 'Product Listing',
-            products: mockProducts
+            products,
         });
     };
 
@@ -145,8 +93,6 @@ const BannerWithProductListing = ({ widget }) => {
                     </div>
                 )}
             </div>
-
-
         </div>
     );
 };

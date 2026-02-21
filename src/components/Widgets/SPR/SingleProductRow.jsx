@@ -1,7 +1,8 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useWidgetContext } from '../../../context/WidgetContext';
 import { SPRConfig } from '../../../config/widgets/SPRConfig';
 import { SPRService } from './SPRService';
+import { useCatalog } from '../../../hooks/useCatalog';
 
 /**
  * SingleProductRow — Unified Product Rail Renderer
@@ -17,12 +18,14 @@ import { SPRService } from './SPRService';
  * - Multimedia background overlay
  * - Optimized compact cards (92px) vs Standard cards (134px)
  * - Subtitle support
+ * - Live product data from catalog (via useCatalog hook)
  *
  * Config:  SPRConfig.js
  * Backend: SPRService.js
  */
 const SingleProductRow = ({ widget }) => {
     const { navigateTo, updateWidget } = useWidgetContext();
+    const { getProduct, loading: catalogLoading } = useCatalog();
 
     // Extract PNC with defaults from SPRConfig
     const pnc = { ...SPRConfig.initialState.pnc, ...(widget.pnc || {}) };
@@ -30,7 +33,43 @@ const SingleProductRow = ({ widget }) => {
     const isOptimized = pnc.is_optimized;
     const isDoubleRow = pnc.rows === 2;
     const hasMultimedia = pnc.has_multimedia;
-    const products = widget.products || [];
+
+    // widget.products is an array of item code strings (set via ProductListInput)
+    // Hydrate each code into a full product object via the catalog
+    const resolvedProducts = useMemo(() => {
+        const rawCodes = widget.products || [];
+        if (!rawCodes.length) return [];
+        return rawCodes.map((code) => {
+            const cat = getProduct(String(code));
+            if (cat) {
+                const discount = cat.mrp > cat.price
+                    ? Math.round((1 - cat.price / cat.mrp) * 100)
+                    : null;
+                return {
+                    id: String(code),
+                    itemCode: String(code),
+                    name: cat.displayName,
+                    brand: cat.brand,
+                    image: cat.imageUrl,
+                    price: `₹${cat.price}`,
+                    mrp: cat.mrp > cat.price ? `₹${cat.mrp}` : null,
+                    discount,
+                };
+            }
+            // Catalog not loaded yet or unknown code — placeholder
+            return {
+                id: String(code),
+                itemCode: String(code),
+                name: catalogLoading ? '…' : `Item #${code}`,
+                image: '',
+                price: '₹—',
+                mrp: null,
+                discount: null,
+            };
+        });
+    }, [widget.products, getProduct, catalogLoading]);
+
+    const products = resolvedProducts;
     const isLoading = products.length === 0;
 
     // Resolved backend widget_type (e.g. 'single_product_row_v2')

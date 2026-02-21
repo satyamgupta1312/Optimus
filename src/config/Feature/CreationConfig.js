@@ -386,5 +386,5 @@ export const AUTOMATION_SCRIPTS = {
 export const FRONTEND_SERVICES = {
     BackendSyncService: { file: 'src/services/BackendSyncService.js', handles: 'Collection Banner, Masthead deployment' },
     WidgetApiService: { file: 'src/services/WidgetApiService.js', handles: 'Product Rail creation' },
-    GoogleSheetService: { file: 'src/services/GoogleSheetService.js', handles: 'Submit, approve, media upload' },
+    LocalApiService: { file: 'src/services/LocalApiService.js', handles: 'Submit, approve, widgets, users, catalog, activity, comments, media' },
 };

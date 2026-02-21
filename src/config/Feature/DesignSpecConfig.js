@@ -321,11 +321,11 @@ export const PHONE_FRAME_CONFIG = {
 // ── Deploy Status Icons ──
 // Status → icon + color mapping for DeploymentStatusPanel.
 export const DEPLOY_STATUS_ICONS = {
-    success:   { icon: 'CheckCircle',  color: 'text-green-500', bgColor: 'bg-green-50' },
-    error:     { icon: 'XCircle',      color: 'text-red-500',   bgColor: 'bg-red-50' },
-    skipped:   { icon: 'SkipForward',  color: 'text-slate-400', bgColor: 'bg-slate-50' },
-    pending:   { icon: 'Circle',       color: 'text-slate-300', bgColor: 'bg-slate-50' },
-    deploying: { icon: 'Loader',       color: 'text-blue-500',  bgColor: 'bg-blue-50', animate: 'animate-spin' },
+    success: { icon: 'CheckCircle', color: 'text-green-500', bgColor: 'bg-green-50' },
+    error: { icon: 'XCircle', color: 'text-red-500', bgColor: 'bg-red-50' },
+    skipped: { icon: 'SkipForward', color: 'text-slate-400', bgColor: 'bg-slate-50' },
+    pending: { icon: 'Circle', color: 'text-slate-300', bgColor: 'bg-slate-50' },
+    deploying: { icon: 'Loader', color: 'text-blue-500', bgColor: 'bg-blue-50', animate: 'animate-spin' },
 };
 
 // ── Version History ──
@@ -447,16 +447,16 @@ export const MOCK_DATA_SHAPES = {
 // ── Integration Points ──
 // Which context/service each screen depends on.
 export const INTEGRATION_POINTS = {
-    LoginPage:                  { context: ['useAuth()'], service: 'Google OAuth' },
-    MainLayout:                 { context: ['useAuth()', 'useWidgetContext()', 'useAppSettings()'], service: null },
-    PropertyEditor:             { context: ['useWidgetContext()'], service: 'WidgetRegistry, InputRegistry, ConfigValidator' },
-    PhoneFrame:                 { context: ['useWidgetContext()'], service: 'DnD library' },
-    RequestQueue:               { context: ['useAuth()'], service: 'GoogleSheetService' },
-    HomepageMappingDashboard:   { context: [], service: 'Mock data (future: HOMEPAGE_VIEW_API)' },
-    WidgetVersionHistory:       { context: [], service: 'Mock data (future: GET /widgets/:id/versions)' },
-    DeploymentStatusPanel:      { context: [], service: 'Mock data (future: BackendSyncService)' },
-    FilterEditor:               { context: [], service: 'Widget config (filters)' },
-    AppConfigEditor:            { context: [], service: 'Widget config (appConfigurations)' },
+    LoginPage: { context: ['useAuth()'], service: 'Google OAuth' },
+    MainLayout: { context: ['useAuth()', 'useWidgetContext()', 'useAppSettings()'], service: null },
+    PropertyEditor: { context: ['useWidgetContext()'], service: 'WidgetRegistry, InputRegistry, ConfigValidator' },
+    PhoneFrame: { context: ['useWidgetContext()'], service: 'DnD library' },
+    RequestQueue: { context: ['useAuth()'], service: 'LocalApiService' },
+    HomepageMappingDashboard: { context: [], service: 'Mock data (future: HOMEPAGE_VIEW_API)' },
+    WidgetVersionHistory: { context: [], service: 'Mock data (future: GET /widgets/:id/versions)' },
+    DeploymentStatusPanel: { context: [], service: 'Mock data (future: BackendSyncService)' },
+    FilterEditor: { context: [], service: 'Widget config (filters)' },
+    AppConfigEditor: { context: [], service: 'Widget config (appConfigurations)' },
 };
 
 // ── Related Files ──

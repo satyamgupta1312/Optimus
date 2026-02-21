@@ -7,8 +7,8 @@
  * Wiki Reference: wiki/Backend-work-flow.md
  *
  * Architecture:
- *   UI (Canvas) → Google Sheet (PENDING) → Apps Script (Validation + Routing)
- *   → Backend API (POST widget / widget_item / page_layout / mappings)
+ *   UI (Canvas) → Express Backend (PENDING) → Prisma DB (Validation + Status Update)
+ *   → Backend API (POST/PATCH widgets, requests, approvals)
  */
 
 // ── Workflow Stages ──
@@ -81,14 +81,8 @@ export const ROLE_PERMISSIONS = {
 };
 
 // ── Submit Payload Schema ──
-// The shape of data sent to Google Sheet when Maker submits.
+// The shape of data sent to Express backend when Maker submits.
 export const SUBMIT_PAYLOAD_SCHEMA = {
-    action: 'create',                          // Google Sheet action
-    id: '<crypto.randomUUID()>',               // Unique request ID
-    user: '<AuthContext.user.email>',          // Maker's email
-    type: 'Homepage Update',                   // Request type
-    status: 'PENDING',                         // Initial status
-    date: '<new Date().toISOString()>',        // Submission timestamp
     widgets: '<Array of canvas widgets>',      // All canvas widgets (JSON)
     headerWidgets: {
         primaryMasthead: '<Object or null>',
@@ -97,20 +91,25 @@ export const SUBMIT_PAYLOAD_SCHEMA = {
     },
 };
 
-// ── Google Sheet Columns ──
-// Maps payload fields to their Google Sheet column positions.
-export const SHEET_COLUMNS = {
-    A: { field: 'id', type: 'string', example: '550e8400-e29b-41d4-...' },
-    B: { field: 'user', type: 'string', example: 'john.doe@apnamart.in' },
-    C: { field: 'type', type: 'string', example: 'Homepage Update' },
-    D: { field: 'status', type: 'enum', values: ['PENDING', 'APPROVED', 'REJECTED'] },
-    E: { field: 'date', type: 'ISO8601', example: '2026-02-19T07:30:00.000Z' },
-    F: { field: 'widgets', type: 'JSON', example: '[{type:"Single Product Row",...}]' },
-    G: { field: 'headerWidgets', type: 'JSON', example: '{primaryMasthead:{...}}' },
+// ── Database Fields ──
+// Maps payload data to their Prisma DB table fields.
+export const DB_FIELDS = {
+    request: {
+        id: { type: 'uuid', auto: true, description: 'Prisma auto-generated UUID' },
+        submittedBy: { type: 'string', source: 'req.user.id', description: 'User FK from auth middleware' },
+        type: { type: 'string', default: 'Homepage Update' },
+        status: { type: 'enum', values: ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED'] },
+        headerWidgets: { type: 'JSON', description: 'Stringified header widget state' },
+    },
+    requestWidget: {
+        snapshot: { type: 'JSON', description: 'Full widget state frozen at submission' },
+        sortOrder: { type: 'int', description: 'Widget position in the request' },
+    },
 };
 
 // ── Validation Rules ──
-// Fields validated by Apps Script (handleApprove) before any API call is made.
+// Fields validated by Express backend (server/middleware/validate.js) and
+// frontend ValidationService before any submission or approval.
 export const VALIDATION_RULES = {
     // Fields required on every widget
     universal: [
@@ -145,35 +144,36 @@ export const VALIDATION_RULES = {
 };
 
 // ── Approval Routing ──
-// Maps internal widget type (from canvas) → Apps Script function name.
+// Maps internal widget type (from canvas) → backend handler.
+// Previously routed to Apps Script functions; now handled by Express routes.
 export const APPROVAL_ROUTING = {
     'Single Product Row Optimize': {
-        script: 'scripts/Approval_Automation.gs',
+        handler: 'server/routes/requests.js',
         fn: 'createSPROptimizedWidget',
         description: 'PLP Ecosystem + Homepage Row',
     },
     'Single Product Row': {
-        script: 'scripts/Approval_Automation.gs',
+        handler: 'server/routes/requests.js',
         fn: 'createSPRStandardWidget',
         description: 'Standard Widget + Page Layout + Mappings',
     },
     'Banner With Product Listing': {
-        script: 'scripts/Approval_Automation.gs',
+        handler: 'server/routes/requests.js',
         fn: 'createCLPWidget',
         description: 'Carousel + PLP Ecosystem per item',
     },
     'Primary Masthead': {
-        script: 'scripts/Approval_Automation.gs',
+        handler: 'server/routes/requests.js',
         fn: 'createPrimaryMastheadFromApproval',
         description: 'Multimedia (optional) + Masthead Widget',
     },
     'Category Grid': {
-        script: 'scripts/Approval_Automation.gs',
+        handler: 'server/routes/requests.js',
         fn: 'createCategoryGridFromApproval',
         description: 'Category Grid + PLP Ecosystems per item',
     },
     'Category Masthead': {
-        script: 'scripts/Approval_Automation.gs',
+        handler: 'server/routes/requests.js',
         fn: 'createCategoryGridFromApproval',
         description: 'Same as Category Grid',
     },
@@ -191,7 +191,7 @@ export const BACKEND_ENDPOINTS = {
 };
 
 // ── Approval Response Schema ──
-// Shape of response returned by Apps Script after approval.
+// Shape of response returned by Express backend after approval.
 export const APPROVAL_RESPONSE_SCHEMA = {
     success: '<boolean>',
     message: '<string>',
@@ -208,7 +208,7 @@ export const APPROVAL_RESPONSE_SCHEMA = {
 
 // ── Fetched Widget Markers ──
 // Properties added to canvas widgets that were fetched from the backend.
-// Used by Apps Script to decide CREATE vs UPDATE on approval.
+// Used by the approval flow to decide CREATE vs UPDATE.
 export const FETCHED_WIDGET_MARKERS = {
     _fetched: true,              // Identifies widget as fetched (not newly created)
     slug: '<original_slug>',     // Original backend slug — preserved throughout editing
@@ -245,14 +245,14 @@ export const ERROR_CATALOGUE = [
     {
         error: 'Type not supported',
         widgets: ['Any'],
-        cause: 'Widget type not registered in Approval_Automation.gs switch-case',
-        fix: 'Add a new case in handleApprove() in Approval_Automation.gs',
+        cause: 'Widget type not registered in APPROVAL_ROUTING',
+        fix: 'Add a new entry in BackendFlow.APPROVAL_ROUTING for this widget type',
     },
     {
         error: 'Session expired (403)',
         widgets: ['Any'],
-        cause: 'Apps Script session cookies are expired',
-        fix: 'Refresh COOKIES constant in Approval_Automation.gs',
+        cause: 'Auth session has expired',
+        fix: 'Re-login to refresh session',
     },
 ];
 
@@ -271,9 +271,10 @@ export const WORKFLOW_SUMMARY = {
     },
     stages: Object.keys(WORKFLOW_STAGES),
     roles: Object.keys(ROLE_PERMISSIONS),
-    sheet: {
-        name: 'Requests',
-        appsScriptId: 'AKfycbwGI4r4nDqo5iKIYubUGpAUTaDN-Z1Su_fsD8EmQ7bxIP3XB0HmEdfXFG89hk0uMVZfBQ',
+    backend: {
+        type: 'Express + Prisma + SQLite',
+        port: 3001,
+        dbFile: 'server/prisma/optimus.db',
     },
 };
 

@@ -176,7 +176,7 @@ export const CHECKER_ACTIONS = {
 };
 
 // ── Approval Automation Routing ──
-// Apps Script handleApprove() routes each widget type to its creation function
+// Express backend (server/routes/requests.js) handles approval for each widget type
 export const APPROVAL_ROUTING = {
     source: 'scripts/Approval_Automation.gs',
     entryFunction: 'handleApprove',

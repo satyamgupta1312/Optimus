@@ -122,7 +122,7 @@ export const WidgetRegistry = {
     },
 
     /**
-     * Get the Apps Script function name + script for a canvas widget type.
+     * Get the backend handler for a canvas widget type.
      * @param {string} widgetType - e.g. 'Single Product Row Optimize'
      * @returns {{ fn, script, description } | null}
      */

@@ -313,7 +313,7 @@ export const RELATED_FILES = {
     productRailConfig: 'src/config/widgets/SPRConfig.js',
     widgetRegistry: 'src/config/WidgetRegistry.js',
     widgetRenderer: 'src/components/Widgets/WidgetRenderer.jsx',
-    googleSheetService: 'src/services/GoogleSheetService.js',
+    localApiService: 'src/services/LocalApiService.js',
     backendSyncService: 'src/services/BackendSyncService.js',
     widgetApiService: 'src/services/WidgetApiService.js',
 };

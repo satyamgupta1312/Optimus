@@ -8,7 +8,6 @@
  */
 
 import { WidgetRegistry } from '../config/WidgetRegistry';
-import { API_BASE } from '../config/apiConfig';
 
 // ── Field Validation Helpers ───────────────────────────────────────────────
 
@@ -64,12 +63,13 @@ export const validateWidgets = (widgets = []) => {
             }
         }
 
-        // slug_name-specific: must have value if type not in exclusions
-        if (!widget.slug_name || widget.slug_name.trim() === '') {
+        // slug-specific: must have value if type not in exclusions
+        const slugVal = widget.slug || widget.slug_name || '';
+        if (!slugVal || slugVal.trim() === '') {
             errors.push({
                 widgetId: widget.id,
                 widgetTitle: widget.title || widget.type || 'Untitled Widget',
-                field: 'slug_name',
+                field: 'slug',
                 message: 'Slug name is required.',
             });
         }
@@ -92,12 +92,8 @@ export const checkSlugAvailability = async (slugName) => {
     }
 
     try {
-        const url = `${API_BASE}/api/app/widget/?slug_name=${encodeURIComponent(slugName.trim())}`;
-        const res = await fetch(url, {
-            method: 'GET',
-            credentials: 'include',
-            redirect: 'follow',
-        });
+        // Check via local backend (Prisma) — avoids CORS issues with production API
+        const res = await fetch(`/api/local/widgets?slug=${encodeURIComponent(slugName.trim())}`);
 
         if (!res.ok) {
             // 404 = not found = available ✅
@@ -134,18 +130,18 @@ export const validateAndCheckSlugs = async (widgets = []) => {
 
     // 2. Slug uniqueness checks (async, only if field validation passed for slug_name)
     const slugChecks = widgets
-        .filter((w) => w.slug_name && w.slug_name.trim() !== '')
+        .filter((w) => (w.slug || w.slug_name || '').trim() !== '')
         .map(async (w) => {
             // Skip slug check for fetched widgets (they already exist on backend)
             if (w._fetched) return null;
 
-            const result = await checkSlugAvailability(w.slug_name);
+            const result = await checkSlugAvailability(w.slug || w.slug_name);
             if (!result.available) {
                 return {
                     widgetId: w.id,
                     widgetTitle: w.title || w.type || 'Untitled Widget',
                     field: 'slug_name',
-                    message: `Slug "${w.slug_name}" already exists. Please use a different slug.`,
+                    message: `Slug "${w.slug || w.slug_name}" already exists. Please use a different slug.`,
                 };
             }
             return null;

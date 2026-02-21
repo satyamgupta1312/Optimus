@@ -160,9 +160,16 @@ const DateRangePicker = ({
         if (disabled) return;
         const rect = triggerRef.current?.getBoundingClientRect();
         if (rect) {
+            const popupWidth = 300;
+            const gap = 8;
+            // Prefer right side; fall back to left if not enough room
+            const rightSpace = window.innerWidth - rect.right;
+            const left = rightSpace >= popupWidth + gap
+                ? rect.right + window.scrollX + gap
+                : rect.left + window.scrollX - popupWidth - gap;
             setPopupPos({
-                top: rect.bottom + window.scrollY + 4,
-                left: Math.min(rect.left + window.scrollX, window.innerWidth - 320),
+                top: rect.top + window.scrollY,
+                left: Math.max(4, left),
             });
         }
         setIsOpen(true);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { WidgetRegistry } from '../../config/WidgetRegistry';
+import { useWidgetContext } from '../../context/WidgetContext';
 import {
     HEADER_OPTIONS,
     WIDGET_TYPE_CODES,
@@ -73,8 +74,8 @@ const SmartLocationSelect = ({ level, setLevel, locations, setLocations }) => {
                                 type="button"
                                 onClick={() => toggleLocation(loc)}
                                 className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${isSelected
-                                        ? 'bg-blue-600 text-white ring-1 ring-blue-500/30'
-                                        : 'bg-slate-50 text-slate-500 border border-slate-200 hover:border-blue-300 hover:bg-blue-50'
+                                    ? 'bg-blue-600 text-white ring-1 ring-blue-500/30'
+                                    : 'bg-slate-50 text-slate-500 border border-slate-200 hover:border-blue-300 hover:bg-blue-50'
                                     }`}
                             >
                                 {loc}
@@ -97,16 +98,37 @@ const SmartLocationSelect = ({ level, setLevel, locations, setLocations }) => {
  * { label, value, onChange, error, helperText, required, widget }
  */
 const SlugBuilder = ({ label, value, onChange, error, helperText, required, widget }) => {
-    // ── Parse existing slug into parts (best-effort) ──
-    const [header, setHeader] = useState('');
-    const [identifier, setIdentifier] = useState('');
+    const { widgetSlugCache, setWidgetSlugCache } = useWidgetContext();
+    const widgetId = widget?.id ?? 'global';
+    const cached = widgetSlugCache?.[widgetId] ?? {};
 
-    const [zone, setZone] = useState('');
-    const [locationLevel, setLocationLevel] = useState('');
-    const [locations, setLocations] = useState([]);
-    const [user, setUser] = useState('');
-    const [device, setDevice] = useState('');
+    // ── Parse existing slug into parts (best-effort) ──
+    const [header, setHeader] = useState(cached.header ?? '');
+    const [identifier, setIdentifier] = useState(cached.identifier ?? '');
+
+    const [zone, setZone] = useState(cached.zone ?? '');
+    const [locationLevel, setLocationLevel] = useState(cached.locationLevel ?? '');
+    const [locations, setLocations] = useState(cached.locations ?? []);
+    const [user, setUser] = useState(cached.user ?? '');
+    const [device, setDevice] = useState(cached.device ?? '');
     const [copied, setCopied] = useState(false);
+
+    // Restore from cache when widget changes
+    useEffect(() => {
+        const c = widgetSlugCache?.[widgetId] ?? {};
+        if (c.header !== undefined) setHeader(c.header);
+        if (c.identifier !== undefined) setIdentifier(c.identifier);
+        if (c.zone !== undefined) setZone(c.zone);
+        if (c.locationLevel !== undefined) setLocationLevel(c.locationLevel);
+        if (c.locations !== undefined) setLocations(c.locations);
+        if (c.user !== undefined) setUser(c.user);
+        if (c.device !== undefined) setDevice(c.device);
+    }, [widgetId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Write back to cache whenever any part changes
+    useEffect(() => {
+        setWidgetSlugCache(widgetId, { header, identifier, zone, locationLevel, locations, user, device });
+    }, [header, identifier, zone, locationLevel, locations, user, device, widgetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Auto-resolve widget type code (Part 3) ──
     const widgetTypeCode = useMemo(() => {

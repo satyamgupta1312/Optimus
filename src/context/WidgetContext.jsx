@@ -6,6 +6,7 @@ import { useUndoRedo } from './UndoRedoContext';
 import { useActivityLog } from './ActivityLogContext';
 import { useAuth } from './AuthContext';
 import { validateAndCheckSlugs } from '../services/ValidationService';
+import { LocalApiService } from '../services/LocalApiService';
 
 const WidgetContext = createContext();
 
@@ -32,6 +33,12 @@ export const WidgetProvider = ({ children }) => {
     const [viewData, setViewData] = useState(null);
     const [comments, setComments] = useState([]); // Widget comments
     const [validationErrors, setValidationErrors] = useState([]); // Pre-submit validation errors
+    // Slug builder cache — persists slug form parts per widget ID
+    // Shape: { [widgetId]: { header, identifier, zone, locationLevel, locations, user, device } }
+    const [widgetSlugCache, setWidgetSlugCacheState] = useState({});
+    const setWidgetSlugCache = (widgetId, parts) => {
+        setWidgetSlugCacheState(prev => ({ ...prev, [widgetId]: parts }));
+    };
 
     // Save state to undo/redo history whenever widgets change
     useEffect(() => {
@@ -72,6 +79,83 @@ export const WidgetProvider = ({ children }) => {
         }));
     };
 
+    // Sync masthead widgets from widgets[] → headerWidgets for preview rendering.
+    // When a masthead is added/edited via config-driven PropertyEditor, the preview
+    // (AppHeader, SecondaryMasthead) reads from headerWidgets — this bridges the gap.
+    // Also resets to defaults when a masthead is deleted or variant is switched.
+    useEffect(() => {
+        const primaryWidget = widgets.find(w => w.type === 'masthead' && w.pnc?.variant === 'primary');
+        const secondaryWidget = widgets.find(w => w.type === 'masthead' && w.pnc?.variant === 'secondary');
+
+        setHeaderWidgets(prev => {
+            const next = { ...prev };
+
+            if (primaryWidget) {
+                next.primaryMasthead = {
+                    ...prev.primaryMasthead,
+                    id: primaryWidget.id,
+                    enabled: true,
+                    slug_name: primaryWidget.slug || '',
+                    master_key: primaryWidget.master_key || '',
+                    start_time: primaryWidget.start_time || '',
+                    end_time: primaryWidget.end_time || '',
+                    background: primaryWidget.transition_color || '#0277FA',
+                    multimedia: {
+                        type: primaryWidget.background_video ? 'video' : 'image',
+                        file: primaryWidget.background_media instanceof File ? primaryWidget.background_media : null,
+                        transition_color: primaryWidget.transition_color || '#FFFFFF',
+                        accent_color: primaryWidget.accent_color || '#0000FF',
+                        text_color: primaryWidget.text_color || '#FFFFFF',
+                        icon_bg_color: primaryWidget.icon_bg_color || '#F0F0F0',
+                        is_dark: primaryWidget.is_multimedia_dark || false,
+                        aspect_ratio: primaryWidget.media_aspect_ratio || '1',
+                    },
+                };
+            } else {
+                // Reset to default when no primary masthead exists
+                next.primaryMasthead = {
+                    id: 'header-primary-masthead',
+                    type: 'Primary Masthead',
+                    enabled: true,
+                    background: '#0277FA',
+                    slug_name: '',
+                    master_key: '',
+                    end_time: '',
+                    background_multimedia_slug: '',
+                };
+            }
+
+            if (secondaryWidget) {
+                next.secondaryMasthead = {
+                    ...prev.secondaryMasthead,
+                    id: secondaryWidget.id,
+                    enabled: true,
+                    slug_name: secondaryWidget.slug || '',
+                    start_time: secondaryWidget.start_time || '',
+                    end_time: secondaryWidget.end_time || '',
+                    background: secondaryWidget.transition_color || '#0277FA',
+                    aspectRatio: secondaryWidget.media_aspect_ratio || '4',
+                    multimedia: {
+                        type: secondaryWidget.background_video ? 'video' : 'image',
+                        file: secondaryWidget.background_media instanceof File ? secondaryWidget.background_media : null,
+                        aspect_ratio: secondaryWidget.media_aspect_ratio || '4',
+                    },
+                    items: secondaryWidget.carouselItems || [],
+                };
+            } else {
+                // Disable secondary when no secondary masthead widget exists
+                next.secondaryMasthead = {
+                    id: 'header-secondary-masthead',
+                    type: 'Secondary Masthead',
+                    enabled: false,
+                    background: '#0277FA',
+                };
+            }
+
+            return next;
+        });
+    }, [widgets]);
+
     const navigateTo = (view, data = null) => {
         setCurrentView(view);
         setViewData(data);
@@ -91,6 +175,7 @@ export const WidgetProvider = ({ children }) => {
         setWidgets([...widgets, newWidget]);
         logActivity('widget_added', { widgetId: newWidget.id, type: widget.type, title: widget.title });
         showToast.success('Widget added successfully');
+        return newWidget.id;
     };
 
     const updateWidget = (id, updates) => {
@@ -206,28 +291,19 @@ export const WidgetProvider = ({ children }) => {
             // Clear previous validation errors
             setValidationErrors([]);
 
-            console.log('Submitting to Google Sheet...');
-            const { GoogleSheetService } = await import('../services/GoogleSheetService');
+            console.log('Submitting to local backend...');
 
             // Helper: Remove File objects from multimedia (can't be serialized)
-            const cleanHeaderWidgets = (headerWidgets) => {
-                const cleaned = JSON.parse(JSON.stringify(headerWidgets, (key, value) => {
-                    // Skip File objects but keep all other fields
-                    if (value instanceof File) {
-                        return undefined;
-                    }
+            const cleanHeaderWidgets = (hw) => {
+                return JSON.parse(JSON.stringify(hw, (_key, value) => {
+                    if (value instanceof File) return undefined;
                     return value;
                 }));
-                return cleaned;
             };
 
-            await GoogleSheetService.createRequest({
-                id: crypto.randomUUID(),
-                user: user?.name || user?.email || 'Unknown User', // Use actual user's name
-                type: 'Homepage Update',
-                status: 'PENDING',
+            await LocalApiService.createRequest({
                 widgets: widgets,
-                headerWidgets: cleanHeaderWidgets(headerWidgets) // Clean before sending
+                headerWidgets: cleanHeaderWidgets(headerWidgets),
             });
 
             setPageStatus('PENDING');
@@ -235,31 +311,21 @@ export const WidgetProvider = ({ children }) => {
             showToast.success('Page submitted for review!');
         } catch (e) {
             console.error(e);
-            showToast.error('Failed to submit to sheet');
+            showToast.error('Failed to submit: ' + e.message);
         }
     };
 
-    const approvePage = async () => {
+    const approvePage = async (requestId) => {
         try {
-            console.log('[Workflow] Approving and triggering automation...');
+            console.log('[Workflow] Approving request...');
 
-            // Call Google Sheet API to trigger automation
-            const { GoogleSheetService } = await import('../services/GoogleSheetService');
-            const result = await GoogleSheetService.approveRequest(
-                crypto.randomUUID(), // Generate unique request ID
-                widgets,
-                headerWidgets
-            );
+            await LocalApiService.approveRequest(requestId);
 
-            if (result.success) {
-                setPageStatus('APPROVED');
-                showToast.success('Widgets approved! Automation triggered successfully');
-            } else {
-                throw new Error(result.error || 'Automation failed');
-            }
+            setPageStatus('APPROVED');
+            showToast.success('Widgets approved!');
         } catch (error) {
             console.error('[Workflow] Approve failed:', error);
-            showToast.error('Failed to trigger automation: ' + error.message);
+            showToast.error('Failed to approve: ' + error.message);
         }
     };
 
@@ -339,6 +405,9 @@ export const WidgetProvider = ({ children }) => {
             // Validation
             validationErrors,
             setValidationErrors,
+            // Slug builder cache
+            widgetSlugCache,
+            setWidgetSlugCache,
         }}>
             {children}
         </WidgetContext.Provider>

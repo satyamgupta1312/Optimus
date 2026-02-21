@@ -1,13 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { Package, X } from 'lucide-react';
+import { Package, X, AlertCircle, Loader2 } from 'lucide-react';
+import { useCatalog } from '../../hooks/useCatalog';
+import { CATALOG_UI } from '../../config/Feature/ProductCatalogConfig';
 
 /**
  * ProductListInput — Textarea for comma/newline-separated product codes.
+ * After codes are added, shows product cards with image, name, brand, price.
  *
  * Props (InputRegistry interface):
  * - label, value (string[] or comma-string), onChange(string[])
- * - helperText, error, required
- * - minItems, maxItems, itemValidator
+ * - helperText, error, required, disabled
+ * - minItems, maxItems
  */
 const ProductListInput = ({
     label,
@@ -21,6 +24,7 @@ const ProductListInput = ({
     maxItems,
 }) => {
     const [rawText, setRawText] = useState('');
+    const { getProduct, loading: catalogLoading } = useCatalog();
 
     // Normalize value to array
     const codes = useMemo(() => {
@@ -52,9 +56,10 @@ const ProductListInput = ({
         onChange(codes.filter(c => c !== code));
     };
 
-    const clearAll = () => {
-        onChange([]);
-    };
+    const clearAll = () => onChange([]);
+
+    const showFullCards = codes.length <= CATALOG_UI.maxFullCards;
+    const cur = CATALOG_UI.currency;
 
     return (
         <div className="mb-3">
@@ -63,7 +68,7 @@ const ProductListInput = ({
                 {required && <span className="text-red-400 ml-1">*</span>}
             </label>
 
-            {/* Product count badge */}
+            {/* Product count badge + catalog loading */}
             {codes.length > 0 && (
                 <div className="flex items-center justify-between mb-2">
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-xs font-medium border border-blue-100">
@@ -71,32 +76,122 @@ const ProductListInput = ({
                         {codes.length} product{codes.length !== 1 ? 's' : ''}
                         {maxItems && <span className="text-slate-400">/ {maxItems}</span>}
                     </span>
-                    <button
-                        onClick={clearAll}
-                        disabled={disabled}
-                        className="text-xs text-slate-400 hover:text-red-500 transition-colors"
-                    >
-                        Clear all
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {catalogLoading && (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
+                                <Loader2 size={10} className="animate-spin" />
+                                Loading catalog…
+                            </span>
+                        )}
+                        <button
+                            onClick={clearAll}
+                            disabled={disabled}
+                            className="text-xs text-slate-400 hover:text-red-500 transition-colors"
+                        >
+                            Clear all
+                        </button>
+                    </div>
                 </div>
             )}
 
-            {/* Product code chips */}
-            {codes.length > 0 && (
+            {/* Product cards (when count <= maxFullCards) */}
+            {codes.length > 0 && showFullCards && (
+                <div className="space-y-1.5 mb-2 max-h-72 overflow-y-auto pr-1">
+                    {codes.map((code) => {
+                        const product = getProduct(code);
+                        return (
+                            <div
+                                key={code}
+                                className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1.5 group hover:border-slate-300 transition-colors"
+                            >
+                                {/* Product image */}
+                                {product?.imageUrl ? (
+                                    <img
+                                        src={product.imageUrl}
+                                        alt={product.displayName}
+                                        className="w-10 h-10 object-contain rounded-md bg-slate-50 shrink-0 border border-slate-100"
+                                        onError={(e) => { e.target.style.display = 'none'; }}
+                                    />
+                                ) : (
+                                    <div className="w-10 h-10 bg-slate-100 rounded-md flex items-center justify-center shrink-0">
+                                        <Package size={16} className="text-slate-300" />
+                                    </div>
+                                )}
+
+                                {/* Product info */}
+                                <div className="flex-1 min-w-0">
+                                    {product ? (
+                                        <>
+                                            <p className="text-xs font-medium text-slate-800 truncate leading-tight">
+                                                {product.displayName}
+                                            </p>
+                                            <p className="text-[10px] text-slate-400 leading-tight">
+                                                {product.brand}
+                                            </p>
+                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                <span className="text-xs font-semibold text-emerald-600">
+                                                    {cur}{product.price}
+                                                </span>
+                                                {product.mrp > product.price && (
+                                                    <span className="text-[10px] text-slate-400 line-through">
+                                                        {cur}{product.mrp}
+                                                    </span>
+                                                )}
+                                                <span className="text-[10px] font-mono text-slate-400 ml-auto">
+                                                    #{code}
+                                                </span>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="flex items-center gap-1">
+                                            {catalogLoading ? (
+                                                <span className="text-xs text-slate-400 italic">Loading…</span>
+                                            ) : (
+                                                <>
+                                                    <AlertCircle size={10} className="text-amber-400" />
+                                                    <span className="text-xs text-slate-500 italic">Unknown product</span>
+                                                    <span className="text-[10px] font-mono text-slate-400 ml-1">#{code}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Remove */}
+                                {!disabled && (
+                                    <button
+                                        onClick={() => removeCode(code)}
+                                        className="shrink-0 p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Compact chip view (when many products > maxFullCards) */}
+            {codes.length > 0 && !showFullCards && (
                 <div className="flex flex-wrap gap-1 mb-2 max-h-24 overflow-y-auto p-2 rounded-lg bg-slate-50 border border-slate-200">
-                    {codes.slice(0, 50).map(code => (
-                        <span
-                            key={code}
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-700 text-xs font-mono"
-                        >
-                            {code}
-                            {!disabled && (
-                                <button onClick={() => removeCode(code)} className="text-slate-400 hover:text-red-500">
-                                    <X size={10} />
-                                </button>
-                            )}
-                        </span>
-                    ))}
+                    {codes.slice(0, 50).map(code => {
+                        const product = getProduct(code);
+                        return (
+                            <span
+                                key={code}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-700 text-xs font-mono"
+                                title={product?.displayName || 'Unknown'}
+                            >
+                                {code}
+                                {!disabled && (
+                                    <button onClick={() => removeCode(code)} className="text-slate-400 hover:text-red-500">
+                                        <X size={10} />
+                                    </button>
+                                )}
+                            </span>
+                        );
+                    })}
                     {codes.length > 50 && (
                         <span className="text-xs text-slate-400">+{codes.length - 50} more</span>
                     )}

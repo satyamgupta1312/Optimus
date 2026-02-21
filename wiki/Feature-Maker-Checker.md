@@ -12,21 +12,21 @@ Maker (creates/edits) → Submit → Checker (reviews) → Approve/Reject → Ba
 
 ```mermaid
 flowchart TD
-    Login([User Logs In]) --> RoleResolve[Role Resolution\nAuthService + Checker Sheet]
+    Login([User Logs In]) --> RoleResolve[Role Resolution\nAuthService + CheckerList DB]
     RoleResolve --> MAKER[MAKER\nCreate · Edit · Submit]
     RoleResolve --> CHECKER[CHECKER\nPreview · Approve · Reject · Deploy]
     RoleResolve --> SUPER[SUPER_ADMIN\nAll Checker Powers\n+ Manage Users]
 
     MAKER --> Canvas[Canvas: Build Widgets]
     Canvas --> Submit[Click Submit → PENDING]
-    Submit --> Sheet[Google Sheet\nRequests Storage]
-    Sheet --> RequestQueue[RequestQueue UI\nChecker sees PENDING]
+    Submit --> DB[Prisma DB\nRequest + Widget + RequestWidget]
+    DB --> RequestQueue[RequestQueue UI\nChecker sees PENDING]
 
     CHECKER --> RequestQueue
     RequestQueue --> Decision{Decision}
-    Decision -->|Approve + Select| ApproveFlow[Apps Script\nhandleApprove]
+    Decision -->|Approve + Select| ApproveFlow[Express Backend\nPOST /requests/:id/approve]
     Decision -->|Reject| Reject[Status: REJECTED\nMaker can re-edit]
-    ApproveFlow --> Backend[Backend API Calls\nWidgets LIVE ✓]
+    ApproveFlow --> Backend[Widget status → APPROVED]
     Reject --> Canvas
 ```
 
@@ -221,7 +221,7 @@ This section documents the complete lifecycle when a user **fetches an existing 
 3. The submitted payload includes:
     - Newly created widgets (no _fetched flag)
     - Fetched+edited widgets (with _fetched: true, slug, _rawData)
-4. Complete snapshot sent to Google Sheet
+4. Complete snapshot sent to Express backend (Prisma DB)
 5. Status changes to PENDING
 ```
 
@@ -229,15 +229,15 @@ This section documents the complete lifecycle when a user **fetches an existing 
 
 ```
 1. Checker opens RequestQueue, sees PENDING request
-2. Checker previews — fetched widgets are restored to canvas
+2. Checker previews — widgets are restored to canvas emulator
 3. Checker selects widgets to approve (checkboxes)
 4. Checker clicks "Approve"
-5. GoogleSheetService.approveRequest() sends selected widgets to Google Apps Script
-6. Apps Script routes each widget to its automation function:
-    - If widget has _fetched: true and slug → EDIT existing widget
-    - If widget is newly created → CREATE new widget
-7. Backend API calls create/update widgets
-8. Status updated to APPROVED
+5. LocalApiService.approveRequest(id, selectedWidgetIds) sends to Express backend
+6. Express route handler validates role + status:
+    - Updates Request.status → APPROVED
+    - Updates Widget.status → APPROVED for selected widgets
+    - Logs ActivityLog entry
+7. Status updated to APPROVED
 ```
 
 ### 4.6 Data Flow Diagram
@@ -259,7 +259,7 @@ flowchart TD
     subgraph Submit
         E3 --> S1["Click Submit"]
         S1 --> S2["submitForReview()\npackage all widgets"]
-        S2 --> S3["Google Sheet\n(widgets with _fetched + _rawData)"]
+        S2 --> S3["Prisma DB\n(Widget + Request + RequestWidget snapshots)"]
         S3 --> S4["Status: PENDING\nEditing locked"]
     end
 
@@ -267,7 +267,7 @@ flowchart TD
         S4 --> A1["Checker opens RequestQueue"]
         A1 --> A2["Preview + Select widgets"]
         A2 --> A3["Click Approve"]
-        A3 --> A4["approveRequest()\nSend to Apps Script"]
+        A3 --> A4["LocalApiService.approveRequest()\nPOST /api/local/requests/:id/approve"]
         A4 --> A5{"_fetched?"}
         A5 -->|Yes| A6["UPDATE existing\nwidget via API"]
         A5 -->|No| A7["CREATE new\nwidget via API"]
@@ -330,40 +330,26 @@ flowchart TD
 ```
 1. Checker selects which widgets to approve (checkboxes)
 2. Clicks "Approve"
-3. GoogleSheetService.approveRequest() is called
-4. Payload sent to Google Apps Script:
-    {
-        action: "approve",
-        id: requestId,
-        widgets: [selected widgets only],
-        headerWidgets: { selected header widgets }
-    }
-5. Apps Script routes each widget to its automation:
-    - "Single Product Row Optimize"  → createSPROptimizedWidget()
-    - "Single Product Row"           → createSPRStandardWidget()
-    - "Banner With Product Listing"  → createCLPWidget()
-    - "Primary Masthead"             → createPrimaryMastheadFromApproval()
-    - "Category Grid"                → createCategoryGridFromApproval()
-    - "Secondary Masthead"           → (Secondary Masthead Backend)
-6. Each automation creates/updates widgets via backend API
-7. Sheet status updated to "APPROVED"
-8. Response returned with results:
-    {
-        success: true,
-        results: [
-            { widget: "Rice Mela", status: "success", slug: "rice_mela_spr_opt" },
-            { widget: "Grocery", status: "success", slug: "grocery_cm_hp" }
-        ]
-    }
-9. Toast: "Widgets approved! Automation triggered successfully"
+3. LocalApiService.approveRequest(id, { selectedWidgetIds, selectedHeaderWidgets }) is called
+4. Express backend (POST /api/local/requests/:id/approve):
+    - Validates role: CHECKER or SUPER_ADMIN only
+    - Checks request status is PENDING
+    - Updates Request.status → APPROVED
+    - Updates Widget.status → APPROVED for selected widgets
+    - Logs ActivityLog entry (action: 'approve')
+5. Response: { id, status: "APPROVED", updatedAt }
+6. Toast: "Widgets approved successfully"
 ```
 
 #### Reject
 
 ```
-1. Checker clicks "Reject"
-2. GoogleSheetService.updateStatus(id, 'REJECTED') is called
-3. Sheet status updated to "REJECTED"
+1. Checker clicks "Reject" and enters rejection reason
+2. LocalApiService.rejectRequest(id, reason) is called
+3. Express backend:
+    - Updates Request.status → REJECTED + stores rejectionReason
+    - Updates Widget.status → REJECTED
+    - Logs ActivityLog entry (action: 'reject')
 4. Maker can now edit and re-submit
 5. Toast: "Page rejected. Maker can edit and resubmit"
 ```
@@ -386,7 +372,7 @@ flowchart TD
 2. Clicks "Deploy"
 3. Prompted for CSRF token
 4. BackendSyncService.deployRequest() is called
-5. Direct API calls to backend (bypassing Google Sheet)
+5. Direct API calls to backend (bypassing normal approval flow)
 6. Used for manual re-deployment if automation failed
 ```
 
@@ -457,33 +443,49 @@ Every request:
 
 ---
 
-## 7. Google Sheet — Data Storage
+## 7. Data Storage — Prisma DB (SQLite)
 
-**Sheet Name:** `Requests`
-**Apps Script ID:** `AKfycbwGI4r4nDqo5iKIYubUGpAUTaDN-Z1Su_fsD8EmQ7bxIP3XB0HmEdfXFG89hk0uMVZfBQ`
+**Database:** `server/prisma/optimus.db`
+**Schema:** `server/prisma/schema.prisma`
 
-### Sheet Columns
+### Database Tables
 
-| Column | Field | Type | Example |
-| :--- | :--- | :--- | :--- |
-| A | `id` | UUID | `550e8400-e29b-41d4-a716-446655440000` |
-| B | `user` | string | `john.doe@apnamart.in` |
-| C | `type` | string | `Homepage Update` |
-| D | `status` | string | `PENDING` / `APPROVED` / `REJECTED` |
-| E | `date` | ISO datetime | `2026-02-17T10:30:00.000Z` |
-| F | `widgets` | JSON string | `[{type:"Single Product Row",...}]` |
-| G | `headerWidgets` | JSON string | `{primaryMasthead:{...},secondaryMasthead:{...}}` |
+| Table | Purpose | Key Fields |
+| :--- | :--- | :--- |
+| **Request** | Approval workflow record | `id`, `status`, `submittedBy`, `headerWidgets`, `rejectionReason` |
+| **RequestWidget** | Snapshot of each widget at submission | `requestId`, `widgetId`, `snapshot` (JSON), `sortOrder` |
+| **Widget** | Central widget entity | `id`, `type`, `slug` (unique), `title`, `status`, `pnc`, `config`, `products` |
+| **User** | User identity + role | `email` (unique), `name`, `role` (MAKER/CHECKER/SUPER_ADMIN) |
+| **ActivityLog** | Audit trail | `action`, `userId`, `targetId`, `details` (JSON) |
+| **CheckerList** | Users authorized as Checkers | `userId` (unique FK to User) |
 
-### Sheet API Actions
+### API Routes (Express Backend)
 
-| Action | Method | Payload | Description |
-| :--- | :--- | :--- | :--- |
-| `create` | POST | Full request object | Maker submits new request |
-| `update_status` | POST | `{id, status}` | Checker approves/rejects |
-| `approve` | POST | `{id, widgets, headerWidgets}` | Checker approves + triggers automation |
-| `fetch_products` | POST | `{item_codes: [...]}` | Lookup product details |
-| `uploadMedia` | POST | `{fileName, mimeType, fileData (base64)}` | Upload media to Google Drive |
-| *(GET)* | GET | — | Fetch all requests |
+| Method | Route | Description |
+| :--- | :--- | :--- |
+| POST | `/api/local/requests` | Maker submits — creates Widgets + Request + RequestWidget snapshots |
+| GET | `/api/local/requests` | Fetch all requests (with status filter) |
+| POST | `/api/local/requests/:id/approve` | Checker approves — updates status to APPROVED |
+| POST | `/api/local/requests/:id/reject` | Checker rejects — updates status to REJECTED + stores reason |
+| POST | `/api/local/requests/:id/reopen` | Re-open — sets status back to DRAFT |
+
+### Slug Validation Logic
+
+Widgets may have their slug in either `slug` or `slug_name` field depending on origin:
+- **SlugBuilder** (newly created) → sets `widget.slug`
+- **Fetched from backend** → has `widget.slug_name`
+
+Validation checks both fields:
+```javascript
+// Frontend: ValidationService.js
+let fieldValue = widget[rule.field];
+if (rule.field === 'slug' && !fieldValue) {
+    fieldValue = widget.slug_name;  // fallback for fetched widgets
+}
+
+// Backend: server/middleware/validate.js — same logic
+// Backend: server/routes/requests.js — slug = w.slug || w.slug_name || auto-generated
+```
 
 ---
 
@@ -516,13 +518,13 @@ flowchart TD
         M0["Fetch existing widget\n(FetchWidget.jsx)"] --> M1
         M1["Create/Edit widgets\non canvas"] --> M2["Preview in emulator"]
         M2 --> M3["Click Submit"]
-        M3 --> M4["GoogleSheetService\n.createRequest()"]
+        M3 --> M4["LocalApiService\n.createRequest()"]
         M4 --> M5["Status: PENDING\nEditing locked"]
     end
 
-    subgraph Google Sheet
-        M4 --> GS["Requests Sheet\n(id, user, status, widgets, headerWidgets)"]
-        GS --> C1
+    subgraph Prisma DB
+        M4 --> DB["Widget + Request +\nRequestWidget (snapshot)"]
+        DB --> C1
     end
 
     subgraph Checker
@@ -534,28 +536,16 @@ flowchart TD
     end
 
     subgraph Rejection
-        C5 --> R1["GoogleSheetService\n.updateStatus(id, REJECTED)"]
+        C5 --> R1["LocalApiService\n.rejectRequest(id, reason)"]
         R1 --> R2["Status: REJECTED"]
         R2 --> R3["Maker can re-edit\nand re-submit"]
         R3 --> M1
     end
 
     subgraph Approval
-        C4 --> A1["GoogleSheetService\n.approveRequest()"]
-        A1 --> A2["Approval_Automation.gs\nhandleApprove()"]
-    end
-
-    subgraph Backend API Calls
-        A2 --> B1["Route by widget type"]
-        B1 --> B2["createSPROptimizedWidget()"]
-        B1 --> B3["createCLPWidget()"]
-        B1 --> B4["createCategoryGridFromApproval()"]
-        B1 --> B5["createPrimaryMastheadFromApproval()"]
-        B2 --> B6["POST /api/app/widget/\nPOST /api/app/post_widget_item/\nPOST /api/app/post_page_layout/\nMapping CSV uploads"]
-        B3 --> B6
-        B4 --> B6
-        B5 --> B6
-        B6 --> B7["Status: APPROVED\nWidgets live on backend"]
+        C4 --> A1["LocalApiService\n.approveRequest()"]
+        A1 --> A2["Express Backend\nPOST /requests/:id/approve"]
+        A2 --> A3["Widget.status → APPROVED\nRequest.status → APPROVED\nActivityLog created"]
     end
 ```
 
@@ -571,10 +561,10 @@ flowchart TD
 | **WidgetContext** | `src/context/WidgetContext.jsx` | State management, submit/approve/reject functions |
 | **AuthContext** | `src/context/AuthContext.jsx` | Role assignment (MAKER/CHECKER), switchRole |
 | **ActivityLogContext** | `src/context/ActivityLogContext.jsx` | Audit trail |
-| **GoogleSheetService** | `src/services/GoogleSheetService.js` | Google Sheet API client |
+| **LocalApiService** | `src/services/LocalApiService.js` | Express backend API client (submit, approve, widgets, users, catalog) |
 | **BackendSyncService** | `src/services/BackendSyncService.js` | Direct backend deployment |
 | **AuthService** | `src/services/AuthService.js` | Login, role assignment, CSRF |
-| **Approval_Automation.gs** | `scripts/Approval_Automation.gs` | Server-side approval routing |
+| **ValidationService** | `src/services/ValidationService.js` | Pre-submit validation + slug uniqueness checks |
 
 ---
 
@@ -582,14 +572,15 @@ flowchart TD
 
 | Scenario | Behavior |
 | :--- | :--- |
-| Submit fails (network error) | Toast: "Failed to submit to sheet" — stays in DRAFT |
-| Approval fails (automation error) | Toast: "Failed to trigger automation: {error}" — stays PENDING |
-| Individual widget creation fails | Returned in `results` as `status: "failed"` with error message |
-| Session cookies expired | Backend returns 403 — need to refresh cookies in Approval_Automation.gs |
-| Unsupported widget type | Skipped with `status: "skipped"` |
+| Submit fails (network error) | Toast: "Failed to submit" — stays in DRAFT |
+| Approval fails (backend error) | Toast: "Failed to approve: {error}" — stays PENDING |
+| Individual widget creation fails | Backend returns 400 with validation error details |
+| Auth session expired | Re-login required — auth middleware rejects request |
+| Unsupported widget type | Skipped during approval routing |
 | Editing while PENDING/APPROVED | Toast: "Cannot edit while in review or approved" |
 | Fetch widget not found | Toast: "Widget not found with slug: {slug}" |
 | Empty `background_multimedia` on deploy | "Background Multimedia Name is invalid" — omit field if empty |
+| Slug validation fails | Checks both `widget.slug` and `widget.slug_name` before failing |
 
 ---
 

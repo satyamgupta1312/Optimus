@@ -175,25 +175,24 @@ export const CHECKER_ACTIONS = {
     },
 };
 
-// ── Approval Automation Routing ──
 // Express backend (server/routes/requests.js) handles approval for each widget type
 export const APPROVAL_ROUTING = {
-    source: 'scripts/Approval_Automation.gs',
-    entryFunction: 'handleApprove',
-    authentication: 'Hardcoded session cookies (csrftoken + sessionid) — may expire periodically',
+    source: 'server/routes/requests.js',
+    entryFunction: 'POST /api/local/requests/:id/approve',
+    authentication: 'X-Optimus-User header — auth middleware upserts User in Prisma',
     widgetRoutes: {
-        'Single Product Row Optimize': { function: 'createSPROptimizedWidget', script: 'scripts/SPR_Optimized_Automation.gs' },
-        'Single Product Row': { function: 'createSPRStandardWidget', script: 'scripts/SPR_Optimized_Automation.gs' },
-        'Banner With Product Listing': { function: 'createCLPWidget', script: 'scripts/CLP_Automation.gs' },
-        'Primary Masthead': { function: 'createPrimaryMastheadFromApproval', script: 'scripts/Primary_Masthead_Automation.gs' },
-        'Category Grid': { function: 'createCategoryGridFromApproval', script: 'scripts/Category_Grid_Backend.gs' },
-        'Category Masthead': { function: 'createCategoryGridFromApproval', script: 'scripts/Category_Grid_Backend.gs' },
-        'Secondary Masthead': { function: null, script: 'scripts/Secondary_Masthead_Backend.gs', note: '3-Phase creation' },
+        'Single Product Row Optimize': { handler: 'server/routes/requests.js', description: 'PLP Ecosystem + Homepage Row' },
+        'Single Product Row': { handler: 'server/routes/requests.js', description: 'Standard Widget + Page Layout' },
+        'Banner With Product Listing': { handler: 'server/routes/requests.js', description: 'Carousel + PLP Ecosystem' },
+        'Primary Masthead': { handler: 'server/routes/requests.js', description: 'Multimedia + Masthead Widget' },
+        'Category Grid': { handler: 'server/routes/requests.js', description: 'Category Grid + PLP Ecosystems' },
+        'Category Masthead': { handler: 'server/routes/requests.js', description: 'Same as Category Grid' },
+        'Secondary Masthead': { handler: 'server/routes/requests.js', description: 'Secondary Masthead' },
     },
     headerWidgetRoutes: {
-        primaryMasthead: { condition: 'headerWidgets.primaryMasthead?.enabled', function: 'createPrimaryMastheadFromApproval' },
-        secondaryMasthead: { condition: 'headerWidgets.secondaryMasthead?.enabled', note: 'Process Secondary Masthead' },
-        categoryMasthead: { condition: 'headerWidgets.categoryMasthead?.enabled', function: 'createCategoryGridFromApproval' },
+        primaryMasthead: { condition: 'headerWidgets.primaryMasthead?.enabled' },
+        secondaryMasthead: { condition: 'headerWidgets.secondaryMasthead?.enabled' },
+        categoryMasthead: { condition: 'headerWidgets.categoryMasthead?.enabled' },
     },
     // Fetched vs Created widget handling
     fetchedWidgetLogic: {
@@ -202,15 +201,11 @@ export const APPROVAL_ROUTING = {
         isNew: '_fetched is undefined',
         onApproveNew: 'CREATE new widget via API',
     },
-    responseFormat: {
-        success: true,
-        message: 'Processed {n} widgets',
-        results: [
-            { widget: '$widgetName', status: 'success', slug: '$createdSlug' },
-            { widget: '$widgetName', status: 'failed', error: '$errorMessage' },
-            { widget: '$widgetName', status: 'skipped', error: 'Type not supported' },
-        ],
-        errors: [], // Array of failed widget objects
+    // Slug validation: checks both widget.slug and widget.slug_name
+    slugValidation: {
+        frontendCheck: 'ValidationService.js — widget.slug || widget.slug_name',
+        backendCheck: 'server/middleware/validate.js — same fallback',
+        backendCreate: 'server/routes/requests.js — w.slug || w.slug_name || auto-generated',
     },
 };
 
@@ -250,13 +245,14 @@ export const ACTIVITY_LOG = {
 
 // ── Error Handling ──
 export const ERROR_HANDLING = {
-    submitFails: { behavior: 'Stays in DRAFT', toast: 'Failed to submit to sheet' },
-    approvalFails: { behavior: 'Stays PENDING', toast: 'Failed to trigger automation: {error}' },
-    individualWidgetFails: { behavior: 'Returned in results as status: "failed"', toast: null },
-    cookiesExpired: { behavior: 'Backend returns 403', fix: 'Refresh cookies in Approval_Automation.gs' },
-    unsupportedType: { behavior: 'Skipped with status: "skipped"', toast: null },
+    submitFails: { behavior: 'Stays in DRAFT', toast: 'Failed to submit' },
+    approvalFails: { behavior: 'Stays PENDING', toast: 'Failed to approve: {error}' },
+    individualWidgetFails: { behavior: 'Backend returns 400 with validation error details', toast: null },
+    authExpired: { behavior: 'Auth middleware rejects request', fix: 'Re-login required' },
+    unsupportedType: { behavior: 'Skipped during approval routing', toast: null },
     editWhileLocked: { behavior: 'Blocked', toast: 'Cannot edit while in review or approved' },
     fetchNotFound: { behavior: 'Toast shown', toast: 'Widget not found with slug: {slug}' },
+    slugValidationFails: { behavior: 'Checks widget.slug then widget.slug_name before failing', toast: 'slug_name cannot be empty' },
     emptyBackgroundMultimedia: { behavior: 'Deploy error', fix: 'Omit field if empty', toast: 'Background Multimedia Name is invalid' },
 };
 
@@ -270,6 +266,7 @@ export const UI_COMPONENTS = {
     AuthContext: { file: 'src/context/AuthContext.jsx', role: 'User state, checker list, role helpers' },
     ActivityLogContext: { file: 'src/context/ActivityLogContext.jsx', role: 'Audit trail' },
     BackendSyncService: { file: 'src/services/BackendSyncService.js', role: 'Direct backend deployment' },
-    LocalApiService: { file: 'src/services/LocalApiService.js', role: 'Local Express API client' },
-    ApprovalAutomation: { file: 'scripts/Approval_Automation.gs', role: 'Server-side approval routing' },
+    LocalApiService: { file: 'src/services/LocalApiService.js', role: 'Express backend API client (submit, approve, widgets, users, catalog)' },
+    ValidationService: { file: 'src/services/ValidationService.js', role: 'Pre-submit validation + slug uniqueness checks' },
+    PrismaSchema: { file: 'server/prisma/schema.prisma', role: 'Database models (Widget, Request, RequestWidget, User, etc.)' },
 };

@@ -35,19 +35,24 @@ const SingleProductRow = ({ widget }) => {
     const hasMultimedia = pnc.has_multimedia;
 
     // widget.products is an array of item code strings (set via ProductListInput)
-    // Hydrate each code into a full product object via the catalog
+    // Legacy widgets may store objects — normalise to string first
     const resolvedProducts = useMemo(() => {
         const rawCodes = widget.products || [];
         if (!rawCodes.length) return [];
-        return rawCodes.map((code) => {
-            const cat = getProduct(String(code));
+        return rawCodes.map((code, idx) => {
+            // Normalise: string → use as-is; object → extract itemCode or id
+            const codeStr = typeof code === 'object' && code !== null
+                ? String(code.itemCode || code.id || idx)
+                : String(code);
+
+            const cat = getProduct(codeStr);
             if (cat) {
                 const discount = cat.mrp > cat.price
                     ? Math.round((1 - cat.price / cat.mrp) * 100)
                     : null;
                 return {
-                    id: String(code),
-                    itemCode: String(code),
+                    id: codeStr,
+                    itemCode: codeStr,
                     name: cat.displayName,
                     brand: cat.brand,
                     image: cat.imageUrl,
@@ -58,9 +63,9 @@ const SingleProductRow = ({ widget }) => {
             }
             // Catalog not loaded yet or unknown code — placeholder
             return {
-                id: String(code),
-                itemCode: String(code),
-                name: catalogLoading ? '…' : `Item #${code}`,
+                id: codeStr,
+                itemCode: codeStr,
+                name: catalogLoading ? '…' : `Item #${codeStr}`,
                 image: '',
                 price: '₹—',
                 mrp: null,

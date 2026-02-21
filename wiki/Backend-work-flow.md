@@ -181,16 +181,18 @@ Maker clicks "Submit"
     ↓
 WidgetContext.submitForReview() called
     ↓
+ValidationService.validateAndCheckSlugs(widgets) — pre-submit validation
+    ↓
 All canvas widgets packaged into JSON payload
     ↓
-GoogleSheetService.createRequest() → Google Sheet mein store
+LocalApiService.createRequest() → Express backend → Prisma DB (SQLite)
     ↓
 pageStatus → PENDING
     ↓
 Canvas editing locked ✗
 ```
 
-**Submit Payload (Google Sheet mein jaata hai):**
+**Submit Payload (Express backend ko jaata hai — POST /api/local/requests):**
 
 ```json
 {
@@ -219,29 +221,35 @@ Canvas editing locked ✗
 
 ### Step 6 — Backend JSON Validation
 
-**Approve se pehle**, Google Apps Script (`Approval_Automation.gs`) widget ka JSON check karta hai — saare fields sahi hain ya nahi.
+**Approve se pehle**, Express backend (`server/routes/requests.js`) widget ka JSON check karta hai — saare fields sahi hain ya nahi.
 
+**Pre-Submit (Frontend):** `ValidationService.validateAndCheckSlugs()` validates:
+- Required fields (slug, title, type)
+- Slug uniqueness via `LocalApiService.getWidgets({ slug })`
+- DateTime format (if present)
+- Product list minimum (per widget type)
+
+**On Approve (Backend):** `server/middleware/validate.js` re-validates:
 ```
 Checker "Approve" click karta hai
     ↓
-GoogleSheetService.approveRequest() → Apps Script ko bheja
+LocalApiService.approveRequest(id) → POST /api/local/requests/:id/approve
     ↓
-Apps Script: handleApprove() called
+Express: route handler validates role (CHECKER/SUPER_ADMIN only)
     ↓
 Har widget ke liye validation:
     ┌─────────────────────────────────────────┐
     │  1. widget_type valid hai?              │
     │  2. Required fields present hain?       │
-    │     - slug_name                         │
-    │     - heading_en / text_en              │
+    │     - slug                              │
+    │     - title (heading_en / text_en)      │
     │     - start_time / end_time             │
     │     - product_list (if applicable)      │
     │  3. Multimedia slug valid hai?          │
     │     (agar multimedia field empty nahi)  │
-    │  4. State-wise data sahi format mein?   │
     └─────────────────────────────────────────┘
     ↓
-Sab theek → Backend API calls shuru
+Sab theek → DB status APPROVED, Widget status APPROVED
 Koi galti → Error return, status PENDING rehta
 ```
 
@@ -376,7 +384,7 @@ Minimum 1 widget select hona zaroori hai
 | :--- | :--- | :--- |
 | `selectedWidgets` | `RequestQueue.jsx` | `Map<reqId → Set<widgetIndex>>` — body widget selections |
 | `selectedHeaderWidgets` | `RequestQueue.jsx` | `Map<reqId → Set<'primaryMasthead'/'secondaryMasthead'>>` |
-| `handleApprove()` | `RequestQueue.jsx` | Filters `req.widgets[]` + `req.headerWidgets{}` by selection before passing to `GoogleSheetService.approveRequest()` |
+| `handleApprove()` | `RequestQueue.jsx` | Filters `req.widgets[]` + `req.headerWidgets{}` by selection before passing to `LocalApiService.approveRequest()` |
 
 **Why partial selection?**
 
@@ -388,26 +396,16 @@ Ek maker ek saath multiple widgets submit karta hai — kuch ready hoti hain, ku
 
 ### Step 8 — Approve: Backend API Deployment
 
-Checker approve karta hai → Apps Script widget type ke hisaab se route karta hai:
+Checker approve karta hai → Express backend (`server/routes/requests.js`) status update karta hai:
 
 ```javascript
-switch (widget.type) {
-    case 'Single Product Row Optimize':
-        createSPROptimizedWidget(widget);   // PLP ecosystem + Homepage Row
-        break;
-    case 'Single Product Row':
-        createSPRStandardWidget(widget);    // Direct widget creation
-        break;
-    case 'Banner With Product Listing':
-        createCLPWidget(widget);            // Carousel + PLP
-        break;
-    case 'Primary Masthead':
-        createPrimaryMastheadFromApproval(widget);
-        break;
-    case 'Category Grid':
-        createCategoryGridFromApproval(widget);
-        break;
-}
+// POST /api/local/requests/:id/approve
+// 1. Validates role (CHECKER/SUPER_ADMIN only)
+// 2. Checks request status is PENDING
+// 3. Optional: approve only selectedWidgetIds
+// 4. Updates Request.status → APPROVED
+// 5. Updates Widget.status → APPROVED for all selected widgets
+// 6. Logs ActivityLog entry (action: 'approve')
 ```
 
 **Backend API Calls (example: Product Rail Standard):**
@@ -457,9 +455,11 @@ Agar Checker reject karta hai (ya validation fail hoti hai):
 ```
 Checker "Reject" click karta hai
     ↓
-GoogleSheetService.updateStatus(id, 'REJECTED')
+LocalApiService.rejectRequest(id, reason) → POST /api/local/requests/:id/reject
     ↓
-Status: REJECTED
+Express: Request.status → REJECTED, Widget.status → REJECTED
+    ↓
+RejectionReason stored in Request.rejectionReason
     ↓
 Maker ko editing access wapas milti hai
     ↓
@@ -486,13 +486,13 @@ flowchart TD
         FillForm --> Emulator["Preview in Emulator\nPhoneFrame real-time render"]
         Emulator --> Submit[Click Submit]
         Submit --> Package["submitForReview\nPackage all widgets into JSON"]
-        Package --> Sheet["Google Sheet\nStatus: PENDING\nEditing locked"]
+        Package --> DB["Prisma DB (SQLite)\nStatus: PENDING\nEditing locked"]
     end
 
     RoleCheck -->|CHECKER| Queue
 
     subgraph Checker Flow
-        Sheet --> Queue["RequestQueue\nSee PENDING requests"]
+        DB --> Queue["RequestQueue\nSee PENDING requests"]
         Queue --> Preview[Preview in Emulator]
         Preview --> Decision{Decision}
     end
@@ -500,11 +500,11 @@ flowchart TD
     subgraph Reject Flow
         Decision -->|Reject| Reject[updateStatus: REJECTED]
         Reject --> MakerEdit["Maker re-edits\nand re-submits"]
-        MakerEdit --> Sheet
+        MakerEdit --> DB
     end
 
     subgraph Approve + Validation Flow
-        Decision -->|Approve| Validate["Apps Script\nhandleApprove\nJSON Validation"]
+        Decision -->|Approve| Validate["Express Backend\nroutes/requests.js\nRole + Status Validation"]
         Validate --> Valid{"All fields\nvalid?"}
         Valid -->|No| ErrResponse["Error Response\nWidget name + Error detail"]
         ErrResponse --> Reject
@@ -560,8 +560,8 @@ DRAFT ────────────────────→ PENDING
 | `Background Multimedia Name is invalid` | Masthead / SPR Multimedia | `background_multimedia` field empty string bheja | Multimedia field blank rakhne pe field hi mat bhejo |
 | `slug_name already exists` | Any | Wahi slug already backend pe exist karta hai | Naya unique slug use karo |
 | `start_time format invalid` | Any | Date format galat hai | `YYYY-MM-DD HH:MM:SS` format use karo |
-| `Type not supported` | Any | Widget type Apps Script mein register nahi | Apps Script mein naya `case` add karo |
-| `Session expired (403)` | Any | Apps Script ke cookies expire ho gayi | `Approval_Automation.gs` mein cookies refresh karo |
+| `Type not supported` | Any | Widget type backend mein register nahi | BackendFlow.js mein naya routing add karo |
+| `Session expired (403)` | Any | Auth session expire ho gayi | Re-login karo |
 | `Sub-category items missing` | Optimized SPR / CLP | State-wise items nahi banaye | Saare states ke items create karo |
 
 ---
@@ -574,8 +574,9 @@ DRAFT ────────────────────→ PENDING
 | **PropertyEditor** | `src/components/Sidebar/PropertyEditor.jsx` | Input fields (config-driven) |
 | **PhoneFrame / Emulator** | `src/components/Layout/MainLayout.jsx` | Real-time visual preview |
 | **WidgetContext** | `src/context/WidgetContext.jsx` | State, submit, approve, reject logic |
-| **GoogleSheetService** | `src/services/GoogleSheetService.js` | Google Sheet CRUD — requests store/fetch |
-| **Approval_Automation.gs** | `scripts/Approval_Automation.gs` | Backend routing + API calls on approve |
+| **LocalApiService** | `src/services/LocalApiService.js` | Express backend CRUD — widgets, requests, users, catalog |
+| **Express Backend** | `server/routes/requests.js` | Approval routing + status updates |
+| **Prisma Schema** | `server/prisma/schema.prisma` | Database models (Widget, Request, RequestWidget, etc.) |
 | **AuthContext** | `src/context/AuthContext.jsx` | Role management (MAKER/CHECKER) |
 | **RequestQueue** | `src/components/Dashboard/RequestQueue.jsx` | Checker review UI |
 | **WidgetRegistry** | `src/config/WidgetRegistry.js` | Widget config lookup + BackendFlow integration |
@@ -593,15 +594,14 @@ Yeh file poore backend workflow ka **config source of truth** hai. `WidgetRegist
 | :--- | :--- | :--- |
 | `WORKFLOW_STAGES` | Object | `DRAFT`, `PENDING`, `APPROVED`, `REJECTED` — har stage ka description, allowed roles, aur valid next transitions |
 | `ROLE_PERMISSIONS` | Object | Har role (`MAKER`, `CHECKER`, `SUPER_ADMIN`) ke liye allowed actions (canSubmit, canApprove, canReject...) |
-| `SUBMIT_PAYLOAD_SCHEMA` | Object | Google Sheet ko bheje jaane wale payload ka schema |
-| `SHEET_COLUMNS` | Object | Google Sheet columns A–G ka mapping (field, type, example) |
+| `SUBMIT_PAYLOAD_SCHEMA` | Object | Express backend ko bheje jaane wale payload ka schema |
 | `VALIDATION_RULES` | Object | Universal + per-type validation rules (field, rule, error message) |
-| `APPROVAL_ROUTING` | Object | Canvas widget type → Apps Script function name (`createSPROptimizedWidget` etc.) |
-| `BACKEND_ENDPOINTS` | Object | Saare backend REST endpoints (`/api/app/widget/`, `/api/app/post_widget_item/` etc.) |
-| `APPROVAL_RESPONSE_SCHEMA` | Object | Apps Script approval response ka expected shape |
+| `APPROVAL_ROUTING` | Object | Canvas widget type → backend approval handler mapping |
+| `BACKEND_ENDPOINTS` | Object | Saare backend REST endpoints (`/api/local/widgets`, `/api/local/requests` etc.) |
+| `APPROVAL_RESPONSE_SCHEMA` | Object | Approval response ka expected shape |
 | `FETCHED_WIDGET_MARKERS` | Object | `_fetched: true`, `slug`, `_rawData` — fetched widget identifiers |
 | `ERROR_CATALOGUE` | Array | Known validation errors — cause + fix for each |
-| `WORKFLOW_SUMMARY` | Object | Name, version, wikiRef, stages list, roles list, Apps Script sheet ID |
+| `WORKFLOW_SUMMARY` | Object | Name, version, wikiRef, stages list, roles list |
 
 ### WidgetRegistry Methods (BackendFlow se powered)
 
@@ -616,9 +616,9 @@ WidgetRegistry.getWorkflowConfig()
 WidgetRegistry.getAllowedActions('MAKER', 'DRAFT')
 // → ['canCreate', 'canEdit', 'canDelete', 'canSubmit']
 
-// Canvas widget type → Apps Script function:
+// Canvas widget type → backend approval handler:
 WidgetRegistry.getApprovalRoute('Single Product Row Optimize')
-// → { fn: 'createSPROptimizedWidget', script: '...', description: '...' }
+// → { fn: 'createSPROptimizedWidget', description: '...' }
 
 // Universal + type-specific validation rules:
 WidgetRegistry.getValidationRules('Single Product Row')
@@ -755,9 +755,9 @@ Jab `VITE_ENV=UAT` ho, header mein logo ke paas orange pulsing **🧪 UAT** badg
 
 ### 9.8 Activity Log Persistence (Audit Trail)
 
-**Files:** `src/context/ActivityLogContext.jsx`, `src/components/ActivityLogPanel.jsx`, `src/services/GoogleSheetService.js` → `appendAuditLog()`, `fetchAuditLog()`
+**Files:** `src/context/ActivityLogContext.jsx`, `src/components/ActivityLogPanel.jsx`, `src/services/LocalApiService.js` → `appendActivity()`, `getActivity()`
 
-Significant events (`page_submitted`, `page_approved`, `page_rejected`) automatically Google Sheet pe persist hote hain. Minor widget edits sirf in-memory rehte hain (Sheet spam se bachne ke liye).
+Significant events (`page_submitted`, `page_approved`, `page_rejected`) automatically Prisma DB (ActivityLog table) mein persist hote hain. Minor widget edits sirf in-memory rehte hain.
 
 ActivityLogPanel mein 🔄 button se past sessions ke persisted logs load kiye ja sakte hain.
 

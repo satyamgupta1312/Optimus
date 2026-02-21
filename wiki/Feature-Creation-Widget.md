@@ -1073,7 +1073,7 @@ If a slug already exists, append `_1`, `_2`, etc. (up to 5 retries).
 | :--- | :--- | :--- |
 | `BackendSyncService` | `src/services/BackendSyncService.js` | Collection Banner, Masthead deployment |
 | `WidgetApiService` | `src/services/WidgetApiService.js` | Product Rail creation |
-| `GoogleSheetService` | `src/services/GoogleSheetService.js` | Submit, approve, media upload |
+| `LocalApiService` | `src/services/LocalApiService.js` | Submit, approve, widgets, users, catalog, activity, comments, media |
 
 ---
 

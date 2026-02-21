@@ -138,34 +138,31 @@ const addWidget = (widget) => {
 2. Maker previews changes in the emulator (PhoneFrame)
 3. Maker clicks "Submit" button
 4. WidgetContext.submitForReview() is called
-5. Header widgets are cleaned (File objects removed for serialization)
-6. Request payload is built:
+5. ValidationService.validateAndCheckSlugs() runs pre-submit checks
+6. Header widgets are cleaned (File objects removed for serialization)
+7. Request payload is built:
     {
-        action: "create",
-        id: UUID,
-        user: "maker_name",
-        type: "Homepage Update",
-        status: "PENDING",
         widgets: [...all canvas widgets],
         headerWidgets: { primaryMasthead, secondaryMasthead }
     }
-7. GoogleSheetService.createRequest() sends to Google Sheet
-8. pageStatus changes to PENDING
-9. Toast: "Page submitted for review!"
-10. All editing is now locked
+8. LocalApiService.createRequest() sends to Express backend (POST /api/local/requests)
+9. Prisma creates Widget records + Request record + RequestWidget snapshots in one transaction
+10. pageStatus changes to PENDING
+11. Toast: "Page submitted for review!"
+12. All editing is now locked
 ```
 
 ### What Gets Submitted
 
 | Data | Source | Stored In |
 | :--- | :--- | :--- |
-| Request ID | `crypto.randomUUID()` | Sheet Column A |
-| User Name | `AuthContext.user.name` | Sheet Column B |
-| Request Type | `"Homepage Update"` | Sheet Column C |
-| Status | `"PENDING"` | Sheet Column D |
-| Timestamp | `new Date().toISOString()` | Sheet Column E |
-| Widgets Array | All canvas widgets (JSON) | Sheet Column F |
-| Header Widgets | Primary + Secondary Masthead (cleaned JSON) | Sheet Column G |
+| Request ID | `uuid()` (Prisma auto-generated) | `Request.id` |
+| Submitter | `req.user.id` (from auth middleware) | `Request.submittedBy` → `User` |
+| Request Type | `"Homepage Update"` | `Request.type` |
+| Status | `"PENDING"` | `Request.status` |
+| Timestamp | `@default(now())` | `Request.createdAt` |
+| Widgets | All canvas widgets (JSON snapshots) | `RequestWidget.snapshot` (per widget) |
+| Header Widgets | Primary + Secondary Masthead (cleaned JSON) | `Request.headerWidgets` |
 
 ---
 
@@ -395,79 +392,64 @@ flowchart TD
 
 ---
 
-## 6. Approval Automation — Google Apps Script
+## 6. Approval Automation — Express Backend
 
-**Source:** `scripts/Approval_Automation.gs`
+**Source:** `server/routes/requests.js`
 
-### Routing Logic
+### Approve Flow
 
 ```javascript
-// handleApprove() routes each widget to its creation function
-for (var i = 0; i < widgets.length; i++) {
-    var widget = widgets[i];
-    switch (widget.type) {
-        case 'Single Product Row Optimize':
-            createSPROptimizedWidget(widget);
-            break;
-        case 'Single Product Row':
-            createSPRStandardWidget(widget);
-            break;
-        case 'Banner With Product Listing':
-            createCLPWidget(widget);
-            break;
-        case 'Primary Masthead':
-            createPrimaryMastheadFromApproval(widget);
-            break;
-        case 'Category Grid':
-        case 'Category Masthead':
-            createCategoryGridFromApproval(widget);
-            break;
-        default:
-            // Skipped — "Type not supported"
-    }
-}
+// POST /api/local/requests/:id/approve
+// 1. Validates role: CHECKER or SUPER_ADMIN only
+// 2. Checks request status is PENDING
+// 3. Optionally approves only selected widgets (selectedWidgetIds)
+// 4. Updates Request.status → APPROVED
+// 5. Updates Widget.status → APPROVED for all selected widgets
+// 6. Logs ActivityLog entry (action: 'approve')
+```
 
-// Header widgets processed separately
-if (headerWidgets.primaryMasthead?.enabled)
-    createPrimaryMastheadFromApproval(headerWidgets.primaryMasthead);
-if (headerWidgets.secondaryMasthead?.enabled)
-    // Process Secondary Masthead
-if (headerWidgets.categoryMasthead?.enabled)
-    createCategoryGridFromApproval(headerWidgets.categoryMasthead);
+### Reject Flow
+
+```javascript
+// POST /api/local/requests/:id/reject
+// 1. Validates role: CHECKER or SUPER_ADMIN only
+// 2. Checks request status is PENDING
+// 3. Updates Request.status → REJECTED + stores rejectionReason
+// 4. Updates Widget.status → REJECTED for all widgets in request
+// 5. Logs ActivityLog entry (action: 'reject')
+```
+
+### Reopen Flow
+
+```javascript
+// POST /api/local/requests/:id/reopen
+// 1. Checks request status is APPROVED or REJECTED
+// 2. Updates Request.status → DRAFT + clears rejectionReason
+// 3. Updates Widget.status → DRAFT for all widgets
+// 4. Logs ActivityLog entry (action: 'reopen')
 ```
 
 ### Authentication
 
-The Apps Script uses **hardcoded session cookies** for backend API authentication:
+The Express backend uses **header-based auth** via `server/middleware/auth.js`:
 
-```javascript
-var COOKIES = "csrftoken=rahrce1omL...;sessionid=0hr6v9r5pq...;theme=samaan";
 ```
-
-> These cookies may expire and need periodic refresh.
+Every request:
+  1. Read X-Optimus-User header (email)
+  2. Upsert User in Prisma DB
+  3. Check CheckerList table for CHECKER role
+  4. Set req.user = { id, email, name, role }
+```
 
 ### Response Format
 
 ```javascript
+// Approve response
 {
-    success: true,                  // Overall success
-    message: "Processed 3 widgets",
-    results: [
-        {
-            widget: "Rice Mela",
-            status: "success",      // "success" | "failed" | "skipped"
-            slug: "rice_mela_spr_opt"
-        },
-        {
-            widget: "Primary Masthead",
-            status: "success",
-            slug: "diwali_pm_hp"
-        },
-        {
-            widget: "Unknown Type",
-            status: "skipped",
-            error: "Type not supported"
-        }
+    id: "uuid",
+    status: "APPROVED",
+    updatedAt: "2026-02-21T09:43:27.547Z"
+}
     ],
     errors: []                      // Array of failed widget objects
 }

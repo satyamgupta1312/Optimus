@@ -76,13 +76,14 @@ LoginPage
 │  Sidebar     │▌│          Preview Area                       │
 │  (420px)     │▌│      ┌─────────────────┐                    │
 │              │▌│      │   PhoneFrame    │                    │
-│  [Configure  │▌│      │                 │                    │
-│   Header]    │▌│      │   (widgets)     │                    │
-│              │▌│      │                 │                    │
-│  Widget      │▌│      └─────────────────┘                    │
-│  Library     │▌│                                             │
-│  + Property  │▌│      (dot pattern background)               │
-│  Editor      │▌│                                             │
+│  FetchWidget │▌│      │                 │                    │
+│  Widget      │▌│      │  (masthead at   │                    │
+│  Library     │▌│      │   top, widgets  │                    │
+│  + Variant   │▌│      │   below)        │                    │
+│  Picker      │▌│      └─────────────────┘                    │
+│  + Property  │▌│                                             │
+│  Editor      │▌│      (dot pattern background)               │
+│  + Submit    │▌│                                             │
 ├──────────────┴─┴─────────────────────────────────────────────┤
 │ [HelpGuide FAB]                                              │
 └──────────────────────────────────────────────────────────────┘
@@ -96,29 +97,27 @@ MainLayout
 │   ├── OS Switcher, Undo/Redo
 │   ├── Queue button, Users button (super admin)
 │   ├── Status filter tabs (Maker)
-│   ├── Mapping button (NEW)
-│   ├── History button (NEW)
+│   ├── Mapping button
+│   ├── History button
 │   ├── Workflow actions (Submit/Approve/Reject/Re-open)
 │   └── User profile + Logout
 ├── Content (flex, overflow-hidden)
 │   ├── Left Sidebar (resizable 280-800px)
-│   │   ├── Header Config trigger
-│   │   └── Sidebar (WidgetLibrary + PropertyEditor)
+│   │   └── Sidebar (FetchWidget + WidgetLibrary + PropertyEditor)
 │   ├── Drag Handle (w-1, cursor-col-resize)
 │   └── Right Workspace (flex-1, dot pattern bg)
 │       └── PhoneFrame
-├── HeaderConfiguration modal (slide-in left)
 ├── ManageApprovalUsers modal (slide-in right)
-├── HomepageMappingDashboard modal (NEW, slide-in right)
-├── WidgetVersionHistory modal (NEW, slide-in right)
-├── DeploymentStatusPanel modal (NEW, slide-in right)
+├── HomepageMappingDashboard modal (slide-in right)
+├── WidgetVersionHistory modal (slide-in right)
+├── DeploymentStatusPanel modal (slide-in right)
 └── HelpGuide (FAB)
 ```
 
 **State:**
 ```js
-showQueue, showHeaderConfig, showManageUsers,
-showMapping, showVersionHistory, showDeploy  // NEW
+showQueue, showManageUsers,
+showMapping, showVersionHistory, showDeploy
 ```
 
 ---
@@ -126,31 +125,49 @@ showMapping, showVersionHistory, showDeploy  // NEW
 ## Screen 3: Widget Library Sidebar
 
 **Path:** `src/components/Sidebar/WidgetLibrary.jsx`
-**Purpose:** Drag source for adding widgets to the phone preview.
+**Purpose:** Add widgets to the phone preview. Shows a variant picker popup for widgets with variants.
 
 ```
 ┌──────────────────────────────┐
-│ Widget Library                │
-│ ──────────────────────────── │
-│ ┌──────────┐ ┌──────────┐   │
-│ │ Product  │ │Collection│   │
-│ │  Rail    │ │ Banner   │   │
-│ └──────────┘ └──────────┘   │
-│ ┌──────────┐                 │
-│ │ Masthead │                 │
-│ │          │                 │
-│ └──────────┘                 │
+│ Widget Types                  │
+│ ┌────────────────────┐ [+]   │
+│ │ Masthead         ▼ │       │
+│ └────────────────────┘       │
+│                               │
+│ ┌ ─ ─ Variant Picker ─ ─ ─ ┐│
+│ │ Choose type to add     [x]││
+│ │ ┌──────────────────────┐  ││
+│ │ │ P  Primary      [+]  │  ││
+│ │ │    Masthead — Primary │  ││
+│ │ └──────────────────────┘  ││
+│ │ ┌──────────────────────┐  ││
+│ │ │ S  Secondary    [+]  │  ││
+│ │ │    Masthead — Second. │  ││
+│ │ └──────────────────────┘  ││
+│ └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘│
 └──────────────────────────────┘
 ```
+
+**Flow:**
+1. User selects widget type from dropdown
+2. Clicks "+" button
+3. If widget has variant properties (e.g., Masthead: primary/secondary, SPR: single/double row) → variant picker popup appears
+4. User clicks desired variant → widget added with that variant pre-set in PNC
+5. Widget is **auto-selected** → PropertyEditor opens immediately for the new widget
+6. Variant is **locked at add time** — to get a different variant, add a new widget from the library
+
+**Auto-select:** Both `addWithVariant()` and `addDirectly()` call `setSelectedWidgetId(newId)` using the ID returned by `addWidget()`.
 
 **Component Tree:**
 ```
 WidgetLibrary
-└── Grid (2-col)
-    └── WidgetCard[] (draggable)
-        ├── Icon (lucide)
-        ├── Label
-        └── Description (text-xs)
+├── Dropdown (select widget type)
+├── Add button (+)
+└── VariantPicker popup (conditional)
+    └── VariantOption[] (clickable cards)
+        ├── Initial letter badge
+        ├── Variant label
+        └── Plus icon
 ```
 
 ---
@@ -162,14 +179,13 @@ WidgetLibrary
 
 ```
 ┌─────────────────────────────────┐
-│ § Variant Properties (PNC)      │
-│ ┌──────────────────────────────┐│
-│ │ [pill1] [pill2] (selected)   ││
-│ └──────────────────────────────┘│
+│ § PNC Properties (non-variant)  │
 │ ┌──────────────────────────────┐│
 │ │ ◯ Boolean Card option        ││
 │ │   Description text           ││
 │ └──────────────────────────────┘│
+│ (Variant selectors hidden —     │
+│  locked at add time via picker) │
 │                                 │
 │ § Content Settings              │
 │ ┌──────────────────────────────┐│
@@ -197,7 +213,7 @@ WidgetLibrary
 │ │ ▸ Product Filters            ││
 │ └──────────────────────────────┘│
 │                                 │
-│ § App Config (NEW)              │
+│ § App Config                    │
 │ ┌──────────────────────────────┐│
 │ │ Android [✓] iOS [✓]         ││
 │ │ Min Android [___]            ││
@@ -205,25 +221,44 @@ WidgetLibrary
 │ │ Min iOS     [___]            ││
 │ │ Max iOS     [___]            ││
 │ └──────────────────────────────┘│
+│                                 │
+│ ────────────────────────────── │
+│ ┌──────────────────────────────┐│
+│ │  ✓  Save Widget             ││
+│ └──────────────────────────────┘│
+│  Skip — add another widget      │
+│  without saving                  │
 └─────────────────────────────────┘
 ```
+
+**Submit Button Behavior:**
+1. **"Save Widget"** — validates all visible fields via `ConfigValidator.validateWidget()`
+2. If errors → shows toast with first error, stays on editor
+3. If valid → shows success toast, deselects widget, scrolls sidebar to top
+4. **"Skip"** — deselects widget without validation, returns to Widget Library
+5. User can also click "← Widgets" breadcrumb or select another widget in preview to navigate away freely
+
+**Variant Properties Hidden:** Properties with multiple options (variant selectors) are filtered out of Section 1 since they are locked at add time via the WidgetLibrary picker.
 
 **Component Tree:**
 ```
 PropertyEditor
-├── Section 1: PNC (PillSelector / ToggleInput / Card)
+├── Breadcrumb (← Widgets > Masthead (primary))
+├── Section 1: PNC (non-variant only — ToggleInput / Card)
 ├── Section 2: Content Fields (via InputRegistry)
-│   ├── SelectInput
 │   ├── SlugBuilder
-│   ├── TextInput
-│   ├── ProductListInput
+│   ├── TextInput / NumberInput / UrlInput
+│   ├── DateTimeInput
+│   ├── ColorPicker
 │   ├── ImageUpload
-│   ├── UrlInput
+│   ├── PillSelector / ToggleInput
+│   ├── ProductListInput
 │   ├── ScrollItemEditor / CategoryItemEditor / CarouselItemEditor (nested)
 │   └── ...
 ├── Section 3: Advanced (NumberInput / ToggleInput)
-├── Section 4: FilterEditor (NEW)
-└── Section 5: AppConfigEditor (NEW)
+├── Section 4: FilterEditor
+├── Section 5: AppConfigEditor
+└── Section 6: Submit ("Save Widget" + "Skip" link)
 ```
 
 ---
@@ -256,15 +291,19 @@ PropertyEditor
 ```
 PhoneFrame
 ├── Phone chrome (notch, bezels)
-├── DragDropContext
+├── AppHeader (clickable → selects primary masthead)
+│   └── PrimaryMasthead (synced from widgets[] via headerWidgets)
+├── SecondaryMasthead banner (clickable → selects secondary masthead)
+├── DragDropContext (contentWidgets — mastheads filtered out)
 │   └── Droppable
 │       └── WidgetRenderer[] (per widget)
 │           ├── SingleProductRow
-│           ├── PrimaryMasthead / SecondaryMasthead
 │           ├── CollectionBanner / BannerWithProductListing
 │           └── CategoryGrid
 └── Empty state prompt
 ```
+
+**Masthead Preview:** Masthead widgets are filtered from the sortable list. They render in fixed positions — primary in the header, secondary below it. Clicking either area selects the masthead for editing in PropertyEditor.
 
 ---
 
@@ -290,40 +329,25 @@ PhoneFrame
 
 ---
 
-## Screen 7: Header Configuration Modal
+## Screen 7: Masthead Configuration (Config-Driven)
 
-**Path:** `src/components/Sidebar/HeaderConfiguration.jsx`
-**Purpose:** Configure Primary + Secondary Masthead (header widgets).
+**Path:** Configured via `MastheadConfig.js` → rendered by `PropertyEditor.jsx`
+**Purpose:** Masthead is now a config-driven widget. No separate modal — edited inline via PropertyEditor.
 
-```
-┌─────────────────────────────────────────┐
-│ ← Header Configuration          [X]    │
-│ (gradient purple/blue header)           │
-├─────────────────────────────────────────┤
-│                                         │
-│ § Primary Masthead                      │
-│ ┌─────────────────────────────────────┐ │
-│ │ Slug     [_______________]          │ │
-│ │ Media    [Upload / drop]            │ │
-│ │ Video    [_______________]          │ │
-│ │ Colors   [🎨][🎨][🎨][🎨]          │ │
-│ │ Key      [____]                     │ │
-│ └─────────────────────────────────────┘ │
-│                                         │
-│ § Secondary Masthead                    │
-│ ┌─────────────────────────────────────┐ │
-│ │ Slug     [_______________]          │ │
-│ │ Media    [Upload / drop]            │ │
-│ │ Carousel Items:                     │ │
-│ │  ▸ Item 1 (accordion)              │ │
-│ │  ▸ Item 2                          │ │
-│ │  [+ Add Item]                      │ │
-│ └─────────────────────────────────────┘ │
-│                                         │
-├─────────────────────────────────────────┤
-│ Changes saved automatically    [Done]   │
-└─────────────────────────────────────────┘
-```
+**How to add a Masthead:**
+1. Select "Masthead" from Widget Library dropdown
+2. Click "+" → variant picker shows: **Primary** or **Secondary**
+3. Select variant → widget added with variant locked in PNC, **auto-selected**
+4. PropertyEditor opens immediately — variant pills are **hidden** (already chosen)
+5. Fill fields (slug, colors, media, dates; carousel items for secondary only; master_key for primary only)
+6. Click **"Save Widget"** to validate and finalize, or **"Skip"** to move on without saving
+
+**Variant is locked at add time.** To switch from Primary to Secondary (or vice versa), delete the existing masthead and add a new one from the Widget Library.
+
+**Primary Masthead** renders at the top of the phone preview (AppHeader area).
+**Secondary Masthead** renders as a banner below the header.
+
+**Data sync:** `WidgetContext` syncs masthead widgets from `widgets[]` → `headerWidgets` automatically for preview rendering.
 
 ---
 
@@ -711,7 +735,7 @@ DeploymentStatusPanel
 | MainLayout | `useAuth()`, `useWidgetContext()`, `useAppSettings()` | — |
 | PropertyEditor | `useWidgetContext()` | `WidgetRegistry`, `InputRegistry`, `ConfigValidator` |
 | PhoneFrame | `useWidgetContext()` | DnD library |
-| RequestQueue | `useAuth()` | `GoogleSheetService` |
+| RequestQueue | `useAuth()` | `LocalApiService` |
 | HomepageMappingDashboard | — | Mock data (future: HOMEPAGE_VIEW_API) |
 | WidgetVersionHistory | — | Mock data (future: GET /widgets/:id/versions) |
 | DeploymentStatusPanel | — | Mock data (future: BackendSyncService) |

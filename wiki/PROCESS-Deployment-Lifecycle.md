@@ -7,7 +7,7 @@
     *   State is local (in-memory).
 2.  **Submission**
     *   User clicks "Submit for Approval".
-    *   `GoogleSheetService` serializes the layout to JSON and appends a row to the "Request Queue" Sheet.
+    *   `LocalApiService.createRequest()` serializes the layout to JSON and sends it to the Express backend (`POST /api/local/requests`), which creates Widget + Request + RequestWidget records in the Prisma DB.
     *   Status: `PENDING`.
 3.  **Review (Checker)**
     *   Admin reviews the queued request (either in the App's Dashboard or the Sheet).

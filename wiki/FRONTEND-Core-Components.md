@@ -51,5 +51,5 @@ Config-driven generic modules — see [ARCH-Config-Driven-System.md](./ARCH-Conf
 
 ### Business Services
 *   **BackendSyncService.js**: Direct deployment to production, bypassing the Sheet Review step.
-*   **GoogleSheetService.js**: CRUD operations against the Google Sheet backend.
+*   **LocalApiService.js**: CRUD operations against the Express + Prisma backend (widgets, requests, users, catalog, activity, comments, media).
 *   **CatalogService.js**: Product catalog lookup from local CSV.

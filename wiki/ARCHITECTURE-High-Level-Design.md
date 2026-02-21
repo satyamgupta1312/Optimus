@@ -1,6 +1,6 @@
 # Architecture Overview
 
-Optimus operates as a hybrid system, combining a modern React frontend with a serverless backend powered by Google Apps Script and Google Sheets.
+Optimus is a full-stack widget management platform with a React frontend and a local Express + Prisma + SQLite backend.
 
 ## Technology Stack
 
@@ -8,10 +8,11 @@ Optimus operates as a hybrid system, combining a modern React frontend with a se
 | :--- | :--- | :--- |
 | **Frontend** | React 19, Vite 7, Tailwind CSS 3.4 | Main application framework |
 | **State** | React Context API | Global state management (Widgets, Auth, Settings) |
-| **Data** | Google Sheets | Acts as the "Review Database" and "Catalog Backup" |
+| **Backend** | Express 5 + Prisma ORM | REST API server (localhost:3001) |
+| **Database** | SQLite (Prisma) | Widget storage, approval workflow, user management |
 | **D&D** | `@dnd-kit/core` | Smooth drag-and-drop widget reordering |
-| **Backend** | Google Apps Script (GAS) | Automation logic and deployment triggers |
-| **API** | Django (Proxy) | Direct communication with production server via Vite proxy |
+| **Catalog** | Google Sheet CSV | Product catalog (fetched & cached via `useCatalog` hook) |
+| **Proxy** | Vite Dev Proxy | Routes `/api/local/*` → Express :3001, `/api/app/*` → Django production |
 
 ## Directory Structure
 
@@ -20,30 +21,67 @@ optimus/
 ├── src/
 │   ├── components/
 │   │   ├── Dashboard/         # Request Queue & Widget Generator UI
-│   │   ├── Inputs/            # Reusable input components (TextInput, PillSelector, etc.)
-│   │   ├── Preview/           # Phone Emulator components
+│   │   ├── Editors/           # ScrollItemEditor, CategoryItemEditor, etc.
+│   │   ├── Inputs/            # Reusable input components (TextInput, DateRangePicker, etc.)
+│   │   ├── Preview/           # Phone Emulator components (PhoneFrame, AppHeader)
 │   │   ├── Sidebar/           # Widget Library & Property Editor
-│   │   └── Widgets/           # Individual Widget implementations
+│   │   └── Widgets/           # Individual Widget implementations (SPR, Banner, CategoryGrid)
 │   ├── config/
 │   │   ├── WidgetRegistry.js  # Central type → config lookup
-│   │   └── widgets/           # Per-widget config files (ProductRailConfig.js, etc.)
-│   ├── context/               # Global State (WidgetContext, UndoRedo, Auth)
+│   │   ├── BackendFlow.js     # Validation rules, approval routing, workflow stages
+│   │   ├── Feature/           # Feature-specific config (AuthConfig, ProductCatalogConfig)
+│   │   └── widgets/           # Per-widget config files (SPRConfig.js, CollectionBannerConfig.js)
+│   ├── context/               # Global State (WidgetContext, AuthContext, AppSettingsContext)
+│   ├── hooks/                 # Custom hooks (useCatalog, useClickOutside, useFormValidation)
 │   ├── services/
 │   │   ├── system/            # Generic config consumers (VariantResolver, PayloadBuilder, ConfigValidator)
-│   │   └── *.js               # API & Business Logic (GoogleSheetService, BackendSyncService)
+│   │   ├── LocalApiService.js # Frontend client for Express backend (/api/local/*)
+│   │   ├── ValidationService.js # Pre-submit validation + slug checks
+│   │   └── *.js               # Other services (AuthService, CatalogService)
 │   └── data/                  # Static assets and mock data
-├── scripts/                   # Google Apps Script (Backend Logic)
-│   ├── Approval_Automation.gs
-│   ├── CLP_Automation.gs
-│   ├── Primary_Masthead_Automation.gs
-│   ├── Product_Fetch_Service.gs
-│   ├── SPR_Widget_Optimized.gs
-│   ├── SPR_Optimized_Automation.gs
-│   ├── Secondary_Masthead_Automation.gs
-│   └── Secondary_Masthead_Backend.gs
+├── server/                    # Express + Prisma backend
+│   ├── index.js               # Express app entry point (port 3001)
+│   ├── middleware/
+│   │   ├── auth.js            # Email → role resolution + User upsert
+│   │   ├── validate.js        # Server-side widget validation
+│   │   └── errorHandler.js    # Centralized error responses
+│   ├── prisma/
+│   │   ├── schema.prisma      # Database schema (9 models)
+│   │   ├── client.js          # Prisma client singleton
+│   │   ├── seed.js            # DB seeding script
+│   │   └── optimus.db         # SQLite database file
+│   ├── routes/
+│   │   ├── widgets.js         # Widget CRUD, duplicate, reorder, versions
+│   │   ├── requests.js        # Submit, approve, reject, reopen
+│   │   ├── users.js           # /me, checker management
+│   │   ├── catalog.js         # Product search & batch lookup
+│   │   ├── activity.js        # Activity log
+│   │   ├── comments.js        # Per-widget comment threads
+│   │   ├── headerWidgets.js   # Primary/Secondary Masthead state
+│   │   └── media.js           # File upload
+│   └── uploads/               # Uploaded media files
 ├── wiki/                      # Project documentation
-└── vite.config.js             # Proxy configuration for API calls
+└── vite.config.js             # Proxy: /api/local → :3001, /api/app → Django
 ```
 
-> See also: [Config-Driven Architecture](./ARCH-Config-Driven-System.md) for details on the `config/` and `services/system/` layers.
+## Data Flow
 
+```
+Frontend (React)                    Backend (Express :3001)
+┌──────────────┐   /api/local/*    ┌─────────────────────┐
+│  Components  │ ───────────────▶  │  auth.js middleware  │
+│  Contexts    │                   │  + route handlers    │
+│  Services    │ ◀───────────────  │  + Prisma ORM       │
+└──────────────┘   JSON response   └──────────┬──────────┘
+                                              │
+                                    ┌─────────▼─────────┐
+                                    │  SQLite (Prisma)   │
+                                    │  optimus.db        │
+                                    └───────────────────┘
+```
+
+> See also:
+> - [DATA-Architecture.md](./DATA-Architecture.md) — Database schema, API routes, and Prisma models
+> - [AUTH-Flow.md](./AUTH-Flow.md) — Authentication and role assignment
+> - [Backend-work-flow.md](./Backend-work-flow.md) — End-to-end widget lifecycle
+> - [ARCH-Config-Driven-System.md](./ARCH-Config-Driven-System.md) — Config-driven architecture details

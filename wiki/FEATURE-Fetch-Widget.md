@@ -6,7 +6,7 @@ The **Fetch Widget** feature allows users to:
 
 1. **Fetch** any existing widget or widget item from the backend by `slug_name`
 2. **Edit** all fields of the fetched widget in the builder (PropertyEditor / HeaderConfiguration)
-3. **Submit** changes for review (Maker → Google Sheet queue)
+3. **Submit** changes for review (Maker → Express backend request queue)
 4. **Approve** and trigger API calls to update the widget on the backend (Checker → automation)
 
 ### FetchWidget — Sidebar Skeleton
@@ -334,15 +334,15 @@ flowchart TD
 
     subgraph Submit
         E3 --> S1["Maker clicks Submit"]
-        S1 --> S2["GoogleSheetService.createRequest()"]
-        S2 --> S3["Data stored in Google Sheet\nstatus: PENDING"]
+        S1 --> S2["LocalApiService.createRequest()"]
+        S2 --> S3["Data stored in Prisma DB\nstatus: PENDING"]
     end
 
     subgraph Approve
         S3 --> A1["Checker reviews in RequestQueue"]
-        A1 -->|Approve| A2["GoogleSheetService.approveRequest()"]
+        A1 -->|Approve| A2["LocalApiService.approveRequest()"]
         A1 -->|Reject| R1["Status: REJECTED\nMaker can re-edit"]
-        A2 --> A3["Google Apps Script\ntriggers automation"]
+        A2 --> A3["Express backend\nupdates DB records"]
     end
 
     subgraph API Update
@@ -375,7 +375,7 @@ DRAFT → PENDING → APPROVED → (API Updated)
 **Triggered by:** `WidgetContext.submitForReview()`
 
 ```javascript
-// Payload sent to Google Sheet
+// Payload sent to Express backend (POST /api/local/requests)
 {
     action: 'create',
     id: UUID,
@@ -387,15 +387,15 @@ DRAFT → PENDING → APPROVED → (API Updated)
 }
 ```
 
-**Service:** `GoogleSheetService.createRequest()`
-**Endpoint:** Google Apps Script (`Approval_Automation.gs`)
+**Service:** `LocalApiService.createRequest()`
+**Endpoint:** `POST /api/local/requests` (Express backend → Prisma DB)
 
 ### 5.4 Approve (Checker)
 
 **Triggered by:** `WidgetContext.approvePage()`
 
 ```javascript
-// Payload sent to Google Sheet
+// Payload sent to Express backend (POST /api/local/requests/:id/approve)
 {
     action: 'approve',
     id: requestId,
@@ -404,11 +404,11 @@ DRAFT → PENDING → APPROVED → (API Updated)
 }
 ```
 
-**Service:** `GoogleSheetService.approveRequest()`
+**Service:** `LocalApiService.approveRequest()`
 
 ### 5.5 API Calls on Approval
 
-When approved, the Google Apps Script automation triggers the backend API calls:
+When approved, the Express backend updates Widget + Request statuses in Prisma DB:
 
 **For each widget type, these API calls are made:**
 
@@ -555,7 +555,7 @@ When approved, the Google Apps Script automation triggers the backend API calls:
 
 ## 7. Automation Scripts
 
-Each widget type has a corresponding Google Apps Script that handles the API calls on approval:
+Each widget type's approval is handled by the Express backend (`server/routes/requests.js`), which updates status in Prisma DB:
 
 | Widget Type | Script File | Entry Function |
 | :--- | :--- | :--- |
@@ -570,7 +570,7 @@ Each widget type has a corresponding Google Apps Script that handles the API cal
 
 | Service | File | Role |
 | :--- | :--- | :--- |
-| `GoogleSheetService` | `src/services/GoogleSheetService.js` | Submit, approve, media upload |
+| `LocalApiService` | `src/services/LocalApiService.js` | Submit, approve, widgets, users, catalog, activity, comments, media |
 | `BackendSyncService` | `src/services/BackendSyncService.js` | Direct API calls (Category Grid, CLP, Masthead) |
 | `WidgetApiService` | `src/services/WidgetApiService.js` | Product Rail API calls |
 
@@ -604,7 +604,7 @@ Each widget type has a corresponding Google Apps Script that handles the API cal
 | `src/config/widgets/ProductRailConfig.js` | Product Rail field definitions, variants, validation |
 | `src/config/WidgetRegistry.js` | All registered widget types |
 | `src/components/Widgets/WidgetRenderer.jsx` | Resolves component for emulator rendering |
-| `src/services/GoogleSheetService.js` | Submit/approve via Google Sheet |
+| `src/services/LocalApiService.js` | Submit/approve via Express backend + Prisma |
 | `src/services/BackendSyncService.js` | Direct backend API deployment |
 | `src/services/WidgetApiService.js` | Widget creation API calls |
 

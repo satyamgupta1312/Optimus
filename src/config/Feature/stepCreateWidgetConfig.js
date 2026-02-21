@@ -7,7 +7,7 @@
  *   Step 3: Content Fields (form inputs — conditional on PNC)
  *   Step 3b: State-Wise Products (ALL Product Rail variants — always visible)
  *   Step 4: Nested Items (carousel/category items with sub-categories & state products)
- *   Step 5: Advanced Settings, Filters, App Config
+ *   Step 5: App Config (collapsible panel: Advanced + Filters + App Config)
  *   Step 6: Submit for Approval
  *
  * This config drives what the user SEES and SELECTS.
@@ -53,6 +53,8 @@ export const WIDGET_TYPE_OPTIONS = [
 // ── Step 2: PropertyEditor Section Order ──
 // After widget is added, PropertyEditor renders these sections in order.
 // Each section is conditionally shown based on config presence.
+// Sections 3-5 (Advanced, Filters, App Config) are grouped under a single
+// collapsible "App Config" panel button (AppConfigPanel component).
 export const PROPERTY_EDITOR_SECTIONS = [
     {
         id: 'pnc',
@@ -71,28 +73,17 @@ export const PROPERTY_EDITOR_SECTIONS = [
         component: 'inline',
     },
     {
-        id: 'advanced',
-        label: 'Advanced Settings',
-        description: 'OOS product count, PB tag, PB reorder',
-        configKey: 'additionalProperties',
+        id: 'appConfigPanel',
+        label: 'App Config',
+        description: 'Collapsible panel grouping Advanced Settings + Filters + App Configuration',
+        configKeys: ['additionalProperties', 'filters', 'appConfigurations'],
         required: false,
-        component: 'inline',
-    },
-    {
-        id: 'filters',
-        label: 'Filters',
-        description: 'Widget-level, item-level, and product-level filters',
-        configKey: 'filters',
-        required: false,
-        component: 'FilterEditor',
-    },
-    {
-        id: 'appConfig',
-        label: 'App Configuration',
-        description: 'Platform toggles and version constraints',
-        configKey: 'appConfigurations',
-        required: false,
-        component: 'AppConfigEditor',
+        component: 'AppConfigPanel',
+        subSections: [
+            { id: 'advanced', label: 'Advanced Settings', configKey: 'additionalProperties', component: 'inline' },
+            { id: 'filters', label: 'Filters', configKey: 'filters', component: 'FilterEditor' },
+            { id: 'appConfig', label: 'App Configuration', configKey: 'appConfigurations', component: 'AppConfigEditor' },
+        ],
     },
 ];
 

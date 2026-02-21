@@ -44,9 +44,10 @@ Once a widget is added, the **PropertyEditor** sidebar shows sections **in this 
 ┌─────────────────────────────────────────────┐
 │  Section 1 → Variant Properties (PNC)        │  ← ALWAYS first
 │  Section 2 → Content Settings (fields)       │  ← form fields
-│  Section 3 → Advanced Settings (optional)    │  ← OOS, PB tag etc.
-│  Section 4 → Filters (optional)              │  ← widget/item/product
-│  Section 5 → App Configuration (optional)    │  ← version constraints
+│  Section 3 → App Config (collapsible)        │  ← one toggle button
+│    ├── Advanced Settings (OOS, PB tag etc.)  │
+│    ├── Filters (widget/item/product)         │
+│    └── App Configuration (version constraints)│
 └─────────────────────────────────────────────┘
 ```
 
@@ -97,7 +98,7 @@ The **PNC selection** (Section 1) determines:
 | 1 | ON | Has media | `multimedia_single_product_row_v2` |
 | 2 | OFF | No media | `double_product_row` |
 | 2 | ON | No media | `double_product_row_v2` |
-| 2 | OFF | Has media | `multimedia_double_product_row` |
+| 2 | OFF | Has media | ~~`multimedia_double_product_row`~~ **NOT AVAILABLE** |
 | 2 | ON | Has media | `multimedia_double_product_row_v2` |
 
 ### Step 2: Content Settings (Form Fields)
@@ -163,7 +164,11 @@ When user uploads a background image/video, the multimedia color settings become
 
 > These color fields are part of the multimedia object, not the widget itself. They only matter when `has_multimedia = true`.
 
-### Step 5: Advanced Settings
+### Step 5: App Config (Collapsible Panel)
+
+A single **"App Config"** button in the sidebar groups all three optional sections. Click to expand/collapse.
+
+#### Advanced Settings
 
 | Field | Component | Default | Description |
 | :--- | :--- | :--- | :--- |
@@ -171,7 +176,7 @@ When user uploads a background image/video, the multimedia color settings become
 | Show PB Tag | ToggleInput | `true` | Show "Previously Bought" badge |
 | PB Reorder | ToggleInput | `true` | Move PB items to front of list |
 
-### Step 6: Filters (Optional)
+#### Filters (Optional)
 
 | Level | Filter | Component | Description |
 | :--- | :--- | :--- | :--- |
@@ -181,7 +186,7 @@ When user uploads a background image/video, the multimedia color settings become
 | Product | Category / Sub-Category | TextInput | Filter by category |
 | Product | MRP / SP / Discount | NumberInput | Filter by price/discount |
 
-### Step 7: App Configuration (Optional)
+#### App Configuration (Optional)
 
 | Field | Component | Description |
 | :--- | :--- | :--- |
@@ -217,7 +222,7 @@ User selects "Product Rail" + clicks "+"
 │
 ├── Fill: Page Type, Slug, Title EN/HI, Products
 │
-├── (Optional) Advanced Settings, Filters, App Config
+├── (Optional) App Config panel (Advanced Settings + Filters + App Config)
 │
 └── Submit → variant resolved from PNC matrix → deploy strategy executes
 ```
@@ -396,7 +401,7 @@ User selects "Collection Banner" + clicks "+"
 │   │       └── Per sub-cat: Name EN/HI, Image, Global Products, State Products
 │   └── Deploy: STICK strategy
 │
-├── (Optional) Advanced Settings, Filters, App Config
+├── (Optional) App Config panel (Advanced Settings + Filters + App Config)
 │
 └── Submit → variant resolved → deploy strategy executes
 ```
@@ -534,7 +539,7 @@ User selects "Masthead" + clicks "+"
 │   │       └── Per sub-cat: Name, Global Products, State Products
 │   └── Deploy: SECONDARY strategy (3-phase: containers + ecosystems + mapping)
 │
-├── (Optional) Advanced Settings, Filters, App Config
+├── (Optional) App Config panel (Advanced Settings + Filters + App Config)
 │
 └── Submit → variant resolved → deploy strategy executes
 ```
@@ -648,9 +653,7 @@ flowchart TD
     Nested -- Yes --> AddItems[Step 5: Add Items\nCarousel / Category items\nwith sub-categories and state products]
     Nested -- No --> Advanced
 
-    AddItems --> Advanced[Step 6: Advanced Settings\nOOS, PB Tag, PB Reorder]
-    Advanced --> Filters[Step 7: Filters - Optional\nWidget / Item / Product level]
-    Filters --> AppConfig[Step 8: App Config - Optional\nVersion constraints]
+    AddItems --> AppConfigPanel[Step 6: App Config Panel\nAdvanced + Filters + Version constraints]
     AppConfig --> Submit([Submit for Approval])
 
     Submit --> Resolve[PNC → Variant Resolution\nPNC → Strategy Resolution]

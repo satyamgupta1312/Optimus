@@ -33,4 +33,28 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── POST /activity ──
+// Create an activity log entry from the frontend
+router.post('/', async (req, res, next) => {
+  try {
+    const { action, details, targetId } = req.body;
+
+    if (!action) {
+      return res.status(400).json({ error: 'action is required' });
+    }
+
+    const log = await prisma.activityLog.create({
+      data: {
+        action,
+        userId: req.user.id,
+        targetId: targetId || '',
+        details: JSON.stringify(details || {}),
+      },
+      include: { user: { select: { email: true, name: true } } },
+    });
+
+    res.status(201).json({ ...log, details: JSON.parse(log.details) });
+  } catch (err) { next(err); }
+});
+
 export default router;

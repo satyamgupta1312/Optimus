@@ -41,6 +41,9 @@ const PhoneFrame = () => {
         return <div className="p-10 text-red-500">Error: Widgets Data Missing</div>;
     }
 
+    // Filter out masthead widgets — they render in AppHeader / SecondaryMasthead areas, not in the sortable list
+    const contentWidgets = widgets.filter(w => w.type !== 'masthead');
+
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
@@ -142,11 +145,18 @@ const PhoneFrame = () => {
                         `}</style>
 
                         {/* Secondary Masthead (Blue Banner) */}
-                        {headerWidgets?.secondaryMasthead?.enabled && (
-                            <div className="mb-2">
-                                <SecondaryMasthead widget={headerWidgets.secondaryMasthead} />
-                            </div>
-                        )}
+                        {headerWidgets?.secondaryMasthead?.enabled && (() => {
+                            const secondaryWidget = widgets.find(w => w.type === 'masthead' && w.pnc?.variant === 'secondary');
+                            const isSecondarySelected = secondaryWidget && selectedWidgetId === secondaryWidget.id;
+                            return (
+                                <div
+                                    className={`mb-2 cursor-pointer ${isSecondarySelected ? 'ring-2 ring-blue-500 rounded-xl' : ''}`}
+                                    onClick={() => secondaryWidget && setSelectedWidgetId(secondaryWidget.id)}
+                                >
+                                    <SecondaryMasthead widget={headerWidgets.secondaryMasthead} />
+                                </div>
+                            );
+                        })()}
 
 
                         {/* API / Skeleton Placeholder Note */}
@@ -158,10 +168,10 @@ const PhoneFrame = () => {
                             onDragEnd={handleDragEnd}
                         >
                             <SortableContext
-                                items={widgets.map(w => w.id)}
+                                items={contentWidgets.map(w => w.id)}
                                 strategy={verticalListSortingStrategy}
                             >
-                                {widgets.map((widget) => (
+                                {contentWidgets.map((widget) => (
                                     <SortableWidget
                                         key={widget.id}
                                         widget={widget}
@@ -173,7 +183,7 @@ const PhoneFrame = () => {
                             </SortableContext>
                         </DndContext>
 
-                        {widgets.length === 0 && (
+                        {contentWidgets.length === 0 && (
                             <div className="flex flex-col items-center justify-center h-full text-slate-400 opacity-60">
                                 <div className="w-16 h-16 bg-slate-200 rounded-full mb-4"></div>
                                 <p>Empty Page</p>

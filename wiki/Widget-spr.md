@@ -114,10 +114,12 @@ Three properties determine the exact `widget_type`:
 | 4 | **1** | `true` | `true` | `multimedia_single_product_row_v2` |
 | 5 | **2** | `false` | `false` | `double_product_row` |
 | 6 | **2** | `true` | `false` | `double_product_row_v2` |
-| 7 | **2** | `false` | `true` | `multimedia_double_product_row` |
-| 8 | **2** | `true` | `true` | `multimedia_double_product_row_v2` |
+| 7 | **2** | `false` | `true` | `multimedia_double_product_row` | **NOT AVAILABLE** |
+| 8 | **2** | `true` | `true` | `multimedia_double_product_row_v2` | Available |
 
 > **Multimedia Constraint:** Non-multimedia variants (`single_product_row`, `single_product_row_v2`, `double_product_row`, `double_product_row_v2`) **IGNORE** `background_multimedia`. Only `multimedia_*` variants render backgrounds.
+>
+> **Availability:** `multimedia_double_product_row` (standard, non-optimized) is **NOT AVAILABLE** on the backend. The UI disables the Multimedia toggle when Double Row + Standard is selected. `multimedia_double_product_row_v2` (optimized) works fine.
 
 ---
 
@@ -163,14 +165,62 @@ Driven from `SPRConfig.fields`:
 | :--- | :--- | :---: | :--- | :--- |
 | **Page Type** | `SelectInput` | Yes | `product_listing_page` or `category_page` | Always |
 | **Slug** | `SlugBuilder` | Yes | `/^[a-z0-9_]+$/`, 3-100 chars | Always |
-| **Title (English)** | `TextInput` | Yes | 2-200 chars, auto-translate | Always |
+| **Title (English)** | `TextInput` | Conditional | 2-200 chars, auto-translate. **Not required when `has_multimedia = true`** | Always |
 | **Title (Hindi)** | `TextInput` | No | — | Always |
-| **Products** | `ProductListInput` | Yes | 1-200 numeric item codes | Always |
-| **Background Media** | `ImageUpload` | No | Supported formats: `.jpeg/.jpg/.png/.webp/.gif/.svg` | Always |
-| **Background Video URL** | `UrlInput` | No | Valid URL ending `.mp4/.mov/.webm` | Always |
+| **Products (State-wise)** | `StateProductEditor` | Yes (global) | Global required. Per-state optional via "+ Add State" button. Comma-separated numeric item codes. | Always |
+| **Background Media** | `ImageUpload` | No | Supported formats: `.jpeg/.jpg/.png/.webp/.gif/.svg`. Uploaded to `POST /api/app/multimedia/` during deploy. | Only when `has_multimedia = true` |
+| **Background Video URL** | `UrlInput` | No | Valid URL ending `.mp4/.mov/.webm` | Only when `has_multimedia = true` |
 | **View All Page Slug** | `TextInput` | No | `/^[a-z0-9_-]*$/` | Only when `is_optimized = false` |
 | **Start Date & Time** | `DateTimeInput` | Yes | ISO 8601 datetime via calendar + time picker | Always |
 | **End Date & Time** | `DateTimeInput` | Yes | ISO 8601 datetime via calendar + time picker | Always |
+
+### Title — Conditional Required
+
+- When `has_multimedia = false` → Title is **required** (2-200 chars)
+- When `has_multimedia = true` → Title is **optional** (the background image is the primary visual)
+
+### Products — State-wise Input (StateProductEditor)
+
+The products field uses `StateProductEditor` component which shows:
+- **Global (Required)** — comma-separated item codes, always visible
+- **+ Add State** button — adds per-state product inputs (jharkhand, chhattisgarh, west bengal, etc.)
+- Each state input is optional — remove with trash icon
+
+```
+┌─ Products (State-wise) ──────────────────────┐
+│  🌐 Global (Required)                         │
+│  ┌──────────────────────────────────────┐    │
+│  │ 1001, 1002, 1003, 1004, 1005        │    │
+│  └──────────────────────────────────────┘    │
+│                                                │
+│  📍 Jharkhand                            🗑   │
+│  ┌──────────────────────────────────────┐    │
+│  │ 2001, 2002, 2003                     │    │
+│  └──────────────────────────────────────┘    │
+│                                                │
+│  📍 West Bengal                          🗑   │
+│  ┌──────────────────────────────────────┐    │
+│  │ 3001, 3002                           │    │
+│  └──────────────────────────────────────┘    │
+│                                                │
+│  [+ Add State]                                 │
+└────────────────────────────────────────────────┘
+```
+
+### Multimedia Background — Upload Flow
+
+When `has_multimedia` is enabled and a background image is uploaded:
+1. Image stored locally as `widget.background_media` (File object)
+2. During deploy (Step 0), image uploaded to Django: `POST /api/app/multimedia/`
+3. Returned slug (`{base}_bg_{suffix}`) used as `background_multimedia` on the widget
+4. If `background_multimedia` is empty, field is **omitted** from widget payload (avoids Django error)
+
+```
+Deploy Step 0 (multimedia only):
+  POST /api/app/multimedia/
+  Fields: name={base}_bg_{suffix}, multimedia_type=3, file_en=<image>, aspect_ratio=1
+  Colors: transition_color=#FFFFFF, accent_color=#0000FF, text_color=#FFFFFF, icon_bg_color=#F0F0F0
+```
 
 ---
 
@@ -183,13 +233,16 @@ Driven from `SPRConfig.fields`:
 > The `is_optimized` flag only affects the `widget_type` name (`_v2` suffix) and the home widget slug suffix (`_spr` vs `_spr_opt`). The creation flow, including state-wise products, is **identical** for all variants.
 
 ```
+-- Step 0: Multimedia Upload (only when has_multimedia = true) --
+Step 0: Upload Multimedia             POST /api/app/multimedia/          (slug: {base}_bg_{suffix})
+
 -- Flow 1: PLP Ecosystem (state-wise — ALL variants) --
-Step 1: Create Sub-Cat Widget Item   POST /api/app/post_widget_item/   (slug: {base}_sc_wi_{state})
-Step 2: Create PLP Widget            POST /api/app/widget/              (slug: {base}_plp_w)
+Step 1: Create Sub-Cat Widget Item(s) POST /api/app/post_widget_item/   (slug: {base}_sc_wi_{state} — per state)
+Step 2: Create PLP Widget             POST /api/app/widget/              (slug: {base}_plp_w)
 Step 3: Create Page Layout            POST /api/app/post_page_layout/   (slug: {base}_page_p)
-Step 4: Map PLP Widget <-> Sub-Cat   (parent: _plp_w, child: _sc_wi — location CSV)
+Step 4: Map PLP Widget <-> Sub-Cat   (parent: _plp_w, children: _sc_wi_{state} — location CSV)
 Step 5: Map Page <-> PLP Widget      (parent: _page_p, child: _plp_w)
-Step 6: Map Page → Global Registry   (parent: _page_p)
+Step 6: Map Page → Global Registry   (parent: _page_p, page_type: product_listing_page)
 
 -- Flow 2: Home Row --
 Step 7: Create Row Widget Item        POST /api/app/post_widget_item/   (slug: {base}_pr_wi)
@@ -370,8 +423,8 @@ Both `product_listing_page` and `category_page` are supported — user selects d
 ```javascript
 {
     type: 'product_rail',
-    title: 'New Collection',
-    products: [],
+    title: '',
+    stateProducts: { global: '' },
     pageType: 'product_listing_page',
     start_time: '',
     end_time: '',
@@ -385,12 +438,13 @@ Both `product_listing_page` and `category_page` are supported — user selects d
 
 | Action | Endpoint | Type |
 | :--- | :--- | :--- |
+| Upload Multimedia | `/api/app/multimedia/` | Multipart (only when `has_multimedia`) |
 | Create Page Layout | `/api/app/post_page_layout/` | JSON |
 | Create Widget Item | `/api/app/post_widget_item/` | Multipart |
 | Create Widget | `/api/app/widget/` | Multipart |
-| Map Widget <-> Widget Item | `/api/app/update_widget_widget_item_mapping/` | CSV |
-| Map Page <-> Widget | `/api/app/update_layout_widget_mapping/` | — |
-| Map Page <-> Global Registry | `/api/app/update_page_page_layout_mapping/` | — |
+| Map Widget <-> Widget Item | `/api/app/update_widget_widget_item_mapping/` | CSV (via `postMapping`) |
+| Map Page <-> Widget | `/api/app/update_layout_widget_mapping/` | CSV (via `postMapping`) |
+| Map Page <-> Global Registry | `/api/app/update_page_page_layout_mapping/` | CSV (via `postMapping`) |
 
 ---
 

@@ -14,12 +14,18 @@ import StateProductEditor from '../Inputs/StateProductEditor';
  * - showHindi: boolean — whether to show Hindi name field
  */
 const SubCategoryList = ({
-    items = [],
+    items: itemsProp,
+    value,
+    label,
     onChange,
     showImage = false,
     showHindi = false,
     disabled,
+    error,
+    helperText,
+    required,
 }) => {
+    const items = Array.isArray(itemsProp ?? value) ? (itemsProp ?? value) : [];
     const [expandedIndex, setExpandedIndex] = useState(null);
 
     const addItem = () => {
@@ -50,7 +56,18 @@ const SubCategoryList = ({
     };
 
     return (
-        <div>
+        <div className="mb-3">
+            {label && (
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                    {label}
+                    {required && <span className="text-red-400 ml-1">*</span>}
+                </label>
+            )}
+            {items.length > 0 && label && (
+                <div className="mb-2 text-xs text-slate-500">
+                    {items.length} sub-categor{items.length !== 1 ? 'ies' : 'y'}
+                </div>
+            )}
             {items.map((item, index) => (
                 <div key={index} className="border border-slate-200 rounded-lg mb-2 overflow-hidden bg-white">
                     {/* Accordion header */}
@@ -161,6 +178,9 @@ const SubCategoryList = ({
                     Add Sub-Category
                 </button>
             )}
+
+            {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+            {!error && helperText && <p className="mt-1 text-xs text-slate-500">{helperText}</p>}
         </div>
     );
 };

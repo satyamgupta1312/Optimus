@@ -1,9 +1,22 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle, XCircle, Clock, Eye, RefreshCw, FileText, ChevronDown, ChevronUp, X, Loader2, User, AlertCircle, MessageSquare } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Eye, RefreshCw, FileText, ChevronDown, ChevronUp, X, Loader2, User, AlertCircle, MessageSquare, Rocket } from 'lucide-react';
 import { useWidgetContext } from '../../context/WidgetContext';
 import { useAuth } from '../../context/AuthContext';
-import { GoogleSheetService } from '../../services/GoogleSheetService';
+import { LocalApiService } from '../../services/LocalApiService';
+import { getCsrfToken } from '../../services/AuthService';
 import toast from 'react-hot-toast';
+
+// Normalize Prisma response shape to the UI shape the component expects
+const normalizeRequest = (r) => ({
+    id: r.id,
+    user: r.submitter?.email || 'Unknown',
+    type: r.type || 'Homepage Update',
+    status: r.status,
+    date: r.createdAt,
+    rejectionReason: r.rejectionReason || '',
+    headerWidgets: r.headerWidgets || {},
+    widgets: (r.requestWidgets || []).map(rw => rw.snapshot),
+});
 
 // Helper: Format relative time
 const getRelativeTime = (dateString) => {
@@ -129,30 +142,30 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
     const fetchRequests = async () => {
         setLoading(true);
         try {
-            const data = await GoogleSheetService.getRequests();
+            // Fetch from local backend; pass status filter when viewing a specific tab
+            const params = {};
+            if (!isMaker && viewMode === 'PENDING') params.status = 'PENDING';
+
+            const raw = await LocalApiService.getRequests(params);
+            const data = raw.map(normalizeRequest);
+
             let filtered = [];
 
             if (isMaker) {
                 // Filter by user first
                 let userRequests = data.filter(r => r.user && r.user.toLowerCase() === currentUser.email.toLowerCase());
 
-                // Then filter by status if needed
                 if (viewMode === 'PENDING') {
-                    filtered = userRequests.filter(r => r.status && r.status.trim().toUpperCase() === 'PENDING');
+                    filtered = userRequests.filter(r => r.status === 'PENDING');
                 } else if (viewMode === 'APPROVED') {
-                    filtered = userRequests.filter(r => r.status && r.status.trim().toUpperCase() === 'APPROVED');
+                    filtered = userRequests.filter(r => r.status === 'APPROVED');
                 } else if (viewMode === 'REJECTED') {
-                    filtered = userRequests.filter(r => r.status && r.status.trim().toUpperCase() === 'REJECTED');
+                    filtered = userRequests.filter(r => r.status === 'REJECTED');
                 } else {
-                    // ALL - show everything
                     filtered = userRequests;
                 }
             } else {
-                if (viewMode === 'PENDING') {
-                    filtered = data.filter(r => r.status && r.status.trim().toUpperCase() === 'PENDING');
-                } else {
-                    filtered = data;
-                }
+                filtered = data;
             }
 
             const sorted = [...filtered].reverse();
@@ -224,37 +237,18 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
 
         setActionLoading(req.id);
         try {
-            // Filter regular widgets by selection
-            const widgetsToApprove = (req.widgets || []).filter((_, i) => selectedIndices.has(i));
+            // Build list of selected widget IDs for partial approval
+            const selectedWidgetIds = (req.widgets || [])
+                .filter((_, i) => selectedIndices.has(i))
+                .map(w => w.id)
+                .filter(Boolean);
 
-            // Build headerWidgets with only selected ones
-            const headerWidgetsToApprove = {};
-            if (req.headerWidgets?.primaryMasthead && selectedHeaders.has('primaryMasthead')) {
-                headerWidgetsToApprove.primaryMasthead = req.headerWidgets.primaryMasthead;
-            }
-            if (req.headerWidgets?.secondaryMasthead && selectedHeaders.has('secondaryMasthead')) {
-                headerWidgetsToApprove.secondaryMasthead = req.headerWidgets.secondaryMasthead;
-            }
+            await LocalApiService.approveRequest(req.id, selectedWidgetIds.length > 0 ? selectedWidgetIds : undefined);
 
-            const result = await GoogleSheetService.approveRequest(
-                req.id,
-                widgetsToApprove,
-                Object.keys(headerWidgetsToApprove).length > 0 ? headerWidgetsToApprove : null
-            );
-
-            if (result.success) {
-                toast.success('All widgets approved successfully!', { icon: '✅', duration: 4000 });
-            } else {
-                const errorCount = result.errors?.length || 0;
-                toast.error(`Approval completed with ${errorCount} error(s)`, { icon: '⚠️', duration: 5000 });
-            }
-
-            // Feature 5: Store per-widget results for display
-            if (result.results?.length) {
-                setDeployResults(prev => ({ ...prev, [req.id]: result.results }));
-            }
-
+            toast.success('Approved! Switch to "All History" tab and click Deploy to push to backend.', { duration: 6000 });
             onApprove?.(req.id);
+            // Auto-switch to history tab so Deploy button is visible
+            setViewMode('HISTORY');
             fetchRequests();
         } catch (error) {
             console.error('Approve error:', error);
@@ -276,8 +270,8 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
         setRejectDialog(null);
         setActionLoading(req.id);
         try {
-            await GoogleSheetService.updateStatus(req.id, 'REJECTED', rejectReason.trim());
-            toast.success('Request rejected', { icon: '❌' });
+            await LocalApiService.rejectRequest(req.id, rejectReason.trim());
+            toast.success('Request rejected');
             onReject?.(req.id);
             fetchRequests();
         } catch (error) {
@@ -288,8 +282,11 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
     };
 
     const handleDeploy = async (req) => {
-        const token = prompt("Enter CSRF Token from samaan.apnamart.in:");
-        if (!token) return;
+        const token = getCsrfToken();
+        if (!token) {
+            toast.error('Session expired — please re-login');
+            return;
+        }
 
         setActionLoading(req.id);
         const loadingToast = toast.loading('Deploying to production...');
@@ -305,7 +302,10 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                     { icon: '🚀', duration: 4000 }
                 );
             } else {
-                toast.error(`Deployment failed: ${result.error}`);
+                toast.error(`Deployment failed: ${result.error}`, { duration: 8000 });
+                // Log full deployment details for debugging
+                console.error('[Deploy] Failed result:', result);
+                console.error('[Deploy] Logs:', result.logs);
             }
 
             // Feature 5: Store per-widget deploy results for display
@@ -314,6 +314,62 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
             }
         } catch (e) {
             toast.dismiss(loadingToast);
+            toast.error(`Error: ${e.message}`, { duration: 8000 });
+            console.error('[Deploy] Exception:', e);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleApproveAndDeploy = async (req) => {
+        const token = getCsrfToken();
+        if (!token) {
+            toast.error('Session expired — please re-login');
+            return;
+        }
+
+        const selectedIndices = selectedWidgets[req.id] || new Set();
+        const selectedHeaders = selectedHeaderWidgets[req.id] || new Set();
+        if (selectedIndices.size === 0 && selectedHeaders.size === 0) {
+            toast.error('Please select at least one widget to approve');
+            return;
+        }
+
+        setActionLoading(req.id);
+        const loadingToast = toast.loading('Approving & deploying...');
+
+        try {
+            // Step 1: Approve in Prisma
+            const selectedWidgetIds = (req.widgets || [])
+                .filter((_, i) => selectedIndices.has(i))
+                .map(w => w.id)
+                .filter(Boolean);
+
+            await LocalApiService.approveRequest(req.id, selectedWidgetIds.length > 0 ? selectedWidgetIds : undefined);
+            toast.dismiss(loadingToast);
+            toast.success('Approved!', { duration: 2000 });
+
+            // Step 2: Deploy to backend
+            const deployToast = toast.loading('Deploying to backend...');
+            const { BackendSyncService } = await import('../../services/BackendSyncService');
+            const result = await BackendSyncService.deployRequest(req, { csrftoken: token });
+
+            toast.dismiss(deployToast);
+            if (result.success) {
+                toast.success(result.summary || 'Deployed successfully!', { icon: '🚀', duration: 4000 });
+            } else {
+                toast.error(`Deployment failed: ${result.error}`);
+            }
+
+            if (result.results?.length) {
+                setDeployResults(prev => ({ ...prev, [req.id]: result.results }));
+            }
+
+            onApprove?.(req.id);
+            setViewMode('HISTORY');
+            fetchRequests();
+        } catch (e) {
+            toast.dismiss();
             toast.error(`Error: ${e.message}`);
         } finally {
             setActionLoading(null);
@@ -602,6 +658,14 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                                         >
                                             {isActioning ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                                             Approve
+                                        </button>
+                                        <button
+                                            onClick={() => handleApproveAndDeploy(req)}
+                                            disabled={isActioning}
+                                            className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white text-xs font-semibold py-2 px-3 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                        >
+                                            {isActioning ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />}
+                                            Approve & Deploy
                                         </button>
                                         <button
                                             onClick={() => handleRejectClick(req)}

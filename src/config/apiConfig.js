@@ -1,13 +1,10 @@
 /**
  * API Configuration — Environment-Aware Base URL
  *
- * Reads VITE_ENV from url.env to decide which backend to target.
- *   VITE_ENV=UAT  → https://uat.samaan.apnamart.in
- *   VITE_ENV=PROD → https://samaan.apnamart.in
- *
- * In LOCAL DEV (npm run dev): API_BASE = '' (empty string)
- *   → Relative URLs, handled by Vite proxy (vite.config.js)
- *   → Proxy target is dynamically set from VITE_ENV
+ * In LOCAL DEV (npm run dev):
+ *   API_BASE = '/uat' or '/prod' (env-prefixed paths)
+ *   → Vite proxy rewrites /uat/login/ → UAT backend, /prod/login/ → PROD backend
+ *   → Both environments always available simultaneously
  *
  * In PRODUCTION BUILD: API_BASE = full URL
  *   → Direct absolute calls to the backend
@@ -18,25 +15,22 @@
  *
  * url.env:
  *   VITE_API_BASE_URL_PROD=https://samaan.apnamart.in
- *   VITE_API_BASE_URL_UAT=https://uat.samaan.apnamart.in
- *   VITE_ENV=UAT
+ *   VITE_API_BASE_URL_UAT=https://smapi-cu.apnamart.in
  */
 
 // Runtime override from localStorage, fallback to build-time env
 const ENV = localStorage.getItem('optimus_env') || import.meta.env.VITE_ENV || 'PROD';
 const PROD_URL = import.meta.env.VITE_API_BASE_URL_PROD || 'https://samaan.apnamart.in';
-const UAT_URL = import.meta.env.VITE_API_BASE_URL_UAT || 'https://uat.samaan.apnamart.in';
+const UAT_URL = import.meta.env.VITE_API_BASE_URL_UAT || 'https://smapi-cu.apnamart.in';
 
-// In dev server mode: use relative URLs so Vite proxy handles CORS + cookies.
-// In production mode:  use full absolute URL.
 const IS_DEV = import.meta.env.DEV;
 
 /**
  * API_BASE — the base URL prefix for all backend API calls.
- * Empty string in dev (relative URLs → Vite proxy).
- * Full absolute URL in production builds.
+ * In dev: '/uat' or '/prod' — Vite proxy strips the prefix and forwards.
+ * In prod: full absolute URL.
  */
-export const API_BASE = IS_DEV ? '' : (ENV === 'UAT' ? UAT_URL : PROD_URL);
+export const API_BASE = IS_DEV ? '/' + ENV.toLowerCase() : (ENV === 'UAT' ? UAT_URL : PROD_URL);
 
 /**
  * ACTIVE_ENV — which environment is currently active ('UAT' or 'PROD').
@@ -81,4 +75,4 @@ export function switchEnv(newEnv) {
     window.location.reload();
 }
 
-console.log(`[apiConfig] Environment: ${ACTIVE_ENV} | Base: "${API_BASE || '(relative — Vite proxy)'}"`);
+console.log(`[apiConfig] Environment: ${ACTIVE_ENV} | Base: "${API_BASE}"`);

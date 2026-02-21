@@ -135,19 +135,21 @@ const CategoryItemEditor = ({
                                 disabled={disabled}
                             />
 
-                            {/* Level 2: Sub-Categories */}
-                            <div className="mt-3 pt-3 border-t border-slate-200">
-                                <label className="block text-xs font-semibold text-slate-500 mb-2">
-                                    Sub-Categories
-                                </label>
-                                <SubCategoryList
-                                    items={item.subCategories || []}
-                                    onChange={(subs) => updateItem(index, 'subCategories', subs)}
-                                    showImage
-                                    showHindi
-                                    disabled={disabled}
-                                />
-                            </div>
+                            {/* Level 2: Sub-Categories — only when category_page selected */}
+                            {item.pageType === 'category_page' && (
+                                <div className="mt-3 pt-3 border-t border-slate-200">
+                                    <label className="block text-xs font-semibold text-slate-500 mb-2">
+                                        Sub-Categories
+                                    </label>
+                                    <SubCategoryList
+                                        items={item.subCategories || []}
+                                        onChange={(subs) => updateItem(index, 'subCategories', subs)}
+                                        showImage
+                                        showHindi
+                                        disabled={disabled}
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

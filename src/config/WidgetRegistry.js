@@ -131,11 +131,40 @@ export const WidgetRegistry = {
     },
 
     /**
-     * Get combined validation rules (universal + type-specific) for a widget type.
-     * @param {string} widgetType - e.g. 'Single Product Row'
+     * Get combined validation rules for a widget type.
+     * Config-driven widgets: generate rules from config fields (respects conditions).
+     * Legacy widgets: use BackendFlow universal + type-specific rules.
+     *
+     * @param {string} widgetType - e.g. 'product_rail' or 'Single Product Row'
+     * @param {Object} [widget] - Full widget object (needed for config-driven condition checks)
      * @returns {Object[]}
      */
-    getValidationRules(widgetType) {
+    getValidationRules(widgetType, widget) {
+        const config = this.getConfig(widgetType);
+        if (config?.fields && widget) {
+            const pnc = widget.pnc || config.initialState?.pnc || {};
+            const rules = [];
+
+            // Slug is always required
+            rules.push({ field: 'slug', rule: 'required', error: 'slug_name cannot be empty' });
+
+            for (const f of config.fields) {
+                // Skip fields hidden by condition
+                if (f.condition && !f.condition(pnc, widget)) continue;
+                const req = f.validation?.required;
+                const isRequired = req === true || (typeof req === 'function' && req(pnc, widget));
+                if (isRequired) {
+                    rules.push({
+                        field: f.name,
+                        rule: 'required',
+                        error: f.errorMessage || `${f.label || f.name} is required`,
+                    });
+                }
+            }
+            return rules;
+        }
+
+        // Legacy widgets: BackendFlow rules
         const universal = VALIDATION_RULES.universal || [];
         const specific = VALIDATION_RULES.perType?.[widgetType] || [];
         return [...universal, ...specific];

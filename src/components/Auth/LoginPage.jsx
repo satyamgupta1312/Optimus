@@ -2,12 +2,27 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Lock, User, ArrowRight } from 'lucide-react';
 
+const ENV_OPTIONS = [
+    { key: 'PROD', label: 'PROD', color: 'bg-emerald-600', ring: 'ring-emerald-300', desc: 'samaan.apnamart.in' },
+    { key: 'UAT', label: 'UAT', color: 'bg-amber-500', ring: 'ring-amber-300', desc: 'smapi-cu.apnamart.in' },
+];
+
 const LoginPage = () => {
     const { login } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const currentEnv = localStorage.getItem('optimus_env') || 'PROD';
+    const [selectedEnv, setSelectedEnv] = useState(currentEnv);
+
+    const handleEnvChange = (env) => {
+        if (env === selectedEnv) return;
+        setSelectedEnv(env);
+        localStorage.setItem('optimus_env', env);
+        window.location.reload();
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -23,6 +38,8 @@ const LoginPage = () => {
         }
     };
 
+    const activeEnvConfig = ENV_OPTIONS.find(e => e.key === selectedEnv) || ENV_OPTIONS[0];
+
     return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
             <div className="bg-white border border-slate-200 shadow-xl rounded-xl w-full max-w-md overflow-hidden">
@@ -35,9 +52,36 @@ const LoginPage = () => {
                         />
                     </div>
                     <p className="text-blue-100 mt-2 text-sm">Widget Management Portal</p>
+
+                    {/* Environment Badge */}
+                    <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-white text-xs font-medium">
+                        <span className={`w-2 h-2 rounded-full ${activeEnvConfig.color}`} />
+                        {activeEnvConfig.desc}
+                    </div>
                 </div>
 
                 <div className="p-8">
+                    {/* Environment Selector */}
+                    <div className="mb-6">
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Environment</label>
+                        <div className="flex gap-2">
+                            {ENV_OPTIONS.map((opt) => (
+                                <button
+                                    key={opt.key}
+                                    type="button"
+                                    onClick={() => handleEnvChange(opt.key)}
+                                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-all border-2 ${
+                                        selectedEnv === opt.key
+                                            ? `${opt.color} text-white border-transparent ring-2 ${opt.ring}`
+                                            : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
+                                    }`}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
                     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
                         {error && (
                             <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm border border-red-100">

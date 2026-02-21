@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { GoogleSheetService } from '../services/GoogleSheetService';
+import { LocalApiService } from '../services/LocalApiService';
 
 const ActivityLogContext = createContext();
 
@@ -41,16 +41,15 @@ export const ActivityLogProvider = ({ children }) => {
             return newActivities;
         });
 
-        // Feature 8: Persist significant lifecycle events to Google Sheet
+        // Persist significant lifecycle events to local backend
         const PERSIST_ACTIONS = ['page_submitted', 'page_approved', 'page_rejected'];
         if (PERSIST_ACTIONS.includes(action)) {
             // Fire-and-forget — non-blocking
-            GoogleSheetService.appendAuditLog({
+            LocalApiService.appendActivity({
                 action,
-                user: details.user || user,
                 details,
-                timestamp: activity.timestamp,
-            }).catch(e => console.warn('[ActivityLogContext] appendAuditLog error:', e));
+                targetId: details.requestId || '',
+            }).catch(e => console.warn('[ActivityLogContext] appendActivity error:', e));
         }
 
         return activity;

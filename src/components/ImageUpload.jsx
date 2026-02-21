@@ -6,11 +6,31 @@ import showToast from '../utils/toast';
  * Image Upload Component
  * Supports drag & drop, paste, and file selection
  */
-const ImageUpload = ({ onImageSelect, currentImage = '', label = 'Upload Image', accept = 'image/*' }) => {
+const ImageUpload = ({ onImageSelect, onChange, currentImage = '', value, label = 'Upload Image', accept = 'image/*', error, helperText, required }) => {
     const [isDragging, setIsDragging] = useState(false);
-    const [preview, setPreview] = useState(currentImage);
+    const [preview, setPreview] = useState(currentImage || '');
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef(null);
+
+    // Sync preview when value changes externally (e.g. File→URL after upload, or fetch restore)
+    React.useEffect(() => {
+        if (!value) { setPreview(''); return; }
+        if (value instanceof File) {
+            // File object → create blob URL for preview
+            const url = URL.createObjectURL(value);
+            setPreview(url);
+            return () => URL.revokeObjectURL(url);
+        }
+        if (typeof value === 'string' && value !== preview) {
+            setPreview(value);
+        }
+    }, [value]);
+
+    // Support both legacy (onImageSelect) and config-driven (onChange) callbacks
+    const notifyChange = useCallback((file, dataUrl) => {
+        if (onImageSelect) onImageSelect(file, dataUrl);
+        if (onChange) onChange(file || dataUrl || '');
+    }, [onImageSelect, onChange]);
 
     const handleFile = useCallback(async (file) => {
         if (!file) return;
@@ -38,9 +58,7 @@ const ImageUpload = ({ onImageSelect, currentImage = '', label = 'Upload Image',
                 setUploading(false);
 
                 // Call parent callback AFTER reader completes
-                if (onImageSelect) {
-                    onImageSelect(file, result);
-                }
+                notifyChange(file, result);
 
                 showToast.success('Image uploaded successfully');
             };
@@ -49,7 +67,7 @@ const ImageUpload = ({ onImageSelect, currentImage = '', label = 'Upload Image',
             showToast.error('Failed to upload image');
             setUploading(false);
         }
-    }, [onImageSelect]);
+    }, [notifyChange]);
 
     const handleDragOver = useCallback((e) => {
         e.preventDefault();
@@ -92,10 +110,8 @@ const ImageUpload = ({ onImageSelect, currentImage = '', label = 'Upload Image',
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
-        if (onImageSelect) {
-            onImageSelect(null, '');
-        }
-    }, [onImageSelect]);
+        notifyChange(null, '');
+    }, [notifyChange]);
 
     const handleClick = useCallback(() => {
         fileInputRef.current?.click();
@@ -108,9 +124,10 @@ const ImageUpload = ({ onImageSelect, currentImage = '', label = 'Upload Image',
     }, [handlePaste]);
 
     return (
-        <div className="w-full">
-            <label className="block text-xs font-medium text-slate-600 mb-2">
+        <div className="w-full mb-3">
+            <label className="block text-xs font-medium text-slate-500 mb-2">
                 {label}
+                {required && <span className="text-red-400 ml-1">*</span>}
             </label>
 
             {preview ? (
@@ -183,6 +200,9 @@ const ImageUpload = ({ onImageSelect, currentImage = '', label = 'Upload Image',
                 onChange={handleFileSelect}
                 className="hidden"
             />
+
+            {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+            {!error && helperText && <p className="mt-1 text-xs text-slate-500">{helperText}</p>}
         </div>
     );
 };

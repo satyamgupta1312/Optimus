@@ -199,22 +199,21 @@ WidgetLibrary
 │ │ Nested Editor (if any)       ││
 │ └──────────────────────────────┘│
 │                                 │
-│ § Advanced Settings             │
+│ § App Config [▸ collapsed]      │
 │ ┌──────────────────────────────┐│
-│ │ OOS Count   [0]             ││
-│ │ PB Tag      [toggle]        ││
-│ │ PB Reorder  [toggle]        ││
-│ └──────────────────────────────┘│
-│                                 │
-│ § Filters (NEW)                 │
-│ ┌──────────────────────────────┐│
+│ │ ⚙ App Config            [▾] ││ ← click to expand
+│ │ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄ ││
+│ │ ADVANCED SETTINGS            ││
+│ │ OOS Count   [0]              ││
+│ │ PB Tag      [toggle]         ││
+│ │ PB Reorder  [toggle]         ││
+│ │                              ││
+│ │ FILTERS                      ││
 │ │ ▸ Widget Filters             ││
 │ │ ▸ Item Filters               ││
 │ │ ▸ Product Filters            ││
-│ └──────────────────────────────┘│
-│                                 │
-│ § App Config                    │
-│ ┌──────────────────────────────┐│
+│ │                              ││
+│ │ APP CONFIGURATION            ││
 │ │ Android [✓] iOS [✓]         ││
 │ │ Min Android [___]            ││
 │ │ Max Android [___]            ││
@@ -255,10 +254,11 @@ PropertyEditor
 │   ├── ProductListInput
 │   ├── ScrollItemEditor / CategoryItemEditor / CarouselItemEditor (nested)
 │   └── ...
-├── Section 3: Advanced (NumberInput / ToggleInput)
-├── Section 4: FilterEditor
-├── Section 5: AppConfigEditor
-└── Section 6: Submit ("Save Widget" + "Skip" link)
+├── Section 3: App Config (collapsible toggle — Settings2 icon)
+│   ├── Advanced Settings (NumberInput / ToggleInput)
+│   ├── FilterEditor
+│   └── AppConfigEditor
+└── Section 4: Submit ("Save Widget" + "Skip" link)
 ```
 
 ---
@@ -407,82 +407,84 @@ PhoneFrame
 
 ---
 
-## Screen 10: Homepage Mapping Dashboard (NEW)
+## Screen 10: Homepage Mapping Dashboard
 
 **Path:** `src/components/Dashboard/HomepageMappingDashboard.jsx`
-**Purpose:** View all widget-to-homepage mappings across environments.
+**Purpose:** View all widgets from Prisma database, scoped by current environment.
 
 ```
 ┌───────────────────────────────────────────────────────────────────┐
-│ ← Homepage Mappings                                        [X]   │
-│ (gradient green/teal header)                                     │
+│ ← Homepage Mappings  [PROD]                                [X]   │
+│ (gradient green/teal header, env badge next to title)            │
 ├───────────────────────────────────────────────────────────────────┤
-│ [PROD] [UAT]  Location: [▼ All]  Search: [_________] [Refresh]  │
+│ Search: [___________]  [Refresh]             12 widgets          │
 ├───────────────────────────────────────────────────────────────────┤
-│ #  │ Widget Slug            │ Type   │ Heading │ Level │ Pri │ Status│
-│ ───┼────────────────────────┼────────┼─────────┼───────┼─────┼───────│
-│  1 │ rice_mela_spr_opt      │ SPR v2 │ Rice..  │ state │  1  │ ● Act │
-│  2 │ dairy_cat_grid         │ Cat    │ Dairy.. │ global│  2  │ ● Act │
-│  3 │ weekly_carousel        │ Carou  │ Week.. │ state │  3  │ ○ Inac│
-│  4 │ ...                    │        │         │       │     │       │
-│ ───┼────────────────────────┼────────┼─────────┼───────┼─────┼───────│
+│ #  │ Slug                   │ Type   │ Title  │ Status│ Sort│ ...│
+│ ───┼────────────────────────┼────────┼────────┼───────┼─────┼────│
+│  1 │ rice_mela_spr_opt      │ SPR v2 │ Rice.. │ DRAFT │  0  │    │
+│  2 │ dairy_cat_grid         │ Cat    │ Dairy..│ APPR. │  1  │    │
+│  3 │ weekly_carousel        │ Carou  │ Week.. │ PEND. │  2  │    │
+│ ───┼────────────────────────┼────────┼────────┼───────┼─────┼────│
 │                                                                   │
 │                    Page 1 of 3  [<] [1] [2] [3] [>]              │
 └───────────────────────────────────────────────────────────────────┘
 ```
 
+**Env Badge:** Header shows PROD/UAT badge next to "Homepage Mappings" title (amber for UAT, emerald for PROD). Data is auto-filtered — `LocalApiService` sends `X-Optimus-Env` header, backend returns only widgets matching `req.env`.
+
 **Component Tree:**
 ```
 HomepageMappingDashboard
-├── Header (gradient green/teal)
+├── Header (gradient green/teal + env badge)
 ├── Toolbar
-│   ├── Environment pills (PROD/UAT)
-│   ├── Location selector dropdown
 │   ├── Search input
-│   └── Refresh button
+│   ├── Refresh button
+│   └── Widget count
 ├── Table
-│   ├── Sortable column headers
-│   └── Rows (from mock data)
-│       ├── Status badge (Active=green / Inactive=slate)
-│       └── Click handler → navigate to widget editor
+│   ├── SortableHeader[] (React.memo)
+│   └── Rows (from Prisma via LocalApiService.getWidgets())
+│       └── Status badge (DRAFT/PENDING/APPROVED/REJECTED)
 └── Pagination footer
 ```
 
 **Props:** `{ onClose }`
-**State:** `env, locationFilter, searchQuery, sortKey, sortDir, currentPage`
-**Mock Data:** `src/data/mockHomepageMappings.js` — 20+ rows
+**State:** `widgets, loading, searchQuery, sortKey, sortDir, currentPage`
+**Data Source:** `LocalApiService.getWidgets()` (Prisma, env-scoped via `X-Optimus-Env` header)
+**Optimizations:** `useCallback` on `formatTime`, `statusBadge`; `React.memo` on `SortableHeader`
 
 ---
 
-## Screen 11: Widget Version History (NEW)
+## Screen 11: Widget Version History
 
 **Path:** `src/components/Dashboard/WidgetVersionHistory.jsx`
-**Purpose:** View and restore previous widget versions.
+**Purpose:** View, compare, preview, and restore previous widget versions.
 
 ```
 ┌───────────────────────────────────────────────────────────────────┐
 │ ← Version History: {widgetSlug}                            [X]   │
 │ (gradient indigo header)                                         │
 ├────────────────────┬──────────────────────────────────────────────┤
-│ Timeline           │ Diff Viewer                                 │
+│ Timeline           │ Version 3 — Updated prods  [Restore]        │
 │                    │                                              │
-│  ● v3 (current)   │  {                                           │
-│  │ 2h ago          │    "title": "Rice Mela"                     │
-│  │ satyam.gupta    │  - "products": [101, 102]                   │
-│  │ Updated prods   │  + "products": [101, 102, 103]              │
-│  │                 │    "pnc": { ... }                            │
-│  ○ v2             │  }                                           │
-│  │ 1d ago          │                                              │
-│  │ checker1        │                                              │
-│  │ Approved        │                                              │
+│  ● v3 (current)   │ [Diff] [Preview]                             │
+│  │ 2h ago          │                                              │
+│  │ satyam.gupta    │ ┌── Diff Tab ──────────────────────────────┐│
+│  │ Updated prods   │ │  {                                       ││
+│  │                 │ │    "title": "Rice Mela"                  ││
+│  ○ v2             │ │  - "products": [101, 102]                ││
+│  │ 1d ago          │ │  + "products": [101, 102, 103]          ││
+│  │ checker1        │ │  }                                       ││
+│  │ Approved        │ └──────────────────────────────────────────┘│
 │  │                 │                                              │
-│  ○ v1             │        [Restore This Version]                │
-│    3d ago          │                                              │
-│    satyam.gupta    │                                              │
-│    Created         │                                              │
-│                    │                                              │
+│  ○ v1             │ ┌── Preview Tab (alt view) ─────────────────┐│
+│    3d ago          │ │  v2 (Previous)      v3 (Selected)        ││
+│    satyam.gupta    │ │  ┌──────────┐      ┌──────────┐         ││
+│    Created         │ │  │[Widget   ]│      │[Widget   ]│        ││
+│                    │ │  │ Render   ]│      │ Render   ]│        ││
+│ [Load older vers.] │ │  └──────────┘      └──────────┘         ││
+│                    │ └──────────────────────────────────────────┘│
 ├────────────────────┴──────────────────────────────────────────────┤
-│                                                           [Close]│
+│ 20 versions loaded (more available)                       [Close]│
 └───────────────────────────────────────────────────────────────────┘
 ```
 
@@ -492,20 +494,32 @@ WidgetVersionHistory
 ├── Header (gradient indigo)
 ├── Content (2-panel split)
 │   ├── Left: Timeline
-│   │   └── VersionDot[] (clickable)
-│   │       ├── Version badge
-│   │       ├── Timestamp
-│   │       ├── User
-│   │       └── Change log
-│   └── Right: DiffViewer
-│       ├── JSON diff (green/red lines)
-│       └── Restore button
-└── Footer
+│   │   ├── TimelineEntry[] (React.memo, clickable)
+│   │   │   ├── Version badge + "current" label
+│   │   │   ├── Timestamp (relative)
+│   │   │   ├── User (email prefix)
+│   │   │   └── Change log
+│   │   └── "Load older versions" button (cursor pagination)
+│   └── Right: Tab Switcher + Content
+│       ├── Tab: [Diff] [Preview]
+│       ├── Diff tab: JSON diff (green/red lines, memoized)
+│       ├── Preview tab: side-by-side SnapshotPreview
+│       │   ├── Left: previous version visual render (if exists)
+│       │   └── Right: selected version visual render
+│       └── Restore button (for non-current versions)
+└── Footer (version count + hasMore indicator)
 ```
 
-**Props:** `{ widgetId, widgetSlug, onClose }`
-**State:** `selectedVersion, versions`
-**Mock Data:** `src/data/mockVersionHistory.js` — 5-6 versions per widget
+**New Component:** `SnapshotPreview.jsx` — Visual widget renderer from version snapshot
+- Maps `snapshot.type` to component (SingleProductRow, CollectionBanner, etc.)
+- Same componentMap as `WidgetRenderer.jsx` (config-driven + legacy + Prisma type names)
+- Wraps in stub `WidgetContext.Provider` (no-op functions)
+- 360px wide container (phone width, scaled 0.85x)
+
+**Props:** `{ widgetId, widgetSlug, onClose, onRestore }`
+**State:** `versions, loading, loadingMore, hasMore, nextCursor, selectedVersion, rightTab`
+**Data Source:** `LocalApiService.getWidgetVersions(id, { limit, cursor })` — paginated
+**Optimizations:** `React.memo` on `TimelineEntry`; `useMemo` on diff + parsed snapshots; `useCallback` on `formatTime`
 
 ---
 
@@ -623,9 +637,10 @@ DeploymentStatusPanel
 
 ### StateProductEditor
 ```jsx
-// Props
-{ label, value: {global: string, [state]: string}, onChange, helperText }
+// Props (InputRegistry interface)
+{ label, value: {global: string, [state]: string}, onChange, helperText, error, required, disabled }
 // Uses STATE_DEFINITIONS from MastheadConfig
+// Click-outside listener closes the "Add State" dropdown
 ```
 
 ### FilterEditor
@@ -736,8 +751,8 @@ DeploymentStatusPanel
 | PropertyEditor | `useWidgetContext()` | `WidgetRegistry`, `InputRegistry`, `ConfigValidator` |
 | PhoneFrame | `useWidgetContext()` | DnD library |
 | RequestQueue | `useAuth()` | `LocalApiService` |
-| HomepageMappingDashboard | — | Mock data (future: HOMEPAGE_VIEW_API) |
-| WidgetVersionHistory | — | Mock data (future: GET /widgets/:id/versions) |
+| HomepageMappingDashboard | — | `LocalApiService.getWidgets()` (env-scoped via `X-Optimus-Env` header) |
+| WidgetVersionHistory | — | `LocalApiService.getWidgetVersions()` (paginated: limit + cursor) |
 | DeploymentStatusPanel | — | Mock data (future: BackendSyncService) |
 | FilterEditor | — | Widget config `filters` |
 | AppConfigEditor | — | Widget config `appConfigurations` |

@@ -104,7 +104,7 @@ User sidebar mein widget type choose karta hai:
 | Multimedia Single Product Row (Optimized) | `multimedia_single_product_row_v2` |
 | Double Product Row | `double_product_row` |
 | Double Product Row (Optimized) | `double_product_row_v2` |
-| Multimedia Double Product Row | `multimedia_double_product_row` |
+| Multimedia Double Product Row | `multimedia_double_product_row` | **NOT AVAILABLE** |
 | Multimedia Double Product Row (Optimized) | `multimedia_double_product_row_v2` |
 | Collection Banner (Scroll) | `carousel` |
 | Collection Banner (Stick) | `category` |
@@ -147,6 +147,8 @@ Widget add karne ke baad, **Property Editor** (right sidebar) open hota hai. Use
 
 All input fields config-driven hain — `WidgetRegistry.js` → `ProductRailConfig.js` etc. se aate hain.
 
+> **Dynamic Validation:** Some fields have conditional `required` — e.g. Product Rail title is only required when `has_multimedia=false`. The `ConfigValidator.validateField()` supports `required` as a function `(pnc) => boolean`. State-wise products use `StateProductEditor` component — shows Global (required) + per-state inputs.
+
 ---
 
 ### Step 4 — Emulator Mein Preview
@@ -172,18 +174,62 @@ Emulator sirf **visual preview** hai — backend mein kuch create nahi hota abhi
 
 ---
 
-### Step 5 — Submit Karna (Maker)
+### Step 4.1 — Widget Selection (Maker Submit)
 
-Sab kuch theek lagane ke baad, Maker **"Submit"** button click karta hai.
+Submit button click karne pe pehle ek **selection modal** khulta hai jismein Maker choose kar sakta hai konse widgets review ke liye bhejna hai.
 
 ```
 Maker clicks "Submit"
     ↓
-WidgetContext.submitForReview() called
+Selection Modal opens (all widgets pre-selected by default)
     ↓
-ValidationService.validateAndCheckSlugs(widgets) — pre-submit validation
+┌─────────────────────────────────────────┐
+│  Submit for Review                      │
+│  Select widgets to send for approval    │
+│                                         │
+│  5 of 10 selected   [Select All | None] │
+│                                         │
+│  [✓] 🎯 Primary Masthead     HEADER    │  ← header widget (purple)
+│  [✓] 🏷 Secondary Masthead   HEADER    │  ← header widget (purple)
+│  ─────── Body Widgets ──────────────    │
+│  [✓] Rice Mela          product_rail    │
+│  [✓] Summer Sale         collection     │
+│  [✓] New Widget          product_rail   │
+│  [ ] Dairy & Breakfast   Category Grid  │  ← FETCHED — skip
+│  [ ] Grocery             Category Grid  │  ← FETCHED — skip
+│  ...                                    │
+│                                         │
+│  [Cancel]          [Submit 5 Widgets]   │
+└─────────────────────────────────────────┘
+```
+
+**Config:** `WIDGET_SELECTION_CONFIG.maker` in `src/config/BackendFlow.js`
+**State:** `submitSelection`, `showSubmitModal`, `openSubmitModal` in `src/context/WidgetContext.jsx`
+**UI:** Selection modal in `src/components/Layout/MainLayout.jsx`
+
+| Rule | Value |
+|:---|:---|
+| Default state | All widgets **selected** |
+| Min selection | At least 1 widget must be selected |
+| Shows FETCHED badge | Yes — fetched widgets pe green badge dikhta hai |
+| Shows slug | Yes — har widget ka current slug code mein dikhta hai |
+
+---
+
+### Step 5 — Submit Karna (Maker)
+
+Selection ke baad, Maker **"Submit N Widgets"** button click karta hai.
+
+```
+Maker clicks "Submit N Widgets" in selection modal
     ↓
-All canvas widgets packaged into JSON payload
+WidgetContext.submitForReview(selectedWidgetIds) called
+    ↓
+ValidationService.validateAndCheckSlugs(selectedWidgets) — field-level validation
+    ↓
+Slug passed as-is (no uniqueness check — same slug goes to Prisma)
+    ↓
+Only selected widgets packaged into JSON payload
     ↓
 LocalApiService.createRequest() → Express backend → Prisma DB (SQLite)
     ↓
@@ -205,6 +251,7 @@ Canvas editing locked ✗
         {
             "type": "Single Product Row",
             "title": "Rice Mela",
+            "slug": "rice_mela_spr_sc_rohp_global_allusers_both",
             "products": ["1001", "1002", "1003"],
             "startTime": "2026-02-19 10:00:00",
             "endTime": "2026-07-01 18:00:00"
@@ -324,7 +371,8 @@ Checker **RequestQueue** mein jaata hai aur pending requests dekhta hai.
 | **Approve** | PENDING | Automation trigger, backend pe create |
 | **Reject** | PENDING | Status REJECTED, Maker re-edit kar sakta hai |
 | **Re-open** | APPROVED | Status DRAFT, editing phir se open |
-| **Deploy** | APPROVED | Manual re-deploy (agar automation fail ho) |
+| **Deploy** | APPROVED | Push widgets to Django backend (auto-CSRF from session cookie) |
+| **Approve & Deploy** | PENDING | One-click: approve in Prisma + deploy to Django backend |
 
 ---
 
@@ -411,13 +459,37 @@ Checker approve karta hai → Express backend (`server/routes/requests.js`) stat
 **Backend API Calls (example: Product Rail Standard):**
 
 ```
+0. POST /api/app/multimedia/           → Multimedia upload (only if has_multimedia=true)
 1. POST /api/app/post_page_layout/     → Page Layout create
 2. POST /api/app/post_widget_item/     → Widget Item create (products)
 3. POST /api/app/widget/               → Homepage Widget create
-4. Mapping CSV upload                  → Widget Item → Widget link
-5. Mapping CSV upload                  → Widget → Page Layout link
-6. Mapping CSV upload                  → Page → Global registry link
+4. Mapping CSV upload (postMapping)    → Widget Item → Widget link
+5. Mapping CSV upload (postMapping)    → Widget → Page Layout link
+6. Mapping CSV upload (postMapping)    → Page → Global registry link
 ```
+
+**Backend API Calls (example: Product Rail Optimized — with state-wise):**
+
+```
+0. POST /api/app/multimedia/           → Multimedia upload (only if has_multimedia=true)
+1. POST /api/app/post_page_layout/     → Page Layout create
+2. POST /api/app/post_widget_item/     → Sub-Category Item (global) create
+3. POST /api/app/post_widget_item/     → Sub-Category Item (jharkhand) create  ← per-state
+4. POST /api/app/post_widget_item/     → Sub-Category Item (chhattisgarh) create
+5. POST /api/app/widget/               → PLP Ecosystem Widget create
+6. Mapping CSV (postMapping)           → Sub-Cat Items → PLP Widget (state-wise)
+7. POST /api/app/post_widget_item/     → Product Row Item create
+8. POST /api/app/widget/               → Homepage SPR Widget create
+9. Mapping CSV (postMapping)           → Row Item → SPR Widget link
+10. Mapping CSV (postMapping)          → SPR Widget → Page Layout link
+11. Mapping CSV (postMapping)          → Page → Global registry link (page_type=product_listing_page)
+```
+
+> **Step 0 — Multimedia Upload:** Only runs when `has_multimedia=true` AND `background_media` is a File object. Returns a slug used as `background_multimedia` in the widget payload. If no multimedia, the `background_multimedia` field is **omitted entirely** (empty string causes Django 400 error).
+
+> **State-wise Sub-Category Items:** When `stateProducts` has multiple keys (e.g. `{ global: '...', jharkhand: '...', chhattisgarh: '...' }`), a separate sub-category widget item is created per state, and the mapping CSV includes location-wise rows (`state/jharkhand`, `state/chhattisgarh`, etc.).
+
+> **postMapping() Helper:** All CSV mapping calls use a dedicated `postMapping()` function — no `csrfmiddlewaretoken` in the form body (only `X-CSRFToken` header), and `Blob` + 3-arg `FormData.append('mapping_file', blob, 'mapping.csv')`. See `src/services/BackendSyncService.js`.
 
 **Success Response:**
 
@@ -563,6 +635,8 @@ DRAFT ────────────────────→ PENDING
 | `Type not supported` | Any | Widget type backend mein register nahi | BackendFlow.js mein naya routing add karo |
 | `Session expired (403)` | Any | Auth session expire ho gayi | Re-login karo |
 | `Sub-category items missing` | Optimized SPR / CLP | State-wise items nahi banaye | Saare states ke items create karo |
+| `Mapping CSV upload failed` | Any (Layer 1/2/3) | `csrfmiddlewaretoken` in form body ya wrong FormData format | `postMapping()` helper use karo — no token in body, Blob+3-arg append |
+| `page_type empty in Layer 3` | SPR Optimized | Layer 3 mapping CSV mein `page_type` empty string | `page_type: 'product_listing_page'` set karo |
 
 ---
 
@@ -576,7 +650,8 @@ DRAFT ────────────────────→ PENDING
 | **WidgetContext** | `src/context/WidgetContext.jsx` | State, submit, approve, reject logic |
 | **LocalApiService** | `src/services/LocalApiService.js` | Express backend CRUD — widgets, requests, users, catalog |
 | **Express Backend** | `server/routes/requests.js` | Approval routing + status updates |
-| **Prisma Schema** | `server/prisma/schema.prisma` | Database models (Widget, Request, RequestWidget, etc.) |
+| **Prisma Schema** | `server/prisma/schema.prisma` | Database models (Widget, Request, RequestWidget, etc.). Widget has `env` field (UAT/PROD) with `@@unique([slug, env])`. |
+| **BackendSyncService** | `src/services/BackendSyncService.js` | Deploy to Django — `postForm`, `postMapping`, `uploadMultimedia`, per-widget deploy functions |
 | **AuthContext** | `src/context/AuthContext.jsx` | Role management (MAKER/CHECKER) |
 | **RequestQueue** | `src/components/Dashboard/RequestQueue.jsx` | Checker review UI |
 | **WidgetRegistry** | `src/config/WidgetRegistry.js` | Widget config lookup + BackendFlow integration |
@@ -702,13 +777,25 @@ HTTP 500/502/503/504  →  Wait 500ms  →  Retry
 
 ---
 
-### 9.4 Slug Uniqueness Check
+### 9.4 Slug Handling — Direct Pass-Through
 
-**Files:** `src/services/ValidationService.js` → `checkSlugAvailability()`, called by `validateAndCheckSlugs()`
+**Files:** `src/services/ValidationService.js` → `validateAndCheckSlugs()`
 
-Submit se pehle, har widget ke `slug_name` ko `GET /api/app/widget/?slug_name=<slug>` se check kiya jata hai. Agar slug already exist kare, error toast dikhta hai aur submit block hota hai.
+Slug ko as-is pass kiya jaata hai — **no uniqueness check, no auto-increment**. Jo slug SlugBuilder se create hota hai, wahi directly Prisma DB mein store hota hai.
 
-> **Note:** Fetched widgets (`_fetched: true` marker) ka slug check skip hota hai — woh already backend pe hain.
+**Validation:** Sirf required field check — slug empty nahi hona chahiye.
+
+```
+SlugBuilder composes: "rice_mela_spr_sc_rohp_global"
+    ↓
+Same slug → widget.slug = "rice_mela_spr_sc_rohp_global"
+    ↓
+Submit → same slug in request payload
+    ↓
+Prisma DB stores: slug = "rice_mela_spr_sc_rohp_global"
+```
+
+> **Note:** Fetched widgets (`_fetched: true`) already have their backend slug preserved via `ApiMapper.js`.
 
 ---
 
@@ -753,7 +840,52 @@ Jab `VITE_ENV=UAT` ho, header mein logo ke paas orange pulsing **🧪 UAT** badg
 
 ---
 
-### 9.8 Activity Log Persistence (Audit Trail)
+### 9.8 Widget Environment Separation (UAT/PROD Data Isolation)
+
+**Files:** `server/prisma/schema.prisma`, `server/routes/widgets.js`, `server/middleware/auth.js`
+
+Widget model mein `env` field add kiya gaya hai (`UAT` | `PROD`, default `PROD`). Ab same slug dono environments mein allow hai — unique constraint `@@unique([slug, env])` hai.
+
+**Backend routes updated:**
+- `GET /widgets` — `where.env = req.env` filter lagta hai, sirf current env ke widgets return hote hain
+- `POST /widgets` — `env: req.env` store hota hai creation pe
+- `POST /:id/duplicate` — `env: source.env` inherit hota hai source widget se
+
+**Frontend auto-filtered:** `LocalApiService` already har request pe `X-Optimus-Env` header bhejta hai (line 19). Auth middleware `req.env` set karta hai. Koi frontend change nahi — backend filtering se pura app automatically env-scoped ho gaya.
+
+**HomepageMappingDashboard:** Ab PROD/UAT badge show karta hai title ke next — same style as MainLayout header badge.
+
+```
+Login UAT → Create Widget → Switch to PROD → Widget NOT visible ✓
+Login PROD → Create Widget → Switch to UAT → Widget NOT visible ✓
+```
+
+---
+
+### 9.9 Version History Preview + Pagination
+
+**Files:** `src/components/Dashboard/WidgetVersionHistory.jsx`, `src/components/Dashboard/SnapshotPreview.jsx`, `server/routes/widgets.js`
+
+Version History panel mein ab **Diff | Preview** tab switcher hai:
+- **Diff tab** = existing JSON diff (unchanged)
+- **Preview tab** = visual widget render from snapshot data (side-by-side: previous vs selected version)
+
+`SnapshotPreview.jsx` component:
+- Parsed snapshot → correct widget component render karta hai (SingleProductRow, CollectionBanner, etc.)
+- Same componentMap as `WidgetRenderer.jsx`
+- Stub `WidgetContext.Provider` wrap karta hai ta ke components crash na karein
+- 360px wide container (phone width)
+
+**Backend pagination:** `GET /widgets/:id/versions` ab `limit` + `cursor` support karta hai:
+- Default: 20 versions per page, max 100
+- Response: `{ versions: [...], hasMore: boolean, nextCursor: number | null }`
+- Frontend: "Load older versions" button at bottom of timeline
+
+**Memoization:** `React.memo` on `TimelineEntry`, `useMemo` on diff computation.
+
+---
+
+### 9.10 Activity Log Persistence (Audit Trail)
 
 **Files:** `src/context/ActivityLogContext.jsx`, `src/components/ActivityLogPanel.jsx`, `src/services/LocalApiService.js` → `appendActivity()`, `getActivity()`
 
@@ -765,7 +897,7 @@ ActivityLogPanel mein 🔄 button se past sessions ke persisted logs load kiye j
 
 ---
 
-### 9.9 Rejection Reason Dialog
+### 9.11 Rejection Reason Dialog
 
 **Files:** `src/components/Dashboard/RequestQueue.jsx`, `src/services/GoogleSheetService.js` → `updateStatus(id, status, rejectionReason)`
 

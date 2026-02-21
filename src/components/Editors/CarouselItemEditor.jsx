@@ -4,6 +4,7 @@ import TextInput from '../Inputs/TextInput';
 import PillSelector from '../Inputs/PillSelector';
 import ImageUpload from '../ImageUpload';
 import SubCategoryList from './SubCategoryList';
+import ExpandPageSection from './ExpandPageSection';
 
 /**
  * CarouselItemEditor — Accordion list for Secondary Masthead carousel items.
@@ -30,6 +31,8 @@ const CarouselItemEditor = ({
             text: '',
             image: null,
             pageType: 'category_page',
+            expandPage: false,
+            plpWidgets: [],
             pageHeading: '',
             subCategories: [],
         };
@@ -119,6 +122,19 @@ const CarouselItemEditor = ({
                                 onChange={(val) => updateItem(index, 'pageType', val)}
                             />
 
+                            {item.pageType === 'product_listing_page' && (
+                                <ExpandPageSection
+                                    expandPage={item.expandPage || false}
+                                    plpWidgets={item.plpWidgets || []}
+                                    onChange={({ expandPage, plpWidgets }) => {
+                                        onChange(items.map((it, i) =>
+                                            i === index ? { ...it, expandPage, plpWidgets } : it
+                                        ));
+                                    }}
+                                    disabled={disabled}
+                                />
+                            )}
+
                             <TextInput
                                 label="Page Heading"
                                 value={item.pageHeading || ''}
@@ -127,17 +143,19 @@ const CarouselItemEditor = ({
                                 disabled={disabled}
                             />
 
-                            {/* Sub-Categories */}
-                            <div className="mt-3 pt-3 border-t border-slate-200">
-                                <label className="block text-xs font-semibold text-slate-500 mb-2">
-                                    Sub-Categories
-                                </label>
-                                <SubCategoryList
-                                    items={item.subCategories || []}
-                                    onChange={(subs) => updateItem(index, 'subCategories', subs)}
-                                    disabled={disabled}
-                                />
-                            </div>
+                            {/* Sub-Categories — only when category_page selected */}
+                            {item.pageType === 'category_page' && (
+                                <div className="mt-3 pt-3 border-t border-slate-200">
+                                    <label className="block text-xs font-semibold text-slate-500 mb-2">
+                                        Sub-Categories
+                                    </label>
+                                    <SubCategoryList
+                                        items={item.subCategories || []}
+                                        onChange={(subs) => updateItem(index, 'subCategories', subs)}
+                                        disabled={disabled}
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

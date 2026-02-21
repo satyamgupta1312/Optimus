@@ -24,6 +24,7 @@ import StateProductEditor from './StateProductEditor';
 import ScrollItemEditor from '../Editors/ScrollItemEditor';
 import CategoryItemEditor from '../Editors/CategoryItemEditor';
 import CarouselItemEditor from '../Editors/CarouselItemEditor';
+import SubCategoryList from '../Editors/SubCategoryList';
 
 export const InputRegistry = {
     TextInput,
@@ -43,6 +44,7 @@ export const InputRegistry = {
     ScrollItemEditor,
     CategoryItemEditor,
     CarouselItemEditor,
+    SubCategoryList,
 };
 
 /**

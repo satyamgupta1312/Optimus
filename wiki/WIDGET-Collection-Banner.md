@@ -318,7 +318,8 @@ The **Carousel Media-Number** controls how many carousel items are visible in th
 | :--- | :--- | :---: | :--- |
 | `text` | String | Yes | Category name (English) |
 | `textHi` | String | No | Category name (Hindi) |
-| `image` | URL/File | Yes | Category item image |
+| `image` | URL/File | Yes | Category item image (max 300KB) |
+| `pageHeading` | String | Yes | Page heading text (used for `page_heading` in Page Layout payload) |
 | `pageType` | String | Yes | `"category_page"` or `"product_listing_page"` |
 | `categoryPage.heading` | String | Yes | Page heading for the target page |
 | `subCategories` | Array | Yes | List of sub-categories |
@@ -823,7 +824,38 @@ Each sub-category clickable → product listing
 
 ---
 
-## 19. Update Strategy
+## 19. Initial State (Default Values)
+
+```javascript
+{
+    type: 'collection_banner',
+    pnc: { displayMode: 'scroll' },
+    slug: '',
+    title: '',
+    titleHi: '',
+    media_number: '3.5',
+    start_time: '',
+    end_time: '',
+    scrollItems: [],    // Scroll mode items
+    categoryItems: [],  // Stick mode items
+}
+```
+
+**Config:** `CollectionBannerConfig.js` → `initialState`
+
+---
+
+## 20. Image Size Constraints
+
+| Image Location | Max Size | Required | Component |
+| :--- | :--- | :---: | :--- |
+| Scroll — Banner Image | **300 KB** | Yes | `ImageUpload` |
+| Stick — Category Item Image | **300 KB** | Yes | `ImageUpload` |
+| Stick — Sub-Category Image | **50 KB** | No | `ImageUpload` |
+
+---
+
+## 21. Update Strategy
 
 The Collection Banner widget does **NOT** currently support in-place updates. The automation scripts always create new objects. To modify an existing widget:
 
@@ -833,7 +865,7 @@ The Collection Banner widget does **NOT** currently support in-place updates. Th
 
 ---
 
-## 20. Related Documentation
+## 22. Related Documentation
 
 - [Slug Name Reference](./SLUG_NAME.md) - All slug patterns across widgets
 - [Product Rail Widget](./Widget-spr.md) - Similar product display logic

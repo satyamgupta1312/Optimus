@@ -38,7 +38,7 @@ These widgets can be **added to a PLP page** when Expand Page is ON:
 | **Multimedia SPR V2** | `multimedia_single_product_row_v2` | Per widget | ✅ |
 | **Double Product Row** | `double_product_row` | Per widget | ✅ |
 | **Double Product Row V2** | `double_product_row_v2` | Per widget | ✅ |
-| **Multimedia Double Row** | `multimedia_double_product_row` | Per widget | ✅ |
+| **Multimedia Double Row** | `multimedia_double_product_row` | Per widget | ❌ Not available |
 | **Multimedia Double Row V2** | `multimedia_double_product_row_v2` | Per widget | ✅ |
 | ~~Category Grid~~ | `category` | — | ❌ Not supported |
 
@@ -46,7 +46,24 @@ These widgets can be **added to a PLP page** when Expand Page is ON:
 
 ---
 
-## 3. Expand Page Toggle — Frontend Skeleton
+## 3. Expand Page Toggle — Implementation
+
+**Status: IMPLEMENTED**
+
+| Component | Scope | File |
+| :--- | :--- | :--- |
+| `ExpandPageSection` | Reusable toggle + widget list | `src/components/Editors/ExpandPageSection.jsx` |
+| `PropertyEditor` | Per-widget (SPR/DPR) | `src/components/Sidebar/PropertyEditor.jsx` |
+| `ScrollItemEditor` | Per-item (Carousel) | `src/components/Editors/ScrollItemEditor.jsx` |
+| `CarouselItemEditor` | Per-item (Secondary Masthead) | `src/components/Editors/CarouselItemEditor.jsx` |
+
+**Trigger:** Toggle appears only when `pageType === 'product_listing_page'` is selected.
+
+**Data stored on widget/item:**
+- `expandPage` (boolean, default: `false`)
+- `plpWidgets` (array of `{ id, type, label, title, stateProducts }`)
+
+**Config:** `src/config/widgets/PLP-PAGE-widget-support.js` → `EXPAND_PAGE_CONFIG`
 
 ### Default State (OFF) — Simple Product Listing
 
@@ -566,7 +583,7 @@ These filters are **universal** across ALL supported PLP widget types. Handled b
 | 4 | 1 | ✅ | ✅ | `multimedia_single_product_row_v2` | `sub_category` + `item_rows` |
 | 5 | 2 | ❌ | ❌ | `double_product_row` | `item_rows` + `sub_category` |
 | 6 | 2 | ✅ | ❌ | `double_product_row_v2` | `sub_category` + `item_rows` |
-| 7 | 2 | ❌ | ✅ | `multimedia_double_product_row` | `item_rows` + `sub_category` |
+| ~~7~~ | ~~2~~ | ~~❌~~ | ~~✅~~ | ~~`multimedia_double_product_row`~~ | ~~NOT AVAILABLE~~ |
 | 8 | 2 | ✅ | ✅ | `multimedia_double_product_row_v2` | `sub_category` + `item_rows` |
 
 ### Master Summary Table
@@ -581,7 +598,7 @@ These filters are **universal** across ALL supported PLP widget types. Handled b
 | Multimedia SPR V2 | `multimedia_single_product_row_v2` | ✅ | ✅ Dynamic | `SPR_Widget_Optimized.gs` |
 | Double Row | `double_product_row` | ✅ | ✅ Dynamic | `SPR_Widget_Optimized.gs` |
 | Double Row V2 | `double_product_row_v2` | ✅ | ✅ Dynamic | `SPR_Widget_Optimized.gs` |
-| MM Double | `multimedia_double_product_row` | ✅ | ✅ Dynamic | `SPR_Widget_Optimized.gs` |
+| ~~MM Double~~ | ~~`multimedia_double_product_row`~~ | ❌ | — | NOT AVAILABLE |
 | MM Double V2 | `multimedia_double_product_row_v2` | ✅ | ✅ Dynamic | `SPR_Widget_Optimized.gs` |
 | ~~Category Grid~~ | `category` | ❌ | — | — |
 

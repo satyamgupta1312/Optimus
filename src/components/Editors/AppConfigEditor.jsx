@@ -23,11 +23,11 @@ const AppConfigEditor = ({ config, value = {}, onChange }) => {
     const versionFields = Object.entries(config).filter(([, def]) => def.type === 'version');
 
     return (
-        <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
-                <Settings2 size={14} className="text-slate-600" />
-                <h3 className="font-semibold text-sm text-slate-900">App Configuration</h3>
-            </div>
+        <div>
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <Smartphone size={12} className="text-slate-400" />
+                App Configuration
+            </h4>
 
             {/* Platform toggles */}
             {toggleFields.length > 0 && (

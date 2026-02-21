@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { useWidgetContext } from '../../../context/WidgetContext';
 import { SPRConfig } from '../../../config/widgets/SPRConfig';
 import { SPRService } from './SPRService';
@@ -34,10 +34,48 @@ const SingleProductRow = ({ widget }) => {
     const isDoubleRow = pnc.rows === 2;
     const hasMultimedia = pnc.has_multimedia;
 
-    // widget.products is an array of item code strings (set via ProductListInput)
-    // Legacy widgets may store objects — normalise to string first
+    // Multimedia background — resolve File to blob URL, or use server URL / video URL
+    const [bgUrl, setBgUrl] = useState(null);
+    useEffect(() => {
+        if (!hasMultimedia) { setBgUrl(null); return; }
+        const media = widget.background_media;
+        // File object → blob URL (temporary, before upload completes)
+        if (media instanceof File) {
+            const url = URL.createObjectURL(media);
+            setBgUrl(url);
+            return () => URL.revokeObjectURL(url);
+        }
+        // String URL — either local server (/api/local/media/files/...) or external
+        if (typeof media === 'string' && media) {
+            setBgUrl(media);
+            return;
+        }
+        // Video URL fallback
+        if (widget.background_video) {
+            setBgUrl(widget.background_video);
+            return;
+        }
+        setBgUrl(null);
+    }, [hasMultimedia, widget.background_media, widget.background_video]);
+
+    // Resolve product codes from stateProducts (new) or products (legacy)
+    // stateProducts = { global: '1001,1002', jharkhand: '1003,1004' }
+    // products = ['1001', '1002'] (legacy array format)
+    const rawCodes = useMemo(() => {
+        // New format: stateProducts — show global codes in emulator
+        if (widget.stateProducts && typeof widget.stateProducts === 'object') {
+            const globalStr = widget.stateProducts.global || '';
+            if (globalStr.trim()) {
+                // Support both comma-separated and space-separated codes
+                return globalStr.split(/[\s,]+/).map(c => c.trim()).filter(Boolean);
+            }
+            return [];
+        }
+        // Legacy format: products array
+        return widget.products || [];
+    }, [widget.stateProducts, widget.products]);
+
     const resolvedProducts = useMemo(() => {
-        const rawCodes = widget.products || [];
         if (!rawCodes.length) return [];
         return rawCodes.map((code, idx) => {
             // Normalise: string → use as-is; object → extract itemCode or id
@@ -72,7 +110,7 @@ const SingleProductRow = ({ widget }) => {
                 discount: null,
             };
         });
-    }, [widget.products, getProduct, catalogLoading]);
+    }, [rawCodes, getProduct, catalogLoading]);
 
     const products = resolvedProducts;
     const isLoading = products.length === 0;
@@ -107,14 +145,22 @@ const SingleProductRow = ({ widget }) => {
             className="relative w-full mb-4"
         >
             {/* Multimedia Background Layer */}
-            {hasMultimedia && widget.backgroundMultimedia && (
-                <div className="absolute inset-0 z-0">
-                    <img
-                        src={`/assets/${widget.backgroundMultimedia}.jpg`}
-                        alt=""
-                        className="w-full h-full object-cover opacity-20"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-b from-white/80 to-white/95" />
+            {hasMultimedia && bgUrl && (
+                <div className="absolute inset-0 z-0 overflow-hidden rounded-xl">
+                    {widget.background_video && bgUrl === widget.background_video ? (
+                        <video
+                            src={bgUrl}
+                            autoPlay muted loop playsInline
+                            className="w-full h-full object-cover"
+                        />
+                    ) : (
+                        <img
+                            src={bgUrl}
+                            alt=""
+                            className="w-full h-full object-cover"
+                        />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-b from-white/30 to-white/70" />
                 </div>
             )}
 
@@ -130,7 +176,11 @@ const SingleProductRow = ({ widget }) => {
                     </h3>
                     <button
                         onClick={handleViewAll}
-                        className="text-xs font-bold text-blue-600 cursor-pointer hover:underline"
+                        style={hasMultimedia ? {
+                            backgroundColor: widget.view_all_background_color || '#ffffff',
+                            color: widget.view_all_color || '#000000',
+                        } : undefined}
+                        className={`text-xs font-bold cursor-pointer hover:underline ${hasMultimedia ? 'px-3 py-1 rounded-full' : 'text-blue-600'}`}
                     >
                         View All →
                     </button>

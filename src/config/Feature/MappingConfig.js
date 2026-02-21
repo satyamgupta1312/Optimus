@@ -191,7 +191,7 @@ export const CSV_UTILS = {
      * @returns {Blob}
      */
     csvToBlob(csvContent, filename = 'mapping.csv') {
-        return new Blob([csvContent], { type: 'text/csv' });
+        return new File([csvContent], filename, { type: 'text/csv' });
     },
 };
 

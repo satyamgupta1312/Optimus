@@ -63,6 +63,113 @@ export async function callApi(endpoint, payload, { multipart = false } = {}) {
     return response;
 }
 
+// ── Update API (PUT/PATCH existing resource) ──
+
+/**
+ * Update an existing resource by ID.
+ * Ported from: SPR_Widget_Optimized.gs → updateApi()
+ *
+ * @param {string} url - Full URL with ID, e.g. /api/app/widget/123/
+ * @param {Object} payload - Fields to update
+ * @param {Object} opts
+ * @param {boolean} opts.json - Send as JSON (default: true)
+ * @returns {Promise<Response>}
+ */
+export async function updateApi(url, payload, { json = true } = {}) {
+    const csrfToken = getCsrfToken();
+    const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`;
+
+    const options = {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'X-CSRFToken': csrfToken || '' },
+    };
+
+    if (json) {
+        options.headers['Content-Type'] = 'application/json';
+        options.body = JSON.stringify(payload);
+    } else {
+        const formData = new FormData();
+        for (const [key, value] of Object.entries(payload)) {
+            if (value !== undefined && value !== null) formData.append(key, value);
+        }
+        options.body = formData;
+    }
+
+    const response = await fetch(fullUrl, options);
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`UPDATE ${response.status}: ${text.substring(0, 200)}`);
+    }
+    return response;
+}
+
+// ── Lookup Helpers (check if slug exists on backend) ──
+
+/**
+ * Lookup a widget by slug_name. Returns the ID if found, null otherwise.
+ * Ported from: SPR_Widget_Optimized.gs → getWidgetId()
+ *
+ * @param {string} slugName
+ * @returns {Promise<string|null>} Widget ID or null
+ */
+export async function getWidgetId(slugName) {
+    try {
+        const url = `${API_BASE}/api/app/widget/?slug_name=${encodeURIComponent(slugName)}`;
+        const res = await fetch(url, { credentials: 'include' });
+        if (!res.ok) return null;
+        const data = await res.json();
+        // Django REST: { results: [...] } or direct array, or single object
+        const results = data.results || (Array.isArray(data) ? data : [data]);
+        const match = results.find(r => r.slug_name === slugName);
+        return match ? (match.id || match.pk || null) : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Lookup a widget item by slug_name. Returns the ID if found, null otherwise.
+ * Ported from: SPR_Widget_Optimized.gs → getWidgetItemId()
+ *
+ * @param {string} slugName
+ * @returns {Promise<string|null>} Widget Item ID or null
+ */
+export async function getWidgetItemId(slugName) {
+    try {
+        const url = `${API_BASE}/api/app/widget_item/?slug_name=${encodeURIComponent(slugName)}`;
+        const res = await fetch(url, { credentials: 'include' });
+        if (!res.ok) return null;
+        const data = await res.json();
+        const results = data.results || (Array.isArray(data) ? data : [data]);
+        const match = results.find(r => r.slug_name === slugName);
+        return match ? (match.id || match.pk || null) : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Lookup a page layout by slug_name. Returns the ID if found, null otherwise.
+ * Ported from: SPR_Widget_Optimized.gs → getPageLayoutId()
+ *
+ * @param {string} slugName
+ * @returns {Promise<string|null>} Page Layout ID or null
+ */
+export async function getPageLayoutId(slugName) {
+    try {
+        const url = `${API_BASE}/api/app/post_page_layout/?slug_name=${encodeURIComponent(slugName)}`;
+        const res = await fetch(url, { credentials: 'include' });
+        if (!res.ok) return null;
+        const data = await res.json();
+        const results = data.results || (Array.isArray(data) ? data : [data]);
+        const match = results.find(r => r.slug_name === slugName);
+        return match ? (match.id || match.pk || null) : null;
+    } catch {
+        return null;
+    }
+}
+
 // ── CSV Mapping Builder ──
 
 /**

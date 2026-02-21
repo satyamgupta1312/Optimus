@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Settings, ChevronDown, ChevronUp, Plus, Trash2, Loader2, Upload, X, CheckCircle } from 'lucide-react';
 import { MultimediaService } from '../../services/MultimediaService';
-import { GoogleSheetService } from '../../services/GoogleSheetService';
+import { LocalApiService } from '../../services/LocalApiService';
 import { searchProduct, searchProductsBatch } from '../../services/CatalogService';
 import ColorPickerInput from '../ColorPickerInput';
+import DateTimeInput from '../Inputs/DateTimeInput';
 import toast from 'react-hot-toast';
 
 // Product Code Preview - shows product names below item code input
@@ -159,15 +160,12 @@ const HeaderConfiguration = ({ headerWidgets, onUpdate }) => {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="text-xs font-medium text-slate-600 mb-1 block">End Time</label>
-                                    <input
-                                        type="datetime-local"
-                                        value={widget.end_time ? widget.end_time.replace(' ', 'T') : ''}
-                                        onChange={(e) => handleFieldChange('end_time', e.target.value.replace('T', ' '))}
-                                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-blue-500"
-                                    />
-                                </div>
+                                <DateTimeInput
+                                    label="End Date & Time"
+                                    value={widget.end_time || ''}
+                                    onChange={(val) => handleFieldChange('end_time', val)}
+                                    required
+                                />
 
                                 {/* Background Multimedia Editor */}
                                 <div className="border-t border-slate-200 pt-4">
@@ -406,11 +404,11 @@ const HeaderConfiguration = ({ headerWidgets, onUpdate }) => {
 
                                                                 // Upload to Google Drive
                                                                 setUploadingMedia(true);
-                                                                toast.loading('Uploading to Drive...', { id: 'drive-upload' });
+                                                                toast.loading('Uploading...', { id: 'drive-upload' });
 
                                                                 try {
-                                                                    const result = await GoogleSheetService.uploadMediaToDrive(file);
-                                                                    console.log('[HeaderConfig] Drive upload result:', result);
+                                                                    const result = await LocalApiService.uploadMedia(file);
+                                                                    console.log('[HeaderConfig] Upload result:', result);
 
                                                                     if (result.success) {
                                                                         // Store ALL Drive info in multimedia - use fresh reference from widget
@@ -424,7 +422,7 @@ const HeaderConfiguration = ({ headerWidgets, onUpdate }) => {
                                                                             driveFileName: result.fileName
                                                                         });
                                                                         console.log('[HeaderConfig] Set multimedia with driveFileId:', result.fileId);
-                                                                        toast.success('Uploaded to Drive!', { id: 'drive-upload' });
+                                                                        toast.success('Uploaded!', { id: 'drive-upload' });
                                                                     } else {
                                                                         toast.error('Upload failed: ' + result.error, { id: 'drive-upload' });
                                                                     }
@@ -443,7 +441,7 @@ const HeaderConfiguration = ({ headerWidgets, onUpdate }) => {
                                                     {uploadingMedia && (
                                                         <div className="flex items-center gap-2 text-blue-600 text-xs mt-2">
                                                             <Loader2 size={14} className="animate-spin" />
-                                                            Uploading to Drive...
+                                                            Uploading...
                                                         </div>
                                                     )}
 
@@ -524,24 +522,18 @@ const HeaderConfiguration = ({ headerWidgets, onUpdate }) => {
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-xs font-medium text-slate-600 mb-1 block">Start Time</label>
-                                        <input
-                                            type="datetime-local"
-                                            value={widget.start_time ? widget.start_time.replace(' ', 'T') : ''}
-                                            onChange={(e) => handleFieldChange('start_time', e.target.value.replace('T', ' '))}
-                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-medium text-slate-600 mb-1 block">End Time</label>
-                                        <input
-                                            type="datetime-local"
-                                            value={widget.end_time ? widget.end_time.replace(' ', 'T') : ''}
-                                            onChange={(e) => handleFieldChange('end_time', e.target.value.replace('T', ' '))}
-                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm"
-                                        />
-                                    </div>
+                                    <DateTimeInput
+                                        label="Start Date & Time"
+                                        value={widget.start_time || ''}
+                                        onChange={(val) => handleFieldChange('start_time', val)}
+                                        required
+                                    />
+                                    <DateTimeInput
+                                        label="End Date & Time"
+                                        value={widget.end_time || ''}
+                                        onChange={(val) => handleFieldChange('end_time', val)}
+                                        required
+                                    />
                                 </div>
 
 
@@ -649,11 +641,11 @@ const HeaderConfiguration = ({ headerWidgets, onUpdate }) => {
 
                                                 // Upload to Google Drive
                                                 setUploadingMedia(true);
-                                                toast.loading('Uploading to Drive...', { id: 'drive-upload-secondary' });
+                                                toast.loading('Uploading...', { id: 'drive-upload-secondary' });
 
                                                 try {
-                                                    const result = await GoogleSheetService.uploadMediaToDrive(file);
-                                                    console.log('[HeaderConfig] Secondary Drive upload result:', result);
+                                                    const result = await LocalApiService.uploadMedia(file);
+                                                    console.log('[HeaderConfig] Secondary Upload result:', result);
 
                                                     if (result.success) {
                                                         // Store ALL Drive info in multimedia
@@ -668,7 +660,7 @@ const HeaderConfiguration = ({ headerWidgets, onUpdate }) => {
                                                             driveFileName: result.fileName
                                                         });
                                                         console.log('[HeaderConfig] Secondary multimedia set with driveFileId:', result.fileId);
-                                                        toast.success('Uploaded to Drive!', { id: 'drive-upload-secondary' });
+                                                        toast.success('Uploaded!', { id: 'drive-upload-secondary' });
                                                     } else {
                                                         toast.error('Upload failed: ' + result.error, { id: 'drive-upload-secondary' });
                                                     }
@@ -689,7 +681,7 @@ const HeaderConfiguration = ({ headerWidgets, onUpdate }) => {
                                     {uploadingMedia && (
                                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-2">
                                             <div className="animate-spin">⏳</div>
-                                            <p className="text-xs text-blue-700">Uploading to Google Drive...</p>
+                                            <p className="text-xs text-blue-700">Uploading media...</p>
                                         </div>
                                     )}
 
@@ -808,7 +800,7 @@ const HeaderConfiguration = ({ headerWidgets, onUpdate }) => {
                                                                 if (file) {
                                                                     try {
                                                                         toast.loading('Uploading...', { id: `carousel-${idx}` });
-                                                                        const result = await GoogleSheetService.uploadMediaToDrive(file);
+                                                                        const result = await LocalApiService.uploadMedia(file);
                                                                         if (result.success) {
                                                                             const newItems = [...widget.items];
                                                                             newItems[idx] = { ...newItems[idx], image: result.viewUrl, driveFileId: result.fileId };
@@ -951,7 +943,7 @@ const HeaderConfiguration = ({ headerWidgets, onUpdate }) => {
                                                                             if (file) {
                                                                                 try {
                                                                                     toast.loading('Uploading...', { id: `subcat-${idx}-${subIdx}` });
-                                                                                    const result = await GoogleSheetService.uploadMediaToDrive(file);
+                                                                                    const result = await LocalApiService.uploadMedia(file);
                                                                                     if (result.success) {
                                                                                         const newItems = [...widget.items];
                                                                                         const subCategories = [...(newItems[idx].subCategories || [])];

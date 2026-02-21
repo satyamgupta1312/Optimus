@@ -142,7 +142,10 @@ Central map of component strings → React components. The PropertyEditor resolv
 Generic rendering loop:
 1. Reads `config.properties` → renders PNC selectors (pills, toggle cards)
 2. Reads `config.fields` → filters by `condition(pnc)` → resolves `InputRegistry[field.component]` → passes `validateField()` errors inline
-3. Reads `config.additionalProperties` → renders advanced settings
+3. **App Config panel** (collapsible) — groups three optional sections under one toggle button:
+   - `config.additionalProperties` → Advanced Settings (OOS, PB tag, PB reorder)
+   - `config.filters` → FilterEditor (widget/item/product level filters)
+   - `config.appConfigurations` → AppConfigEditor (platform toggles, version constraints)
 
 Falls back to `LegacyPropertyEditor` for non-config-driven widgets.
 

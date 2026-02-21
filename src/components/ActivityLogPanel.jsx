@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Clock, User, Plus, Trash2, Edit, ChevronDown, Download, RefreshCw } from 'lucide-react';
 import { useActivityLog } from '../context/ActivityLogContext';
-import { GoogleSheetService } from '../services/GoogleSheetService';
+import { LocalApiService } from '../services/LocalApiService';
 
 /**
  * Activity Log Panel
@@ -61,16 +61,16 @@ const ActivityLogPanel = ({ className = '' }) => {
         URL.revokeObjectURL(url);
     };
 
-    // Feature 8: Load persisted audit log from Google Sheet
+    // Load persisted audit log from local backend
     const handleLoadFromSheet = async () => {
         setLoadingSheet(true);
         try {
-            const sheetLogs = await GoogleSheetService.fetchAuditLog();
-            sheetLogs.forEach(entry => {
-                logActivity(entry.action, entry.details || {}, entry.user || 'Unknown');
+            const result = await LocalApiService.getActivity();
+            (result.logs || []).forEach(entry => {
+                logActivity(entry.action, entry.details || {}, entry.user?.email || 'Unknown');
             });
         } catch (e) {
-            console.warn('[ActivityLogPanel] Load from sheet failed:', e);
+            console.warn('[ActivityLogPanel] Load from backend failed:', e);
         } finally {
             setLoadingSheet(false);
         }

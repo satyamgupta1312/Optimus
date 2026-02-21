@@ -100,7 +100,7 @@ The Product Rail is defined by a **composition of 3 properties**. All 8 variants
 | **1** | `true` | `true` | `multimedia_single_product_row_v2` |
 | **2** | `false` | `false` | `double_product_row` |
 | **2** | `true` | `false` | `double_product_row_v2` |
-| **2** | `false` | `true` | `multimedia_double_product_row` |
+| **2** | `false` | `true` | ~~`multimedia_double_product_row`~~ **NOT AVAILABLE** |
 | **2** | `true` | `true` | `multimedia_double_product_row_v2` |
 
 ### 3.2 Unified Creation Path

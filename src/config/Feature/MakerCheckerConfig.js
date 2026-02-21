@@ -126,16 +126,32 @@ export const BUTTON_VISIBILITY = {
 };
 
 // ── Submit Payload (Maker → Local API) ──
+// Updated: Maker now selects which widgets to include before submitting.
+// A modal shows all canvas widgets with checkboxes (all pre-selected by default).
 export const SUBMIT_PAYLOAD = {
     fields: {
-        widgetIds: '$canvasWidgetIds', // Array of widget IDs to include
-        headerWidgets: '$headerWidgets', // { primaryMasthead, secondaryMasthead } (cleaned JSON)
+        widgetIds: '$selectedWidgetIds', // Only the body widget IDs selected in the submit modal
+        headerWidgets: '$selectedHeaderWidgets', // Only selected header widgets (cleaned JSON)
+    },
+    selectionFlow: {
+        trigger: 'Submit button opens selection modal',
+        defaultState: 'All widgets pre-selected (body + header)',
+        minSelection: 1,
+        includesHeaderWidgets: true, // Header widgets shown as selectable items in submit modal
+        headerWidgetDisplay: 'Purple highlight with HEADER badge — shown above body widgets',
+        modal: 'MainLayout.jsx — showSubmitModal state',
+        context: 'WidgetContext.jsx — submitSelection, openSubmitModal, toggleSubmitSelection',
+    },
+    slugHandling: {
+        description: 'Slug created by SlugBuilder is passed through as-is — no uniqueness check',
+        validation: 'Required field check only (slug cannot be empty)',
+        storage: 'Same slug stored directly in Prisma DB',
     },
     headerCleaning: 'File objects removed from headerWidgets for serialization',
     service: 'LocalApiService.createRequest() + LocalApiService.submitRequest()',
     onSuccess: {
         statusChange: 'PENDING',
-        toast: 'Page submitted for review!',
+        toast: '{N} widget(s) submitted for review!',
         editLocked: true,
     },
 };
@@ -168,10 +184,23 @@ export const CHECKER_ACTIONS = {
         toast: 'Page reset to draft mode',
     },
     deploy: {
-        description: 'Manual re-deployment bypassing local API (if automation failed)',
+        description: 'Deploy approved widgets to Django backend via API calls',
         service: 'BackendSyncService.deployRequest()',
         requiresCsrf: true,
+        csrfSource: 'Auto-read from session cookie via getCsrfToken() (AuthService.js)',
+        csrfPrompt: false,  // No manual prompt — auto-read from cookie
         toast: null, // varies by result
+        multimediaStep: 'Step 0: POST /api/app/multimedia/ — only when has_multimedia=true, before widget creation',
+        mappingHelper: 'postMapping() — dedicated helper, no csrfmiddlewaretoken in body, Blob+3-arg append',
+        stateWiseProducts: 'Creates per-state sub-category items when widget.stateProducts has multiple keys',
+    },
+    approveAndDeploy: {
+        description: 'One-click: approve in Prisma + deploy to Django backend in sequence',
+        steps: ['LocalApiService.approveRequest()', 'BackendSyncService.deployRequest()'],
+        requiresCsrf: true,
+        csrfSource: 'Auto-read from session cookie via getCsrfToken() (AuthService.js)',
+        toast: 'Approved! → Deploying...',
+        note: 'Approve updates Prisma status only. Deploy makes actual API calls to Django backend.',
     },
 };
 
@@ -179,7 +208,7 @@ export const CHECKER_ACTIONS = {
 export const APPROVAL_ROUTING = {
     source: 'server/routes/requests.js',
     entryFunction: 'POST /api/local/requests/:id/approve',
-    authentication: 'X-Optimus-User header — auth middleware upserts User in Prisma',
+    authentication: 'X-Optimus-User + X-Optimus-Env headers — auth middleware upserts User in Prisma, resolves role per-environment',
     widgetRoutes: {
         'Single Product Row Optimize': { handler: 'server/routes/requests.js', description: 'PLP Ecosystem + Homepage Row' },
         'Single Product Row': { handler: 'server/routes/requests.js', description: 'Standard Widget + Page Layout' },
@@ -268,5 +297,6 @@ export const UI_COMPONENTS = {
     BackendSyncService: { file: 'src/services/BackendSyncService.js', role: 'Direct backend deployment' },
     LocalApiService: { file: 'src/services/LocalApiService.js', role: 'Express backend API client (submit, approve, widgets, users, catalog)' },
     ValidationService: { file: 'src/services/ValidationService.js', role: 'Pre-submit validation + slug uniqueness checks' },
-    PrismaSchema: { file: 'server/prisma/schema.prisma', role: 'Database models (Widget, Request, RequestWidget, User, etc.)' },
+    PrismaSchema: { file: 'server/prisma/schema.prisma', role: 'Database models (Widget with env field, Request, RequestWidget, User, etc.)' },
+    SnapshotPreview: { file: 'src/components/Dashboard/SnapshotPreview.jsx', role: 'Visual widget renderer from version snapshot — used in WidgetVersionHistory Preview tab' },
 };

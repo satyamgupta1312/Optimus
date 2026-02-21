@@ -22,14 +22,19 @@
  * Validate a single field value against its config.
  * @param {Object} field - Field config (from config.fields[])
  * @param {*} value - Current field value
+ * @param {Object} [context] - Optional context { pnc } for dynamic validation rules
  * @returns {string|null} Error message or null if valid
  */
-export function validateField(field, value) {
+export function validateField(field, value, context = {}) {
     const rules = field.validation;
     if (!rules) return null;
 
-    // Required check
-    if (rules.required) {
+    // Required check — supports function(pnc) for conditional required
+    const isRequired = typeof rules.required === 'function'
+        ? rules.required(context.pnc || {})
+        : rules.required;
+
+    if (isRequired) {
         if (value === undefined || value === null || value === '') {
             return field.errorMessage || `${field.label} is required`;
         }
@@ -37,10 +42,18 @@ export function validateField(field, value) {
         if (Array.isArray(value) && value.length === 0) {
             return field.errorMessage || `${field.label} requires at least one item`;
         }
+        // Object-based required (e.g. StateProductEditor — global key must have content)
+        if (typeof value === 'object' && !Array.isArray(value) && !(value instanceof File)) {
+            if (!value.global || !value.global.trim()) {
+                return field.errorMessage || `${field.label}: global products are required`;
+            }
+        }
     }
 
-    // Skip further checks if value is empty and not required
-    if (!value && !rules.required) return null;
+    // Skip further checks if value is empty/falsy and not required
+    if (!value && !isRequired) return null;
+    // Skip further checks for objects (StateProductEditor etc.) — required already validated above
+    if (typeof value === 'object' && !Array.isArray(value) && !(value instanceof File)) return null;
 
     // String validations
     if (typeof value === 'string') {
@@ -110,7 +123,7 @@ export function validateWidget(config, widgetState = {}) {
             continue;
         }
 
-        errors[field.name] = validateField(field, widgetState[field.name]);
+        errors[field.name] = validateField(field, widgetState[field.name], { pnc });
     }
 
     return errors;

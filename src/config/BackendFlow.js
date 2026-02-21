@@ -94,6 +94,9 @@ export const SUBMIT_PAYLOAD_SCHEMA = {
 // ── Database Fields ──
 // Maps payload data to their Prisma DB table fields.
 export const DB_FIELDS = {
+    widget: {
+        env: { type: 'string', default: 'PROD', values: ['UAT', 'PROD'], description: 'Environment — same slug allowed in both. Unique constraint: @@unique([slug, env])' },
+    },
     request: {
         id: { type: 'uuid', auto: true, description: 'Prisma auto-generated UUID' },
         submittedBy: { type: 'string', source: 'req.user.id', description: 'User FK from auth middleware' },
@@ -147,6 +150,17 @@ export const VALIDATION_RULES = {
 // Maps internal widget type (from canvas) → backend handler.
 // Previously routed to Apps Script functions; now handled by Express routes.
 export const APPROVAL_ROUTING = {
+    // Config-driven Product Rail (all 8 SPR/DPR variants via PNC resolution)
+    'product_rail': {
+        handler: 'BackendSyncService.js',
+        fn: 'deploySPROptimized / deploySPRStandard (based on pnc.is_optimized)',
+        description: 'PNC → resolveWidgetType() → routes to optimized or standard deploy flow',
+        pncRouting: true,
+        multimediaUpload: 'Step 0: POST /api/app/multimedia/ when has_multimedia=true (before widget creation)',
+        stateWiseProducts: 'stateProducts: { global, jh, cg, ... } → per-state sub-category widget items',
+        titleOptional: 'Title not required when has_multimedia=true',
+    },
+    // Legacy type names (backward compat)
     'Single Product Row Optimize': {
         handler: 'server/routes/requests.js',
         fn: 'createSPROptimizedWidget',
@@ -256,6 +270,63 @@ export const ERROR_CATALOGUE = [
     },
 ];
 
+// ── Deploy Config ─────────────────────────────────────────────────────────
+// Controls how CSRF tokens are obtained for deploy requests.
+// Previously: manual prompt() for CSRF token.
+// Now: auto-read from session cookie set during login.
+export const DEPLOY_CONFIG = {
+    csrfSource: 'cookie',                    // Read from document.cookie (csrftoken)
+    csrfFunction: 'getCsrfToken()',           // Exported from AuthService.js
+    fallback: 'Toast error — re-login',       // If no token found
+    manualPrompt: false,                      // No longer prompts user
+    multimediaUpload: {
+        endpoint: '/api/app/multimedia/',
+        method: 'POST',
+        contentType: 'multipart/form-data',
+        trigger: 'has_multimedia=true && background_media is File',
+        step: 'Step 0 — before widget creation',
+        fields: ['name', 'multimedia_type=3', 'file_en', 'aspect_ratio=1', 'transition_color', 'accent_color', 'text_color', 'icon_bg_color', 'is_multimedia_dark'],
+    },
+    mappingHelper: {
+        function: 'postMapping()',
+        description: 'Dedicated helper for CSV mapping — no csrfmiddlewaretoken in form body, uses Blob+3-arg append',
+        csvFileFormat: 'new Blob([content], {type: text/csv}), filename: mapping.csv',
+    },
+    stateWiseProducts: {
+        source: 'widget.stateProducts',
+        format: '{ global: "1,2,3", jh: "4,5", cg: "6,7" }',
+        deployBehavior: 'Creates per-state sub-category widget items with location-wise mapping CSV',
+        globalFallback: 'widget.products[] if stateProducts not present',
+    },
+};
+
+// ── Approve vs Deploy Distinction ─────────────────────────────────────────
+// IMPORTANT: Approve ≠ Deploy. These are two separate steps.
+//   Approve: Updates Prisma DB status (PENDING → APPROVED). No backend API calls.
+//   Deploy:  Makes actual API calls to Django backend (POST widget, mappings, etc.)
+//
+// Three ways to deploy:
+//   1. "Approve" button → only updates Prisma. Then "Deploy" button separately.
+//   2. "Approve & Deploy" button → does both in one click (approve Prisma + deploy backend).
+//   3. "Deploy" button on already-APPROVED requests → re-deploy (manual sync).
+export const APPROVE_DEPLOY_FLOW = {
+    approveOnly: {
+        service: 'LocalApiService.approveRequest()',
+        effect: 'Prisma status → APPROVED (no backend API calls)',
+        uiButton: 'Approve',
+    },
+    deployOnly: {
+        service: 'BackendSyncService.deployRequest()',
+        effect: 'POST/PATCH widgets to Django backend',
+        uiButton: 'Deploy (visible on APPROVED requests in All History tab)',
+    },
+    approveAndDeploy: {
+        services: ['LocalApiService.approveRequest()', 'BackendSyncService.deployRequest()'],
+        effect: 'Prisma status → APPROVED + backend API calls in sequence',
+        uiButton: 'Approve & Deploy',
+    },
+};
+
 // ── Workflow Summary (for WidgetRegistry integration) ──
 // Consumed by WidgetRegistry.getWorkflowConfig() to expose workflow info.
 // Updated: Feb 2026 — synced with wiki/Backend-work-flow.md §9 (Reliability Improvements)
@@ -279,24 +350,30 @@ export const WORKFLOW_SUMMARY = {
 };
 
 // ── Widget Selection Config ─────────────────────────────────────────────────
-// Controls Checker's partial widget selection in RequestQueue before approval.
-// Mirrors the rules documented in wiki/Backend-work-flow.md — Step 7.1
+// Controls widget selection for both Maker (submit) and Checker (approval).
+// Maker: selects which widgets to include in a submit request (Step 4.1).
+// Checker: selects which widgets to approve from a pending request (Step 7.1).
+// Wiki Reference: wiki/Backend-work-flow.md — Step 4.1 & Step 7.1
 export const WIDGET_SELECTION_CONFIG = {
-    // Minimum widgets that must be selected before Approve is allowed
-    minSelection: 1,
+    // ── Maker Submit Selection ──
+    maker: {
+        enabled: true,                             // Show widget picker modal before submit
+        defaultState: 'all_selected',              // All body + header widgets pre-selected by default
+        minSelection: 1,                           // At least 1 widget must be selected to submit
+        includesHeaderWidgets: true,               // Header widgets (mastheads) shown as selectable items
+        headerWidgetKeys: ['primaryMasthead', 'secondaryMasthead'],
+        modalTitle: 'Submit for Review',
+        modalDescription: 'Select widgets to send for approval',
+    },
 
-    // Separate selection sets for body vs header widgets
-    bodySelectionKey: 'selectedWidgets',           // Map<reqId, Set<widgetIndex>>
-    headerSelectionKey: 'selectedHeaderWidgets',   // Map<reqId, Set<headerKey>>
-
-    // Supported header widget keys (must match req.headerWidgets shape)
-    headerWidgetKeys: ['primaryMasthead', 'secondaryMasthead'],
-
-    // If true, Maker role does not see checkboxes (read-only list)
-    makerReadOnly: true,
-
-    // Status where selection UI is shown
-    allowedStatuses: ['PENDING'],
+    // ── Checker Approval Selection ──
+    checker: {
+        minSelection: 1,                           // At least 1 widget must be selected to approve
+        bodySelectionKey: 'selectedWidgets',        // Map<reqId, Set<widgetIndex>>
+        headerSelectionKey: 'selectedHeaderWidgets',// Map<reqId, Set<headerKey>>
+        headerWidgetKeys: ['primaryMasthead', 'secondaryMasthead'],
+        allowedStatuses: ['PENDING'],              // Selection UI only for PENDING requests
+    },
 };
 
 
@@ -327,4 +404,32 @@ export const FETCHED_WIDGET_UPDATE_STRATEGY = {
     slugField: 'slug_name',              // Field containing the existing backend slug
     preferMethod: 'PATCH',              // Prefer PATCH for updates; falls back to POST if PATCH 405
     skipSlugCheck: true,                 // Skip slug uniqueness check for fetched widgets
+};
+
+// ── Widget Environment Isolation ─────────────────────────────────────────────
+// Widget model has `env` field (UAT | PROD, default PROD).
+// All widget CRUD routes filter by `req.env` (resolved from X-Optimus-Env header).
+// Same slug allowed in both environments — unique constraint: @@unique([slug, env])
+export const WIDGET_ENV_CONFIG = {
+    field: 'env',
+    values: ['UAT', 'PROD'],
+    default: 'PROD',
+    uniqueConstraint: '@@unique([slug, env])',
+    routesFiltered: ['GET /widgets', 'POST /widgets', 'POST /:id/duplicate'],
+    headerSource: 'X-Optimus-Env',
+    frontendStorage: 'localStorage.optimus_env',
+};
+
+// ── Version History Pagination ─────────────────────────────────────────────────
+// GET /widgets/:id/versions supports cursor-based pagination.
+export const VERSION_PAGINATION_CONFIG = {
+    defaultLimit: 20,
+    maxLimit: 100,
+    cursorField: 'version',
+    cursorDirection: 'lt',              // Load versions with version < cursor
+    responseShape: {
+        versions: 'Array<WidgetVersion>',
+        hasMore: 'boolean',
+        nextCursor: 'number | null',
+    },
 };

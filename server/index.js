@@ -11,6 +11,7 @@ import catalogRouter from './routes/catalog.js';
 import activityRouter from './routes/activity.js';
 import commentsRouter from './routes/comments.js';
 import headerWidgetsRouter from './routes/headerWidgets.js';
+import mediaRouter from './routes/media.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -18,6 +19,10 @@ const PORT = process.env.PORT || 3001;
 // ── Middleware ──
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// ── Public routes (no auth — served by <img> tags which can't send headers) ──
+app.use('/api/local/media', mediaRouter);
+
 app.use('/api/local', authMiddleware);
 
 // ── Routes ──

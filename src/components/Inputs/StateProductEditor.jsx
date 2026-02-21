@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Trash2, MapPin, Globe } from 'lucide-react';
 import { STATE_DEFINITIONS } from '../../config/widgets/MastheadConfig';
 
@@ -19,6 +19,19 @@ const StateProductEditor = ({
     disabled,
 }) => {
     const [showStateMenu, setShowStateMenu] = useState(false);
+    const menuRef = useRef(null);
+
+    // Close dropdown on outside click
+    useEffect(() => {
+        if (!showStateMenu) return;
+        const handleClickOutside = (e) => {
+            if (menuRef.current && !menuRef.current.contains(e.target)) {
+                setShowStateMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showStateMenu]);
 
     const activeStates = Object.keys(value).filter(k => k !== 'global');
     const availableStates = Object.entries(STATE_DEFINITIONS)
@@ -102,7 +115,7 @@ const StateProductEditor = ({
 
             {/* Add State button */}
             {!disabled && availableStates.length > 0 && (
-                <div className="relative">
+                <div className="relative" ref={menuRef}>
                     <button
                         onClick={() => setShowStateMenu(!showStateMenu)}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"

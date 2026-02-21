@@ -2,10 +2,11 @@
 import React from 'react';
 import { useWidgetContext } from '../../context/WidgetContext';
 import { Plus, Trash2 } from 'lucide-react';
-import { GoogleSheetService } from '../../services/GoogleSheetService';
+import { LocalApiService } from '../../services/LocalApiService';
 import { searchProduct } from '../../services/CatalogService';
 import ImageUpload from '../ImageUpload';
 import SlugBuilder from '../Inputs/SlugBuilder';
+import DateTimeInput from '../Inputs/DateTimeInput';
 
 /**
  * LegacyPropertyEditor
@@ -44,26 +45,20 @@ const LegacyPropertyEditor = ({ widget }) => {
 
                     {/* Start Time: Hide for SPR Optimize and Banner PLP */}
                     {!isSPROpt && !isBannerPLP && (
-                        <div>
-                            <label className="text-xs font-medium text-slate-500 mb-1 block">Start Time</label>
-                            <input
-                                type="datetime-local"
-                                value={widget.startTime || ''}
-                                onChange={(e) => handleChange('startTime', e.target.value)}
-                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-blue-500 transition-colors"
-                            />
-                        </div>
+                        <DateTimeInput
+                            label="Start Date & Time"
+                            value={widget.startTime || ''}
+                            onChange={(val) => handleChange('startTime', val)}
+                            required
+                        />
                     )}
 
-                    <div>
-                        <label className="text-xs font-medium text-slate-500 mb-1 block">End Time</label>
-                        <input
-                            type="datetime-local"
-                            value={widget.endTime || ''}
-                            onChange={(e) => handleChange('endTime', e.target.value)}
-                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-blue-500 transition-colors"
-                        />
-                    </div>
+                    <DateTimeInput
+                        label="End Date & Time"
+                        value={widget.endTime || ''}
+                        onChange={(val) => handleChange('endTime', val)}
+                        required
+                    />
 
                     <div>
                         <label className="text-xs font-medium text-slate-500 mb-1 block">Title (English)</label>
@@ -221,11 +216,13 @@ const LegacyPropertyEditor = ({ widget }) => {
 
                                             console.log('[PropertyEditor] Fetching products for IDs:', ids);
 
-                                            // Reuse Fetch Logic (Simplified)
+                                            // Fetch from local catalog
                                             let fetchedProducts = [];
                                             try {
-                                                fetchedProducts = await GoogleSheetService.fetchProductsByItemCodes(ids);
-                                            } catch (err) { console.warn("Sheet fetch failed", err); }
+                                                const batchResult = await LocalApiService.batchCatalog(ids);
+                                                // batchResult is a map { code: product }, convert to array
+                                                fetchedProducts = Object.values(batchResult || {});
+                                            } catch (err) { console.warn("Catalog fetch failed", err); }
 
                                             const newProducts = ids.map(id => {
                                                 // Check Sheet results then Local Catalog
@@ -307,13 +304,14 @@ const LegacyPropertyEditor = ({ widget }) => {
 
                                     let fetchedProducts = [];
 
-                                    // Try Google Sheets first
+                                    // Fetch from local catalog
                                     try {
-                                        console.log('[PropertyEditor] Attempting Google Sheets fetch...');
-                                        fetchedProducts = await GoogleSheetService.fetchProductsByItemCodes(ids);
-                                        console.log('[PropertyEditor] Google Sheets returned:', fetchedProducts.length, 'products');
+                                        console.log('[PropertyEditor] Fetching from local catalog...');
+                                        const batchResult = await LocalApiService.batchCatalog(ids);
+                                        fetchedProducts = Object.values(batchResult || {});
+                                        console.log('[PropertyEditor] Local catalog returned:', fetchedProducts.length, 'products');
                                     } catch (error) {
-                                        console.warn('[PropertyEditor] Google Sheets unavailable, using local catalog:', error.message);
+                                        console.warn('[PropertyEditor] Catalog fetch failed:', error.message);
                                     }
 
                                     const newProducts = [];
@@ -329,10 +327,10 @@ const LegacyPropertyEditor = ({ widget }) => {
                                         if (!p) {
                                             p = searchProduct(id);
                                             if (p) {
-                                                console.log('[PropertyEditor] Found in local catalog:', id);
+                                                console.log('[PropertyEditor] Found in local catalog fallback:', id);
                                             }
                                         } else {
-                                            console.log('[PropertyEditor] Found in Google Sheets:', id);
+                                            console.log('[PropertyEditor] Found in batch catalog:', id);
                                         }
 
                                         if (p) {

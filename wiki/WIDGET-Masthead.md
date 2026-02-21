@@ -194,18 +194,40 @@ Widget (masthead_primary)
         └── file_en: [Binary blob]
 ```
 
-## 5. Key Configuration Fields
+## 5. Form Input Fields (Frontend Sidebar)
 
-### Widget Fields
+These are the fields the user fills in the PropertyEditor / HeaderConfiguration. The form is config-driven via `MastheadConfig.js`.
+
+| Field | Component | Required | Description | Condition |
+| :--- | :--- | :---: | :--- | :--- |
+| **Slug** | `SlugBuilder` | Yes | Unique identifier | Always |
+| **Background Media** | `ImageUpload` | No | Image/video/webm file upload for multimedia background | Always |
+| **Background Video URL** | `UrlInput` | No | Alternative: direct video URL (.mp4, .mov, .webm) | Always |
+| **Transition Color** | `ColorPicker` | No | Transition color (default `#FFFFFF`) | Always |
+| **Accent Color** | `ColorPicker` | No | Icon fill / accent color (default `#0000FF`) | Always |
+| **Text Color** | `ColorPicker` | No | Label text color (default `#FFFFFF`) | Always |
+| **Icon Bg Color** | `ColorPicker` | No | Icon container background (default `#F0F0F0`) | Always |
+| **Dark Theme** | `ToggleInput` | No | `is_multimedia_dark` flag (default `false`) | Always |
+| **Aspect Ratio** | `PillSelector` | No | `1:1`, `4:3`, `16:9`, `Full` (Primary default `1`, Secondary default `4`) | Always |
+| **Master Key** | `TextInput` | No | Link to category pane widget | Primary only |
+| **Start Time** | `DateTimeInput` | Yes | Activation start | Always |
+| **End Time** | `DateTimeInput` | Yes | Activation end | Always |
+| **Carousel Items** | `ScrollItemEditor` | Yes | Nested carousel items with sub-categories | Secondary only |
+
+> **Background input**: User provides EITHER a file upload (`background_media`) OR a URL (`background_video`). During deploy, file is uploaded to `/api/app/multimedia/` and the returned slug is used as `background_multimedia` in the widget payload.
+
+> **Color fields**: These are form inputs (ColorPicker components), not just API payload fields. Users can customize all 4 colors from the sidebar.
+
+### Widget API Fields (Backend Payload)
 
 | Field | Type | Required | Description | Example |
 | :--- | :--- | :---: | :--- | :--- |
 | `slug_name` | String | Yes | Unique identifier | `diwali_2024_pm_hp` |
 | `widget_type` | String | Yes | Must be `masthead_primary` | `masthead_primary` |
 | `master_key` | String | No | Link to category pane widget | `1020` |
-| `background_multimedia` | String | No | Multimedia slug for background | `diwali_2024_bg` |
-| `start_time` | DateTime | Yes | Activation start (via `DateTimeInput` calendar + time picker) | `2024-03-01T10:00:00` |
-| `end_time` | DateTime | Yes | Activation end (via `DateTimeInput` calendar + time picker) | `2025-03-01T10:00:00` |
+| `background_multimedia` | String | No | Multimedia slug for background (omit if empty) | `diwali_2024_bg` |
+| `start_time` | DateTime | Yes | Activation start | `2024-03-01T10:00:00` |
+| `end_time` | DateTime | Yes | Activation end | `2025-03-01T10:00:00` |
 | `media_aspect_ratio` | String | No | Aspect ratio (default `"1"`) | `1` |
 
 > Multimedia fields and colors are documented in the **Shared: Multimedia Background** section above.
@@ -911,6 +933,32 @@ The following filters and configurations are **universal** — they apply to the
 | **Default Aspect Ratio** | `1` | `4` |
 | **Frontend Component** | `PrimaryMasthead.jsx` | `SecondaryMasthead.jsx` |
 | **Widget Slug Suffix** | `_pm_hp` | `_sm_hp` |
+
+---
+
+## Initial State (Default Values)
+
+```javascript
+{
+    type: 'masthead',
+    pnc: { variant: 'primary', has_multimedia: false },
+    slug: '',
+    background_media: null,       // File upload (ImageUpload component)
+    background_video: '',         // Alternative: direct URL (UrlInput component)
+    transition_color: '#FFFFFF',  // ColorPicker
+    accent_color: '#0000FF',      // ColorPicker
+    text_color: '#FFFFFF',        // ColorPicker
+    icon_bg_color: '#F0F0F0',     // ColorPicker
+    is_multimedia_dark: false,    // ToggleInput
+    media_aspect_ratio: '1',      // PillSelector (Primary: '1', Secondary: '4')
+    master_key: '',               // Primary only
+    start_time: '',
+    end_time: '',
+    carouselItems: [],            // Secondary only
+}
+```
+
+**Config:** `MastheadConfig.js` → `initialState`
 
 ---
 

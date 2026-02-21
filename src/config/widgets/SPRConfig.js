@@ -51,6 +51,8 @@ export const SPRConfig = {
             label: 'Multimedia Background',
             description: 'Enable background image/video behind the product rail. Variant becomes multimedia_*.',
             ui: 'card',
+            disabledWhen: (pnc) => pnc.rows === 2 && !pnc.is_optimized,
+            disabledMessage: 'Not available for standard Double Row (use Optimized)',
         },
     },
 
@@ -79,7 +81,7 @@ export const SPRConfig = {
         // DPR (rows=2)
         { rows: 2, is_optimized: false, has_multimedia: false, widgetType: 'double_product_row' },
         { rows: 2, is_optimized: true, has_multimedia: false, widgetType: 'double_product_row_v2' },
-        { rows: 2, is_optimized: false, has_multimedia: true, widgetType: 'multimedia_double_product_row' },
+        { rows: 2, is_optimized: false, has_multimedia: true, widgetType: 'multimedia_double_product_row', available: false },
         { rows: 2, is_optimized: true, has_multimedia: true, widgetType: 'multimedia_double_product_row_v2' },
     ],
 
@@ -122,7 +124,7 @@ export const SPRConfig = {
             component: 'TextInput',
             label: 'Title (English)',
             autoTranslate: true,
-            validation: { required: true, minLength: 2, maxLength: 200 },
+            validation: { required: (pnc) => !pnc.has_multimedia, minLength: 2, maxLength: 200 },
             errorMessage: 'Title is required (2-200 chars)',
         },
         {
@@ -132,17 +134,26 @@ export const SPRConfig = {
             validation: { required: false },
         },
         {
-            name: 'products',
-            component: 'ProductListInput',
-            label: 'Products',
-            helperText: 'Enter Item Codes to fetch details',
+            name: 'stateProducts',
+            component: 'StateProductEditor',
+            label: 'Products (State-wise)',
+            helperText: 'Global is required. Add states for location-specific products.',
+            condition: (_pnc, widget) => widget?.pageType !== 'category_page',
             validation: {
-                required: true,
-                minItems: 1,
-                maxItems: 200,
-                itemValidator: (code) => /^\d+$/.test(code),
+                required: (_pnc, widget) => widget?.pageType !== 'category_page',
             },
-            errorMessage: 'At least 1 valid product code required (max 200)',
+            errorMessage: 'Global product codes are required',
+        },
+        {
+            name: 'subCategories',
+            component: 'SubCategoryList',
+            label: 'Sub-Categories',
+            helperText: 'Add sub-categories — each with name and state-wise products.',
+            condition: (_pnc, widget) => widget?.pageType === 'category_page',
+            validation: {
+                required: (_pnc, widget) => widget?.pageType === 'category_page',
+            },
+            errorMessage: 'At least one sub-category is required for category pages',
         },
         {
             name: 'background_media',
@@ -166,6 +177,22 @@ export const SPRConfig = {
                 pattern: /^https?:\/\/.+\.(mp4|mov|webm)$/i,
             },
             errorMessage: 'Must be a valid video URL (.mp4, .mov, .webm)',
+        },
+        {
+            name: 'view_all_background_color',
+            component: 'ColorPicker',
+            label: 'View All Background Color',
+            default: '#ffffff',
+            condition: (pnc) => pnc.has_multimedia,
+            validation: { required: false },
+        },
+        {
+            name: 'view_all_color',
+            component: 'ColorPicker',
+            label: 'View All Text Color',
+            default: '#000000',
+            condition: (pnc) => pnc.has_multimedia,
+            validation: { required: false },
         },
         {
             name: 'view_all_link',
@@ -533,9 +560,14 @@ export const SPRConfig = {
     // ── Initial State ──
     initialState: {
         type: 'product_rail',
-        title: 'New Collection',
-        products: [],
+        title: '',
+        stateProducts: { global: '' },
+        subCategories: [],
         pageType: 'product_listing_page',
+        expandPage: false,
+        plpWidgets: [],
+        view_all_background_color: '#ffffff',
+        view_all_color: '#000000',
         start_time: '',
         end_time: '',
         pnc: { rows: 1, is_optimized: true, has_multimedia: false },

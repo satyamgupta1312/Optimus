@@ -103,18 +103,59 @@ export const WIDGET_PAGE_TYPE_SUPPORT = {
         selectionLevel: 'per_widget',
         navigationMechanism: 'view_all_action_params',
     },
-    multimedia_double_product_row: {
-        supportsProductListingPage: true,
-        supportsCategoryPage: true,
-        selectionLevel: 'per_widget',
-        navigationMechanism: 'view_all_action_params',
-    },
+    // multimedia_double_product_row: NOT AVAILABLE — on hold, backend does not support this type
     multimedia_double_product_row_v2: {
         supportsProductListingPage: true,
         supportsCategoryPage: true,
         selectionLevel: 'per_widget',
         navigationMechanism: 'view_all_action_params',
     },
+};
+
+// ── Expand Page Feature ──
+// When page_type = product_listing_page, a toggle appears allowing the maker to add
+// additional widgets to the PLP page (turning it into a multi-widget experience).
+// Each added widget gets mapped to the same Page Layout via layout_widget mapping.
+//
+// UI Component: src/components/Editors/ExpandPageSection.jsx
+// Wiki: wiki/PLP-PAGE-widget-support.md §3-4
+export const EXPAND_PAGE_CONFIG = {
+    trigger: 'pageType === "product_listing_page"',
+    defaultState: false,
+    dataFields: {
+        expandPage: { type: 'boolean', default: false, description: 'Toggle to enable multi-widget PLP page' },
+        plpWidgets: { type: 'array', default: [], description: 'Array of widget objects added to the PLP page' },
+    },
+    plpWidgetShape: {
+        id: 'uuid',
+        type: 'string (widget_type from supportedTypes)',
+        label: 'string (display name)',
+        title: 'string (widget heading)',
+        stateProducts: '{ global: string, [stateKey]: string }',
+    },
+    supportedTypes: [
+        { type: 'carousel', label: 'Carousel' },
+        { type: 'masthead_secondary_category_hp', label: 'Secondary Masthead' },
+        { type: 'single_product_row', label: 'SPR Standard' },
+        { type: 'single_product_row_v2', label: 'SPR Optimized' },
+        { type: 'multimedia_single_product_row', label: 'Multimedia SPR' },
+        { type: 'multimedia_single_product_row_v2', label: 'Multimedia SPR V2' },
+        { type: 'double_product_row', label: 'Double Row' },
+        { type: 'double_product_row_v2', label: 'Double Row V2' },
+        // multimedia_double_product_row: NOT AVAILABLE — on hold
+        { type: 'multimedia_double_product_row_v2', label: 'MM Double Row V2' },
+    ],
+    unsupported: ['category'], // Category Grid NOT supported on PLP pages
+    deployBehavior: {
+        description: 'Each PLP widget creates its own 3-layer ecosystem (sub-cat → PLP widget → mapping) and all get mapped to the SAME page layout with incremental priority',
+        mappingEndpoint: '/api/app/update_layout_widget_mapping/',
+        priorityStart: 2, // Main widget = priority 1, expand widgets start from 2
+    },
+    integratedIn: [
+        { component: 'PropertyEditor.jsx', scope: 'per_widget', description: 'SPR/DPR — appears after pageType field' },
+        { component: 'ScrollItemEditor.jsx', scope: 'per_item', description: 'Carousel items — appears after pageType pill' },
+        { component: 'CarouselItemEditor.jsx', scope: 'per_item', description: 'Secondary Masthead items — appears after pageType pill' },
+    ],
 };
 
 // ── Universal PLP 3-Layer Ecosystem ──
@@ -192,7 +233,8 @@ export const NAVIGATION_MECHANISMS = {
             'single_product_row', 'single_product_row_v2',
             'double_product_row', 'double_product_row_v2',
             'multimedia_single_product_row', 'multimedia_single_product_row_v2',
-            'multimedia_double_product_row', 'multimedia_double_product_row_v2',
+            // multimedia_double_product_row: NOT AVAILABLE — on hold
+            'multimedia_double_product_row_v2',
         ],
     },
 };
@@ -220,7 +262,7 @@ export const PLP_APP_CONFIGURATIONS = {
             'multimedia_single_product_row_v2',
             'double_product_row',
             'double_product_row_v2',
-            'multimedia_double_product_row',
+            // multimedia_double_product_row: NOT AVAILABLE — on hold
             'multimedia_double_product_row_v2',
         ],
     },
@@ -238,7 +280,7 @@ export const LOCATION_MAPPING_SUPPORT = {
     multimedia_single_product_row_v2: { supported: true, stateAddition: 'dynamic' },
     double_product_row: { supported: true, stateAddition: 'dynamic' },
     double_product_row_v2: { supported: true, stateAddition: 'dynamic' },
-    multimedia_double_product_row: { supported: true, stateAddition: 'dynamic' },
+    // multimedia_double_product_row: NOT AVAILABLE — on hold
     multimedia_double_product_row_v2: { supported: true, stateAddition: 'dynamic' },
 };
 
@@ -302,7 +344,7 @@ export const FILTER_SUPPORT_MATRIX = {
     multimedia_single_product_row_v2: { widgetFilters: true, itemFilters: true, productFilters: true, appConfig: true, additionalProperties: true },
     double_product_row: { widgetFilters: true, itemFilters: true, productFilters: true, appConfig: true, additionalProperties: true },
     double_product_row_v2: { widgetFilters: true, itemFilters: true, productFilters: true, appConfig: true, additionalProperties: true },
-    multimedia_double_product_row: { widgetFilters: true, itemFilters: true, productFilters: true, appConfig: true, additionalProperties: true },
+    // multimedia_double_product_row: NOT AVAILABLE — on hold
     multimedia_double_product_row_v2: { widgetFilters: true, itemFilters: true, productFilters: true, appConfig: true, additionalProperties: true },
     masthead_primary: { widgetFilters: true, itemFilters: false, productFilters: false, appConfig: true, additionalProperties: false },
 };

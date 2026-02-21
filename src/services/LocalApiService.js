@@ -16,6 +16,7 @@ function getHeaders() {
       headers['X-Optimus-User'] = user.email || '';
       headers['X-Optimus-Role'] = user.role || 'MAKER';
     }
+    headers['X-Optimus-Env'] = localStorage.getItem('optimus_env') || 'PROD';
   } catch { /* ignore */ }
   return headers;
 }
@@ -53,7 +54,13 @@ export const LocalApiService = {
   deleteWidget: (id) => request(`/widgets/${id}`, { method: 'DELETE' }),
   duplicateWidget: (id) => request(`/widgets/${id}/duplicate`, { method: 'POST' }),
   reorderWidgets: (order) => request('/widgets', { method: 'PATCH', body: JSON.stringify({ order }) }),
-  getWidgetVersions: (id) => request(`/widgets/${id}/versions`),
+  getWidgetVersions: (id, { limit, cursor } = {}) => {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', limit);
+    if (cursor) params.set('cursor', cursor);
+    const qs = params.toString();
+    return request(`/widgets/${id}/versions${qs ? '?' + qs : ''}`);
+  },
 
   // ── Requests ──
   getRequests: (params) => {
@@ -90,6 +97,30 @@ export const LocalApiService = {
   getActivity: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
     return request(`/activity${qs ? '?' + qs : ''}`);
+  },
+  appendActivity: (data) =>
+    request('/activity', { method: 'POST', body: JSON.stringify(data) }),
+
+  // ── Media ──
+  uploadMedia: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const headers = {};
+    try {
+      const stored = localStorage.getItem('optimus_user');
+      if (stored) {
+        const user = JSON.parse(stored);
+        headers['X-Optimus-User'] = user.email || '';
+        headers['X-Optimus-Role'] = user.role || 'MAKER';
+      }
+      headers['X-Optimus-Env'] = localStorage.getItem('optimus_env') || 'PROD';
+    } catch { /* ignore */ }
+    const res = await fetch(`${BASE}/media/upload`, { method: 'POST', headers, body: formData });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(body.error || `HTTP ${res.status}`);
+    }
+    return res.json();
   },
 
   // ── Comments ──

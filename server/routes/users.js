@@ -11,11 +11,14 @@ router.get('/me', async (req, res) => {
 });
 
 // ── GET /users/checkers ──
-// Returns checker list + SUPER_ADMIN (non-removable)
-router.get('/checkers', async (_req, res, next) => {
+// Returns checker list for the current environment + SUPER_ADMIN (non-removable)
+router.get('/checkers', async (req, res, next) => {
   try {
-    // Get all users in the checker list
+    const env = req.env; // Set by auth middleware from X-Optimus-Env header
+
+    // Get all users in the checker list for THIS environment
     const checkers = await prisma.checkerList.findMany({
+      where: { env },
       include: { user: { select: { id: true, email: true, name: true, role: true } } },
     });
 
@@ -46,7 +49,7 @@ router.get('/checkers', async (_req, res, next) => {
 });
 
 // ── POST /users/checkers ──
-// Add a user to the checker list (SUPER_ADMIN only)
+// Add a user to the checker list for the current environment (SUPER_ADMIN only)
 router.post('/checkers', async (req, res, next) => {
   try {
     if (req.user.role !== 'SUPER_ADMIN') {
@@ -57,6 +60,7 @@ router.post('/checkers', async (req, res, next) => {
     if (!email) return res.status(400).json({ error: 'email is required' });
 
     const lowerEmail = email.toLowerCase();
+    const env = req.env;
 
     // SUPER_ADMIN cannot be added to checker list (already has all powers)
     if (lowerEmail === SUPER_ADMIN_EMAIL) {
@@ -70,11 +74,11 @@ router.post('/checkers', async (req, res, next) => {
       create: { email: lowerEmail, name: name || email.split('@')[0], role: 'CHECKER' },
     });
 
-    // Add to checker list (ignore if already exists)
+    // Add to checker list for THIS environment (ignore if already exists)
     await prisma.checkerList.upsert({
-      where: { userId: user.id },
+      where: { userId_env: { userId: user.id, env } },
       update: {},
-      create: { userId: user.id },
+      create: { userId: user.id, env },
     });
 
     res.status(201).json({ success: true, user: { id: user.id, email: user.email, name: user.name } });
@@ -82,7 +86,7 @@ router.post('/checkers', async (req, res, next) => {
 });
 
 // ── DELETE /users/checkers ──
-// Remove a user from the checker list (SUPER_ADMIN only)
+// Remove a user from the checker list for the current environment (SUPER_ADMIN only)
 router.delete('/checkers', async (req, res, next) => {
   try {
     if (req.user.role !== 'SUPER_ADMIN') {
@@ -93,6 +97,7 @@ router.delete('/checkers', async (req, res, next) => {
     if (!email) return res.status(400).json({ error: 'email is required' });
 
     const lowerEmail = email.toLowerCase();
+    const env = req.env;
 
     // Cannot remove SUPER_ADMIN
     if (lowerEmail === SUPER_ADMIN_EMAIL) {
@@ -102,10 +107,15 @@ router.delete('/checkers', async (req, res, next) => {
     const user = await prisma.user.findUnique({ where: { email: lowerEmail } });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    await prisma.checkerList.deleteMany({ where: { userId: user.id } });
+    // Delete only the checker entry for THIS environment
+    await prisma.checkerList.deleteMany({ where: { userId: user.id, env } });
 
-    // Reset role back to MAKER (auth middleware will resolve on next request)
-    await prisma.user.update({ where: { id: user.id }, data: { role: 'MAKER' } });
+    // Check if user is still a checker in ANY environment
+    const remainingEntries = await prisma.checkerList.count({ where: { userId: user.id } });
+    if (remainingEntries === 0) {
+      // No checker entries left — reset role to MAKER
+      await prisma.user.update({ where: { id: user.id }, data: { role: 'MAKER' } });
+    }
 
     res.json({ success: true });
   } catch (err) { next(err); }

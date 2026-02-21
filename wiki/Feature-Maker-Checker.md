@@ -137,20 +137,55 @@ const addWidget = (widget) => {
 1. Maker creates/edits widgets on the canvas
 2. Maker previews changes in the emulator (PhoneFrame)
 3. Maker clicks "Submit" button
-4. WidgetContext.submitForReview() is called
-5. ValidationService.validateAndCheckSlugs() runs pre-submit checks
-6. Header widgets are cleaned (File objects removed for serialization)
-7. Request payload is built:
+4. Widget Selection Modal opens (all widgets pre-selected by default)
+5. Maker selects/deselects widgets to include in the submission
+6. Maker clicks "Submit N Widgets" in modal
+7. WidgetContext.submitForReview(selectedWidgetIds) is called
+8. ValidationService.validateAndCheckSlugs() runs pre-submit checks on selected widgets only
+9. Slug auto-increment: if any slug already exists on backend,
+   system auto-appends _1, _2, ... to find available slug
+10. Header widgets are cleaned (File objects removed for serialization)
+11. Request payload is built with only the selected widgets + selected header widgets:
     {
-        widgets: [...all canvas widgets],
-        headerWidgets: { primaryMasthead, secondaryMasthead }
+        widgets: [...selected body widgets],
+        headerWidgets: { ...only selected mastheads }  // e.g. if Primary unchecked → omitted
     }
-8. LocalApiService.createRequest() sends to Express backend (POST /api/local/requests)
-9. Prisma creates Widget records + Request record + RequestWidget snapshots in one transaction
-10. pageStatus changes to PENDING
-11. Toast: "Page submitted for review!"
-12. All editing is now locked
+12. LocalApiService.createRequest() sends to Express backend (POST /api/local/requests)
+13. Prisma creates Widget records + Request record + RequestWidget snapshots in one transaction
+14. pageStatus changes to PENDING
+15. Toast: "N widget(s) submitted for review!"
+16. All editing is now locked
 ```
+
+### Widget Selection Modal
+
+Submit button click karne pe **selection modal** khulta hai. Maker choose karta hai konse widgets review ke liye bhejne hain.
+
+| Feature | Detail |
+| :--- | :--- |
+| Default state | All widgets pre-selected (body + header) |
+| Min selection | At least 1 widget required |
+| Header widgets | Primary Masthead + Secondary Masthead shown with purple HEADER badge |
+| Header selection | Mastheads are selectable/deselectable — unchecked mastheads are not submitted |
+| FETCHED badge | Green "FETCHED" badge on widgets loaded from backend |
+| Slug preview | Each widget's current slug shown in the list |
+| Select All / Deselect All | Quick toggle buttons at the top (includes header widgets) |
+| Section divider | "Body Widgets" divider separates header and body sections |
+
+**State Management:**
+- `submitSelection` (Set of widget IDs) — tracks which body + header widgets are selected
+- `showSubmitModal` — controls modal visibility
+- `openSubmitModal()` — initializes selection with all body widget IDs + header widget IDs and opens modal
+- `toggleSubmitSelection(widgetId)` — toggles individual widget (body or header)
+
+**Files:**
+- Modal UI: `src/components/Layout/MainLayout.jsx`
+- State: `src/context/WidgetContext.jsx`
+- Config: `WIDGET_SELECTION_CONFIG.maker` in `src/config/BackendFlow.js`
+
+### Slug Handling
+
+Slug ko as-is pass kiya jaata hai — **no uniqueness check, no auto-increment**. Jo slug SlugBuilder se create hota hai, wahi directly Prisma DB mein store hota hai. Sirf required check hota hai (slug empty nahi hona chahiye).
 
 ### What Gets Submitted
 
@@ -161,7 +196,7 @@ const addWidget = (widget) => {
 | Request Type | `"Homepage Update"` | `Request.type` |
 | Status | `"PENDING"` | `Request.status` |
 | Timestamp | `@default(now())` | `Request.createdAt` |
-| Widgets | All canvas widgets (JSON snapshots) | `RequestWidget.snapshot` (per widget) |
+| Widgets | **Selected** canvas widgets (JSON snapshots) | `RequestWidget.snapshot` (per widget) |
 | Header Widgets | Primary + Secondary Masthead (cleaned JSON) | `Request.headerWidgets` |
 
 ---
@@ -365,15 +400,38 @@ flowchart TD
 6. Toast: "Page reset to draft mode"
 ```
 
-#### Deploy (Manual Sync)
+#### Approve vs Deploy — Important Distinction
 
 ```
-1. Checker views an APPROVED request
-2. Clicks "Deploy"
-3. Prompted for CSRF token
-4. BackendSyncService.deployRequest() is called
-5. Direct API calls to backend (bypassing normal approval flow)
-6. Used for manual re-deployment if automation failed
+APPROVE ≠ DEPLOY. These are two separate steps:
+
+  Approve → Updates Prisma DB status only (PENDING → APPROVED).
+             NO backend API calls are made.
+  Deploy  → Makes actual POST/PATCH calls to Django backend
+             (creates widgets, mappings, etc.)
+```
+
+#### Deploy (from APPROVED request)
+
+```
+1. Checker opens "All History" tab in Queue
+2. Finds an APPROVED request
+3. Clicks "Deploy"
+4. CSRF token auto-read from session cookie via getCsrfToken() (AuthService.js)
+   - If no token found → toast error "Session expired — please re-login"
+5. BackendSyncService.deployRequest() is called
+6. Direct API calls to Django backend (POST widgets, map items, etc.)
+```
+
+#### Approve & Deploy (one-click)
+
+```
+1. Checker views a PENDING request
+2. Clicks "Approve & Deploy" button
+3. Step 1: LocalApiService.approveRequest() → Prisma status → APPROVED
+4. Step 2: BackendSyncService.deployRequest() → API calls to Django backend
+5. Both steps happen in sequence — if approve succeeds, deploy starts automatically
+6. CSRF token auto-read from session cookie (no manual prompt)
 ```
 
 ---
@@ -422,10 +480,15 @@ The Express backend uses **header-based auth** via `server/middleware/auth.js`:
 ```
 Every request:
   1. Read X-Optimus-User header (email)
-  2. Upsert User in Prisma DB
-  3. Check CheckerList table for CHECKER role
-  4. Set req.user = { id, email, name, role }
+  2. Read X-Optimus-Env header (UAT or PROD, default: PROD)
+  3. Upsert User in Prisma DB
+  4. Check CheckerList table for CHECKER role WHERE env = current env
+  5. Set req.user = { id, email, name, role }, req.env = env
 ```
+
+> **Environment Isolation:** CheckerList is scoped per environment. A user can be CHECKER in UAT but MAKER in PROD.
+>
+> **Widget Environment Isolation:** Widget model has `env` field (UAT | PROD). All widget CRUD routes filter by `req.env`. Same slug is allowed in both environments — unique constraint is `@@unique([slug, env])`.
 
 ### Response Format
 
@@ -454,10 +517,10 @@ Every request:
 | :--- | :--- | :--- |
 | **Request** | Approval workflow record | `id`, `status`, `submittedBy`, `headerWidgets`, `rejectionReason` |
 | **RequestWidget** | Snapshot of each widget at submission | `requestId`, `widgetId`, `snapshot` (JSON), `sortOrder` |
-| **Widget** | Central widget entity | `id`, `type`, `slug` (unique), `title`, `status`, `pnc`, `config`, `products` |
+| **Widget** | Central widget entity | `id`, `type`, `slug`, `env` (UAT/PROD, default PROD), `title`, `status`, `pnc`, `config`, `products`. Unique on `[slug, env]` — same slug allowed in both envs. |
 | **User** | User identity + role | `email` (unique), `name`, `role` (MAKER/CHECKER/SUPER_ADMIN) |
 | **ActivityLog** | Audit trail | `action`, `userId`, `targetId`, `details` (JSON) |
-| **CheckerList** | Users authorized as Checkers | `userId` (unique FK to User) |
+| **CheckerList** | Users authorized as Checkers (per env) | `userId`, `env` (UAT/PROD), unique on `[userId, env]` |
 
 ### API Routes (Express Backend)
 

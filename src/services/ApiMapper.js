@@ -7,6 +7,9 @@ export const mapApiToWidgets = (apiResponse) => {
         const base = {
             id: apiWidget.id?.toString() || crypto.randomUUID(),
             title: apiWidget.heading || '',
+            slug: apiWidget.slug_name || '',
+            slug_name: apiWidget.slug_name || '',
+            _fetched: true,
         };
 
         // 1. Single Product Row (v2) -> 'Single Product Row Optimize'

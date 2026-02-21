@@ -155,23 +155,24 @@ export const SCREEN_REGISTRY = [
         id: 'homepage_mapping',
         name: 'Homepage Mapping Dashboard',
         path: 'src/components/Dashboard/HomepageMappingDashboard.jsx',
-        purpose: 'View all widget-to-homepage mappings across environments.',
+        purpose: 'View all widgets from Prisma database, scoped by current environment. Shows env badge (PROD/UAT).',
         props: ['onClose'],
-        state: ['env', 'locationFilter', 'searchQuery', 'sortKey', 'sortDir', 'currentPage'],
+        state: ['widgets', 'loading', 'searchQuery', 'sortKey', 'sortDir', 'currentPage'],
         context: [],
-        mockData: 'src/data/mockHomepageMappings.js',
-        isNew: true,
+        dataSource: 'LocalApiService.getWidgets() — env-scoped via X-Optimus-Env header',
+        isNew: false,
     },
     {
         id: 'version_history',
         name: 'Widget Version History',
         path: 'src/components/Dashboard/WidgetVersionHistory.jsx',
-        purpose: 'View and restore previous widget versions.',
-        props: ['widgetId', 'widgetSlug', 'onClose'],
-        state: ['selectedVersion', 'versions'],
+        purpose: 'View, compare (diff), preview (visual render), and restore previous widget versions. Supports cursor-based pagination.',
+        props: ['widgetId', 'widgetSlug', 'onClose', 'onRestore'],
+        state: ['versions', 'loading', 'loadingMore', 'hasMore', 'nextCursor', 'selectedVersion', 'rightTab'],
         context: [],
-        mockData: 'src/data/mockVersionHistory.js',
-        isNew: true,
+        dataSource: 'LocalApiService.getWidgetVersions(id, { limit, cursor }) — paginated',
+        isNew: false,
+        children: ['TimelineEntry (React.memo)', 'SnapshotPreview'],
     },
     {
         id: 'deploy_status',
@@ -342,6 +343,17 @@ export const VERSION_HISTORY_CONFIG = {
         unchanged: 'text-slate-600',
         font: 'font-mono text-xs',
     },
+    tabs: ['diff', 'preview'],     // Right panel tab switcher
+    preview: {
+        containerWidth: 360,       // Phone width for snapshot preview
+        scale: 0.85,               // Scale factor inside container
+        sideBySide: true,          // Previous vs selected comparison
+    },
+    pagination: {
+        defaultLimit: 20,
+        maxLimit: 100,
+        loadMoreLabel: 'Load older versions',
+    },
 };
 
 // ── Homepage Mapping Table ──
@@ -378,7 +390,7 @@ export const COMPONENT_INTERFACES = {
         file: 'src/components/Inputs/SelectInput.jsx',
     },
     StateProductEditor: {
-        props: ['label', 'value: {global: string, [state]: string}', 'onChange', 'helperText'],
+        props: ['label', 'value: {global: string, [state]: string}', 'onChange', 'helperText', 'error', 'required', 'disabled'],
         file: 'src/components/Inputs/StateProductEditor.jsx',
     },
     FilterEditor: {
@@ -410,8 +422,13 @@ export const COMPONENT_INTERFACES = {
         file: 'src/components/Dashboard/HomepageMappingDashboard.jsx',
     },
     WidgetVersionHistory: {
-        props: ['widgetId', 'widgetSlug', 'onClose'],
+        props: ['widgetId', 'widgetSlug', 'onClose', 'onRestore'],
         file: 'src/components/Dashboard/WidgetVersionHistory.jsx',
+    },
+    SnapshotPreview: {
+        props: ['snapshot: object', 'label: string'],
+        file: 'src/components/Dashboard/SnapshotPreview.jsx',
+        description: 'Visual widget renderer from version snapshot. Uses same componentMap as WidgetRenderer. Wraps in stub WidgetContext.Provider.',
     },
     DeploymentStatusPanel: {
         props: ['results', 'onClose', 'onRetry'],
@@ -452,8 +469,8 @@ export const INTEGRATION_POINTS = {
     PropertyEditor: { context: ['useWidgetContext()'], service: 'WidgetRegistry, InputRegistry, ConfigValidator' },
     PhoneFrame: { context: ['useWidgetContext()'], service: 'DnD library' },
     RequestQueue: { context: ['useAuth()'], service: 'LocalApiService' },
-    HomepageMappingDashboard: { context: [], service: 'Mock data (future: HOMEPAGE_VIEW_API)' },
-    WidgetVersionHistory: { context: [], service: 'Mock data (future: GET /widgets/:id/versions)' },
+    HomepageMappingDashboard: { context: [], service: 'LocalApiService.getWidgets() — env-scoped via X-Optimus-Env header' },
+    WidgetVersionHistory: { context: [], service: 'LocalApiService.getWidgetVersions() — paginated (limit + cursor)' },
     DeploymentStatusPanel: { context: [], service: 'Mock data (future: BackendSyncService)' },
     FilterEditor: { context: [], service: 'Widget config (filters)' },
     AppConfigEditor: { context: [], service: 'Widget config (appConfigurations)' },

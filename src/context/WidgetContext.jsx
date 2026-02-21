@@ -8,7 +8,7 @@ import { useAuth } from './AuthContext';
 import { validateAndCheckSlugs } from '../services/ValidationService';
 import { LocalApiService } from '../services/LocalApiService';
 
-const WidgetContext = createContext();
+export const WidgetContext = createContext();
 
 export const useWidgetContext = () => {
     const context = useContext(WidgetContext);
@@ -271,12 +271,46 @@ export const WidgetProvider = ({ children }) => {
         setWidgets(newWidgets);
     };
 
+    // ── Maker Widget Selection for Submit ──
+    const [submitSelection, setSubmitSelection] = useState(new Set()); // Set of widget IDs selected for submit
+    const [showSubmitModal, setShowSubmitModal] = useState(false);
+
+    // Initialize selection with all widget IDs + header widget IDs when modal opens
+    const openSubmitModal = () => {
+        const allIds = new Set(widgets.map(w => w.id));
+        // Include header widgets that exist
+        if (headerWidgets.primaryMasthead) allIds.add(headerWidgets.primaryMasthead.id);
+        if (headerWidgets.secondaryMasthead) allIds.add(headerWidgets.secondaryMasthead.id);
+        setSubmitSelection(allIds);
+        setShowSubmitModal(true);
+    };
+
+    const toggleSubmitSelection = (widgetId) => {
+        setSubmitSelection(prev => {
+            const next = new Set(prev);
+            if (next.has(widgetId)) next.delete(widgetId);
+            else next.add(widgetId);
+            return next;
+        });
+    };
+
     // Workflow Actions
-    const submitForReview = async () => {
+    const submitForReview = async (selectedWidgetIds = null) => {
         try {
-            // ── Feature 2 & 4: Pre-Submit Validation + Slug Uniqueness Check ──
+            // Determine which widgets to submit
+            const widgetsToSubmit = selectedWidgetIds
+                ? widgets.filter(w => selectedWidgetIds.has(w.id))
+                : widgets;
+
+            if (widgetsToSubmit.length === 0) {
+                showToast.error('Please select at least 1 widget to submit.');
+                return;
+            }
+
+            // ── Pre-Submit Validation (field-level only, slug passed as-is) ──
             showToast.info('Validating widgets before submit...');
-            const validationResult = await validateAndCheckSlugs(widgets);
+            const validationResult = await validateAndCheckSlugs(widgetsToSubmit);
+
             if (!validationResult.valid) {
                 setValidationErrors(validationResult.errors);
                 const firstError = validationResult.errors[0];
@@ -290,8 +324,9 @@ export const WidgetProvider = ({ children }) => {
 
             // Clear previous validation errors
             setValidationErrors([]);
+            setShowSubmitModal(false);
 
-            console.log('Submitting to local backend...');
+            console.log(`Submitting ${widgetsToSubmit.length} of ${widgets.length} widgets to local backend...`);
 
             // Helper: Remove File objects from multimedia (can't be serialized)
             const cleanHeaderWidgets = (hw) => {
@@ -301,14 +336,23 @@ export const WidgetProvider = ({ children }) => {
                 }));
             };
 
+            // Only include header widgets that are selected
+            const selectedHeaders = {};
+            if (selectedWidgetIds?.has(headerWidgets.primaryMasthead?.id)) {
+                selectedHeaders.primaryMasthead = headerWidgets.primaryMasthead;
+            }
+            if (selectedWidgetIds?.has(headerWidgets.secondaryMasthead?.id)) {
+                selectedHeaders.secondaryMasthead = headerWidgets.secondaryMasthead;
+            }
+
             await LocalApiService.createRequest({
-                widgets: widgets,
-                headerWidgets: cleanHeaderWidgets(headerWidgets),
+                widgets: widgetsToSubmit,
+                headerWidgets: cleanHeaderWidgets(selectedHeaders),
             });
 
             setPageStatus('PENDING');
-            logActivity('page_submitted', { widgetCount: widgets.length, user: user?.email });
-            showToast.success('Page submitted for review!');
+            logActivity('page_submitted', { widgetCount: widgetsToSubmit.length, totalWidgets: widgets.length, user: user?.email });
+            showToast.success(`${widgetsToSubmit.length} widget(s) submitted for review!`);
         } catch (e) {
             console.error(e);
             showToast.error('Failed to submit: ' + e.message);
@@ -408,6 +452,13 @@ export const WidgetProvider = ({ children }) => {
             // Slug builder cache
             widgetSlugCache,
             setWidgetSlugCache,
+            // Maker submit selection
+            submitSelection,
+            setSubmitSelection,
+            toggleSubmitSelection,
+            showSubmitModal,
+            setShowSubmitModal,
+            openSubmitModal,
         }}>
             {children}
         </WidgetContext.Provider>

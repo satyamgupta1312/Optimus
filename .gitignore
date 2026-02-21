@@ -27,3 +27,9 @@ codebase/
 # Prisma SQLite database
 server/prisma/*.db
 server/prisma/*.db-journal
+
+# Credentials (service account keys)
+server/credentials/
+
+# Uploaded media files
+server/uploads/

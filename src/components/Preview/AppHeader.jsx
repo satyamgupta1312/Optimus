@@ -6,8 +6,12 @@ import PrimaryMasthead from '../Widgets/PrimaryMasthead';
 
 const AppHeader = () => {
     const { theme } = useAppSettings();
-    const { headerWidgets } = useWidgetContext();
+    const { headerWidgets, widgets, setSelectedWidgetId, selectedWidgetId } = useWidgetContext();
     const [mediaUrl, setMediaUrl] = useState(null);
+
+    // Find the config-driven primary masthead widget for selection
+    const primaryWidget = widgets.find(w => w.type === 'masthead' && w.pnc?.variant === 'primary');
+    const isSelected = primaryWidget && selectedWidgetId === primaryWidget.id;
 
     // Categories now handled by PrimaryMasthead component
 
@@ -100,8 +104,9 @@ const AppHeader = () => {
 
     return (
         <div
-            className={`flex flex-col shrink-0 z-20 sticky top-0 text-white transition-colors duration-300 relative overflow-hidden`}
+            className={`flex flex-col shrink-0 z-20 sticky top-0 text-white transition-colors duration-300 relative overflow-hidden cursor-pointer ${isSelected ? 'ring-2 ring-blue-500 ring-inset' : ''}`}
             style={getHeaderStyle()}
+            onClick={() => primaryWidget && setSelectedWidgetId(primaryWidget.id)}
         >
             {/* Video background - Local file (blob) */}
             {multimedia.type === 'video' && mediaUrl && (

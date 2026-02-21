@@ -7,10 +7,11 @@ const router = Router();
 // List all widgets, ordered by sortOrder
 router.get('/', async (req, res, next) => {
   try {
-    const { status, type } = req.query;
-    const where = {};
+    const { status, type, slug } = req.query;
+    const where = { env: req.env };
     if (status) where.status = status;
     if (type) where.type = type;
+    if (slug) where.slug = slug;
 
     const widgets = await prisma.widget.findMany({
       where,
@@ -40,6 +41,7 @@ router.post('/', async (req, res, next) => {
       data: {
         type,
         slug,
+        env: req.env,
         title: title || '',
         titleHi: titleHi || '',
         pnc: JSON.stringify(pnc || {}),
@@ -239,6 +241,7 @@ router.post('/:id/duplicate', async (req, res, next) => {
       data: {
         type: source.type,
         slug: source.slug + suffix,
+        env: source.env,
         title: source.title + ' (Copy)',
         titleHi: source.titleHi,
         status: 'DRAFT',
@@ -269,17 +272,32 @@ router.post('/:id/duplicate', async (req, res, next) => {
 });
 
 // ── GET /widgets/:id/versions ──
+// Supports pagination: ?limit=20&cursor=5 (cursor = version number to start before)
 router.get('/:id/versions', async (req, res, next) => {
   try {
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const cursor = parseInt(req.query.cursor) || null;
+
+    const where = { widgetId: req.params.id };
+    if (cursor) where.version = { lt: cursor };
+
     const versions = await prisma.widgetVersion.findMany({
-      where: { widgetId: req.params.id },
+      where,
       orderBy: { version: 'desc' },
+      take: limit,
     });
 
-    res.json(versions.map(v => ({
-      ...v,
-      snapshot: JSON.parse(v.snapshot),
-    })));
+    const hasMore = versions.length === limit;
+    const nextCursor = hasMore ? versions[versions.length - 1].version : null;
+
+    res.json({
+      versions: versions.map(v => ({
+        ...v,
+        snapshot: JSON.parse(v.snapshot),
+      })),
+      nextCursor,
+      hasMore,
+    });
   } catch (err) { next(err); }
 });
 

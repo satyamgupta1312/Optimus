@@ -59,7 +59,7 @@ const WidgetRenderer = ({ widget, isSelected, onClick, deleteWidget }) => {
         >
             {/* Action Buttons */}
             {isSelected && (
-                <div className="absolute top-2 right-2 z-10 flex gap-1">
+                <div className="absolute top-2 right-[72px] z-30 flex gap-1">
                     <button
                         onClick={(e) => {
                             e.stopPropagation();

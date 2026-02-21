@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { loginUser, logoutUser } from '../services/AuthService';
-import { GoogleSheetService } from '../services/GoogleSheetService';
+import { LocalApiService } from '../services/LocalApiService';
 
 const AuthContext = createContext();
 
@@ -28,7 +28,7 @@ export const AuthProvider = ({ children }) => {
     const fetchCheckerList = useCallback(async () => {
         setLoadingCheckers(true);
         try {
-            const users = await GoogleSheetService.getApprovalUsers();
+            const users = await LocalApiService.getCheckers();
             setCheckerList(users);
             return users;
         } catch (error) {
@@ -43,24 +43,33 @@ export const AuthProvider = ({ children }) => {
         try {
             const userData = await loginUser(email, password);
 
-            // Fetch checker list from Google Sheet to resolve dynamic roles
-            const approvalUsers = await GoogleSheetService.getApprovalUsers();
-            setCheckerList(approvalUsers);
+            // Store user early so LocalApiService has X-Optimus-User header
+            localStorage.setItem('optimus_user', JSON.stringify(userData));
 
-            // If user is not SUPER_ADMIN, check if they're in the checker list
-            if (userData.role !== 'SUPER_ADMIN') {
-                const isInCheckerList = approvalUsers.some(
-                    (u) => u.email.toLowerCase() === email.toLowerCase()
-                );
-                if (isInCheckerList) {
-                    userData.role = 'CHECKER';
+            // Fetch checker list from local backend to resolve dynamic roles
+            try {
+                const approvalUsers = await LocalApiService.getCheckers();
+                setCheckerList(approvalUsers);
+
+                // If user is not SUPER_ADMIN, check if they're in the checker list
+                if (userData.role !== 'SUPER_ADMIN') {
+                    const isInCheckerList = approvalUsers.some(
+                        (u) => u.email.toLowerCase() === email.toLowerCase()
+                    );
+                    if (isInCheckerList) {
+                        userData.role = 'CHECKER';
+                        localStorage.setItem('optimus_user', JSON.stringify(userData));
+                    }
                 }
+            } catch (e) {
+                console.warn('[AuthContext] Checker list fetch failed (non-blocking):', e.message);
             }
 
             setUser(userData);
-            localStorage.setItem('optimus_user', JSON.stringify(userData));
             return userData;
         } catch (error) {
+            // Login itself failed — clean up any early localStorage
+            localStorage.removeItem('optimus_user');
             throw error;
         }
     };
@@ -73,18 +82,14 @@ export const AuthProvider = ({ children }) => {
     };
 
     const addChecker = async (email, name) => {
-        const result = await GoogleSheetService.addApprovalUser(email, name);
-        if (result.success !== false) {
-            await fetchCheckerList();
-        }
+        const result = await LocalApiService.addChecker(email, name);
+        await fetchCheckerList();
         return result;
     };
 
     const removeChecker = async (email) => {
-        const result = await GoogleSheetService.removeApprovalUser(email);
-        if (result.success !== false) {
-            await fetchCheckerList();
-        }
+        const result = await LocalApiService.removeChecker(email);
+        await fetchCheckerList();
         return result;
     };
 

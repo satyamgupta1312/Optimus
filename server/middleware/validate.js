@@ -58,6 +58,21 @@ function checkRule(value, rule) {
 }
 
 /**
+ * Check if a field is exempt from the universal required rule for this widget.
+ * Config-driven widgets may have conditional requirements (e.g., multimedia SPR
+ * doesn't require title).
+ */
+function isExempt(widget, field) {
+  if (field !== 'title') return false;
+
+  // product_rail (SPR/DPR): title not required when multimedia is enabled
+  const pnc = typeof widget.pnc === 'string' ? JSON.parse(widget.pnc) : (widget.pnc || {});
+  if (widget.type === 'product_rail' && pnc.has_multimedia) return true;
+
+  return false;
+}
+
+/**
  * Validate a single widget object.
  * Returns array of error strings (empty = valid).
  */
@@ -66,6 +81,9 @@ export function validateWidget(widget) {
 
   // Universal
   for (const rule of UNIVERSAL_RULES) {
+    // Skip rules that are conditionally exempt for this widget
+    if (isExempt(widget, rule.field)) continue;
+
     // Normalize: slug may live in 'slug_name' on fetched widgets
     let value = widget[rule.field];
     if (rule.field === 'slug' && !value) {

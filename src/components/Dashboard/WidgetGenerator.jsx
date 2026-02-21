@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronRight, ChevronLeft, Save, Plus, Trash2, Calendar, Upload, Key, FileText } from 'lucide-react';
 import { BackendSyncService } from '../../services/BackendSyncService';
+import DateTimeInput from '../Inputs/DateTimeInput';
 
 const WidgetGenerator = ({ onClose }) => {
     const [step, setStep] = useState(1);
@@ -133,30 +134,18 @@ const WidgetGenerator = ({ onClose }) => {
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">Start Date</label>
-                                    <div className="relative">
-                                        <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                                        <input
-                                            type="datetime-local"
-                                            value={config.startDate}
-                                            onChange={(e) => setConfig({ ...config, startDate: e.target.value })}
-                                            className="w-full border border-slate-300 rounded-lg p-2.5 pl-9 text-xs"
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">End Date</label>
-                                    <div className="relative">
-                                        <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                                        <input
-                                            type="datetime-local"
-                                            value={config.endDate}
-                                            onChange={(e) => setConfig({ ...config, endDate: e.target.value })}
-                                            className="w-full border border-slate-300 rounded-lg p-2.5 pl-9 text-xs"
-                                        />
-                                    </div>
-                                </div>
+                                <DateTimeInput
+                                    label="Start Date & Time"
+                                    value={config.startDate || ''}
+                                    onChange={(val) => setConfig({ ...config, startDate: val })}
+                                    required
+                                />
+                                <DateTimeInput
+                                    label="End Date & Time"
+                                    value={config.endDate || ''}
+                                    onChange={(val) => setConfig({ ...config, endDate: val })}
+                                    required
+                                />
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 mb-1">Page Layout Heading</label>

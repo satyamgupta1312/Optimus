@@ -2,13 +2,13 @@
  * ValidationService — Frontend Pre-Submit Validation
  *
  * Runs WidgetRegistry.getValidationRules() per widget before submission.
- * Also provides slug uniqueness check via backend API.
+ * Slug is passed through as-is — no uniqueness check, no auto-increment.
+ * The same slug created by SlugBuilder is stored directly in Prisma.
  *
  * Wiki Reference: wiki/Backend-work-flow.md — Pre-Submit Validation
  */
 
 import { WidgetRegistry } from '../config/WidgetRegistry';
-import { LocalApiService } from './LocalApiService';
 
 // ── Field Validation Helpers ───────────────────────────────────────────────
 
@@ -49,7 +49,7 @@ export const validateWidgets = (widgets = []) => {
     const errors = [];
 
     for (const widget of widgets) {
-        const rules = WidgetRegistry.getValidationRules(widget.type) || [];
+        const rules = WidgetRegistry.getValidationRules(widget.type, widget) || [];
 
         for (const rule of rules) {
             // Normalize: slug field may live in 'slug_name' on fetched widgets
@@ -74,67 +74,16 @@ export const validateWidgets = (widgets = []) => {
 };
 
 /**
- * checkSlugAvailability(slugName)
- *
- * Checks if a slug already exists on the backend.
- * Returns { available: bool, error?: string }
- *
- * Wiki Reference: Backend-work-flow.md — Slug Uniqueness Check (Step 5)
- */
-export const checkSlugAvailability = async (slugName) => {
-    if (!slugName || slugName.trim() === '') {
-        return { available: false, error: 'Slug name is empty.' };
-    }
-
-    try {
-        // Check via local backend (Prisma) with proper auth headers
-        const results = await LocalApiService.getWidgets({ slug: slugName.trim() });
-
-        // If backend returns non-empty results, slug is taken
-        const taken = Array.isArray(results) ? results.length > 0 : !!results?.id;
-        return { available: !taken };
-    } catch (e) {
-        console.warn('[ValidationService] Slug check failed (network):', e.message);
-        // On network failure: allow submit (non-blocking)
-        return { available: true, warning: 'Slug check skipped (network error)' };
-    }
-};
-
-/**
  * validateAndCheckSlugs(widgets)
  *
- * Combines field validation + slug uniqueness checks.
+ * Field-level validation only. Slug is passed through as-is to Prisma.
+ * No uniqueness check — the slug created by SlugBuilder is the final slug.
+ *
  * Returns { valid: bool, errors: [...] }
  */
 export const validateAndCheckSlugs = async (widgets = []) => {
-    // 1. Field-level validation (sync)
     const fieldResult = validateWidgets(widgets);
-    const errors = [...fieldResult.errors];
-
-    // 2. Slug uniqueness checks (async, only if field validation passed for slug_name)
-    const slugChecks = widgets
-        .filter((w) => (w.slug || w.slug_name || '').trim() !== '')
-        .map(async (w) => {
-            // Skip slug check for fetched widgets (they already exist on backend)
-            if (w._fetched) return null;
-
-            const result = await checkSlugAvailability(w.slug || w.slug_name);
-            if (!result.available) {
-                return {
-                    widgetId: w.id,
-                    widgetTitle: w.title || w.type || 'Untitled Widget',
-                    field: 'slug_name',
-                    message: `Slug "${w.slug || w.slug_name}" already exists. Please use a different slug.`,
-                };
-            }
-            return null;
-        });
-
-    const slugResults = await Promise.all(slugChecks);
-    const slugErrors = slugResults.filter(Boolean);
-    errors.push(...slugErrors);
-
-    return { valid: errors.length === 0, errors };
+    return { valid: fieldResult.errors.length === 0, errors: fieldResult.errors };
 };
 
-export default { validateWidgets, checkSlugAvailability, validateAndCheckSlugs };
+export default { validateWidgets, validateAndCheckSlugs };

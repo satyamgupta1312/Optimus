@@ -58,6 +58,8 @@ flowchart BT
 
 All three endpoints accept a **CSV file upload** as the mapping payload.
 
+> **Implementation Note:** All mapping calls use the dedicated `postMapping()` helper in `BackendSyncService.js` — no `csrfmiddlewaretoken` in form body, only `X-CSRFToken` header, `Blob` + 3-arg `FormData.append`. See [Section 9](#9-code-implementation--csv-generation).
+
 ---
 
 ## 3. Layer 1 — Widget Item → Widget Mapping
@@ -376,27 +378,67 @@ GET /api/app/get_paginated_page_widget_mappings/
 
 ## 9. Code Implementation — CSV Generation
 
-### JavaScript (BackendSyncService.js)
+### JavaScript (BackendSyncService.js) — `postMapping()` Helper
+
+All CSV mapping calls go through a dedicated `postMapping()` helper. This is critical:
+- **No `csrfmiddlewaretoken`** in the form body (only `X-CSRFToken` header)
+- Uses **`Blob` + 3-arg `FormData.append`** for the CSV file
 
 ```javascript
-// Generate mapping CSV
-const csvContent = [
-    "widget_item_slug_name,level_tag,level_property,priority,cohort"
-];
-itemSlugs.forEach((slug, idx) => {
-    csvContent.push(`${slug},global,global,${idx + 1},`);
-});
-const mappingCsv = new Blob([csvContent.join('\n')], { type: 'text/csv' });
+// Dedicated mapping helper — BackendSyncService.js
+const postMapping = async (url, slugFields, csvContent, tokens, log, label) => {
+    const fd = new FormData();
+    for (const [key, value] of Object.entries(slugFields)) {
+        fd.append(key, value);
+    }
+    // Blob + 3-arg append — matches Django's expected multipart format
+    fd.append('mapping_file', new Blob([csvContent], { type: 'text/csv' }), 'mapping.csv');
+    const res = await fetchWithRetry(url, {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-CSRFToken': tokens.csrftoken },
+    });
+    if (!res.ok) throw new Error(`${label} failed (${res.status})`);
+    return res;
+};
+```
 
-// Upload CSV
-const mapFormData = new FormData();
-mapFormData.append('widget_slug', widgetSlug);
-mapFormData.append('mapping_file', mappingCsv, 'mapping.csv');
-await fetch('/api/app/update_widget_widget_item_mapping/', {
-    method: 'POST',
-    body: mapFormData,
-    headers: { 'X-CSRFToken': tokens.csrftoken }
-});
+### Usage — Global Mapping (simple)
+
+```javascript
+// Layer 1: Widget Item → Widget (single global item)
+const csv = `widget_item_slug_name,level_tag,level_property,priority,cohort\n${itemSlug},global,global,1,`;
+await postMapping(API.MAP_WIDGET_ITEMS, { widget_slug: widgetSlug }, csv, tokens, log, 'L1 Item→Widget');
+```
+
+### Usage — State-wise Mapping (from stateProducts)
+
+```javascript
+// Layer 1: Sub-Category Items → PLP Widget (state-wise)
+// stateProducts = { global: '1001,1002', jharkhand: '1003,1004', chhattisgarh: '1005' }
+const STATE_DEFS = { jharkhand: { tag: 'state', property: 'jharkhand', suffix: 'jh' }, ... };
+
+const csvRows = ['widget_item_slug_name,level_tag,level_property,priority,cohort'];
+csvRows.push(`${globalSubCatSlug},global,global,1,`);
+let priority = 2;
+for (const [stateKey, def] of Object.entries(STATE_DEFS)) {
+    if (stateProducts[stateKey]) {
+        csvRows.push(`${stateSubCatSlugs[stateKey]},${def.tag},${def.property},${priority},`);
+        priority++;
+    }
+}
+await postMapping(API.MAP_WIDGET_ITEMS, { widget_slug: plpSlug }, csvRows.join('\n'), tokens, log, 'L1 SubCat→PLP');
+```
+
+### Usage — Layer 3 with page_type
+
+```javascript
+// Layer 3: Page → Global Registry (must include page_type)
+const csv3 = 'level_tag,level_property\nglobal,global';
+await postMapping(API.MAP_PAGE_LAYOUT, {
+    page_layout_slug: pageSlug,
+    page_type: 'product_listing_page'   // REQUIRED — empty string causes mapping failure
+}, csv3, tokens, log, 'L3 Page→Global');
 ```
 
 ### Google Apps Script (SPR_Optimized_Automation.gs)

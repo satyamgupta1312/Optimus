@@ -37,11 +37,11 @@ const FilterEditor = ({ filters, value = {}, onChange }) => {
     ];
 
     return (
-        <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
-                <Filter size={14} className="text-slate-600" />
-                <h3 className="font-semibold text-sm text-slate-900">Filters</h3>
-            </div>
+        <div>
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <Filter size={12} className="text-slate-400" />
+                Filters
+            </h4>
 
             {sections.map(section => {
                 const sectionFilters = filters[section.key];
@@ -105,7 +105,7 @@ const FilterEditor = ({ filters, value = {}, onChange }) => {
 };
 
 /**
- * ProductFilterRow — operator + value pair for product-level filters
+ * ProductFilterRow - operator + value pair for product-level filters
  */
 const ProductFilterRow = ({ filterKey, filterDef, value = {}, onChange }) => {
     const InputComponent = getInputComponent(filterDef.component || 'TextInput');

@@ -4,6 +4,8 @@ import TextInput from '../Inputs/TextInput';
 import PillSelector from '../Inputs/PillSelector';
 import StateProductEditor from '../Inputs/StateProductEditor';
 import ImageUpload from '../ImageUpload';
+import SubCategoryList from './SubCategoryList';
+import ExpandPageSection from './ExpandPageSection';
 
 /**
  * ScrollItemEditor — Accordion list editor for Collection Banner scroll mode.
@@ -31,8 +33,11 @@ const ScrollItemEditor = ({
             title: '',
             image: null,
             pageType: 'product_listing_page',
+            expandPage: false,
+            plpWidgets: [],
             productIds: '',
             stateProducts: { global: '' },
+            subCategories: [],
         };
         onChange([...items, newItem]);
         setExpandedIndex(items.length);
@@ -123,23 +128,53 @@ const ScrollItemEditor = ({
                                 onChange={(val) => updateItem(index, 'pageType', val)}
                             />
 
-                            <TextInput
-                                label="Product Codes"
-                                value={item.productIds || ''}
-                                onChange={(val) => updateItem(index, 'productIds', val)}
-                                placeholder="Comma-separated item codes"
-                                helperText="Comma-separated, CSV URL, or newline-separated"
-                                required
-                                disabled={disabled}
-                            />
+                            {(item.pageType || 'product_listing_page') === 'product_listing_page' && (
+                                <ExpandPageSection
+                                    expandPage={item.expandPage || false}
+                                    plpWidgets={item.plpWidgets || []}
+                                    onChange={({ expandPage, plpWidgets }) => {
+                                        onChange(items.map((it, i) =>
+                                            i === index ? { ...it, expandPage, plpWidgets } : it
+                                        ));
+                                    }}
+                                    disabled={disabled}
+                                />
+                            )}
 
-                            <StateProductEditor
-                                label="State-Wise Products"
-                                value={item.stateProducts || { global: '' }}
-                                onChange={(val) => updateItem(index, 'stateProducts', val)}
-                                helperText="Global is required. Add states for location-specific products."
-                                disabled={disabled}
-                            />
+                            {item.pageType !== 'category_page' && (
+                                <>
+                                    <TextInput
+                                        label="Product Codes"
+                                        value={item.productIds || ''}
+                                        onChange={(val) => updateItem(index, 'productIds', val)}
+                                        placeholder="Comma-separated item codes"
+                                        helperText="Comma-separated, CSV URL, or newline-separated"
+                                        required
+                                        disabled={disabled}
+                                    />
+
+                                    <StateProductEditor
+                                        label="State-Wise Products"
+                                        value={item.stateProducts || { global: '' }}
+                                        onChange={(val) => updateItem(index, 'stateProducts', val)}
+                                        helperText="Global is required. Add states for location-specific products."
+                                        disabled={disabled}
+                                    />
+                                </>
+                            )}
+
+                            {item.pageType === 'category_page' && (
+                                <div className="mt-3 pt-3 border-t border-slate-200">
+                                    <label className="block text-xs font-semibold text-slate-500 mb-2">
+                                        Sub-Categories
+                                    </label>
+                                    <SubCategoryList
+                                        items={item.subCategories || []}
+                                        onChange={(subs) => updateItem(index, 'subCategories', subs)}
+                                        disabled={disabled}
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

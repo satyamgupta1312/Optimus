@@ -19,23 +19,31 @@ Optimus has two layers of authentication:
 └──────┬───────┘                    └──────────────────────┘
        │
        │  localStorage: { email, role, name, csrfToken }
+       │  localStorage: optimus_env = 'UAT' | 'PROD'
        │
        ▼
 ┌──────────────┐   X-Optimus-User   ┌──────────────────────┐
-│  React App   │ ── (email only) ──▶│  Express :3001       │
+│  React App   │ ── X-Optimus-Env ─▶│  Express :3001       │
 │  (Vite)      │ ◀── { user } ────  │  server/middleware/  │
 └──────────────┘                    │  auth.js resolves    │
-                                    │  role from DB        │
+                                    │  role from DB + env  │
                                     └──────────────────────┘
 ```
+
+> **Environment Isolation:** The local Express backend receives `X-Optimus-Env` header (UAT or PROD) on every request. CheckerList entries are **per-environment** — a user can be CHECKER in UAT but MAKER in PROD.
 
 ---
 
 ## 2. Login Flow (Step-by-Step)
 
-**Source:** `src/services/AuthService.js`
+**Source:** `src/services/AuthService.js`, `src/components/Auth/LoginPage.jsx`
 
 ```
+0. User selects environment (UAT or PROD) on login page
+   - Toggle pills above username field
+   - Stored in localStorage.optimus_env (default: PROD)
+   - Sets API_BASE prefix: /uat or /prod (Vite proxy routes to correct backend)
+   - Color: PROD = green, UAT = orange
 1. User enters email + password on login page
 2. Frontend clears any existing session:
    - GET /logout/ (clear Django session)
@@ -54,8 +62,9 @@ Optimus has two layers of authentication:
    - Check if login form still present
    - Check HTTP status
 7. If all checks pass → login successful
-8. Base role assigned:
-   - satyam.gupta@apnamart.in → SUPER_ADMIN
+8. Base role assigned (environment-aware):
+   - PROD: satyam.gupta@apnamart.in → SUPER_ADMIN
+   - UAT: satyam → SUPER_ADMIN
    - Everyone else → MAKER
 9. User object stored in localStorage
 ```
@@ -83,17 +92,19 @@ Optimus has two layers of authentication:
 
 ### Resolution Flow
 
-Role is resolved **server-side** on every API request. The client-sent `X-Optimus-Role` header is ignored.
+Role is resolved **server-side** on every API request. The client-sent `X-Optimus-Role` header is ignored. CheckerList is **per-environment** — the same user can have different roles in UAT vs PROD.
 
 ```
 User sends X-Optimus-User: john@apnamart.in
+           X-Optimus-Env: UAT
         │
         ▼
-  Is email satyam.gupta@apnamart.in?
+  Is email satyam.gupta@apnamart.in or satyam?
         │
     YES │                   NO
         ▼                    ▼
-   SUPER_ADMIN        Is email in CheckerList table?
+   SUPER_ADMIN        Is email in CheckerList table
+                      WHERE env = 'UAT'?
                             │
                        YES  │          NO
                             ▼           ▼
@@ -104,19 +115,20 @@ User sends X-Optimus-User: john@apnamart.in
 
 | Layer | Where | What It Does |
 |-------|-------|-------------|
-| **Frontend (login time)** | `AuthService.js` + `AuthContext.jsx` | Base role from email + checker list from Google Sheet/local API |
-| **Backend (every request)** | `server/middleware/auth.js` | Resolves role from email + CheckerList DB table. **This is the source of truth.** |
+| **Frontend (login time)** | `AuthService.js` + `AuthContext.jsx` | Base role from email + checker list from local API |
+| **Backend (every request)** | `server/middleware/auth.js` | Resolves role from email + CheckerList DB table + **environment**. **This is the source of truth.** |
 
 ### Server-Side Code
 
 ```javascript
 // server/middleware/auth.js
-const SUPER_ADMIN_EMAIL = 'satyam.gupta@apnamart.in';
+const SUPER_ADMIN_IDENTIFIERS = ['satyam.gupta@apnamart.in', 'satyam'];
+const env = req.headers['x-optimus-env'] || 'PROD'; // UAT or PROD
 
-if (lowerEmail === SUPER_ADMIN_EMAIL) {
+if (SUPER_ADMIN_IDENTIFIERS.includes(lowerEmail)) {
     role = 'SUPER_ADMIN';                    // Hardcoded, never overridden
-} else if (user has CheckerList entry) {
-    role = 'CHECKER';                        // Promoted by SUPER_ADMIN via UI
+} else if (user has CheckerList entry WHERE env = env) {
+    role = 'CHECKER';                        // Promoted by SUPER_ADMIN via UI, per-environment
 } else {
     role = 'MAKER';                          // Default for all logged-in users
 }
@@ -125,8 +137,10 @@ if (lowerEmail === SUPER_ADMIN_EMAIL) {
 ### Frontend-Side Code
 
 ```javascript
-// AuthService.js — Base role (login time)
-if (lowerUser === 'satyam.gupta@apnamart.in') {
+// AuthService.js — Base role (login time, environment-aware)
+if (ACTIVE_ENV === 'UAT' && lowerUser === 'satyam') {
+    role = 'SUPER_ADMIN';
+} else if (lowerUser === 'satyam.gupta@apnamart.in') {
     role = 'SUPER_ADMIN';
 }
 
@@ -148,6 +162,8 @@ if (userData.role !== 'SUPER_ADMIN') {
 
 Only `satyam.gupta@apnamart.in` (SUPER_ADMIN) can add/remove checkers.
 
+**Checker list is per-environment.** Adding a checker in UAT does NOT make them a checker in PROD (and vice versa). Each environment has its own independent checker list.
+
 ### Adding a Checker
 
 ```
@@ -155,15 +171,19 @@ Only `satyam.gupta@apnamart.in` (SUPER_ADMIN) can add/remove checkers.
 2. Enters email + name in the panel
 3. Clicks "Add Checker"
 4. Backend: User upserted with role=CHECKER + added to CheckerList table
+   with env = current environment (UAT or PROD)
 5. Takes effect immediately — next API request resolves as CHECKER
+   (only in the environment where they were added)
 ```
 
 ### Removing a Checker
 
 ```
 1. SUPER_ADMIN clicks trash icon next to a checker
-2. Backend: User removed from CheckerList table + role reset to MAKER
-3. Takes effect immediately — next API request resolves as MAKER
+2. Backend: User removed from CheckerList table for current environment
+   - If user still has checker entries in other environments, role stays CHECKER
+   - If no checker entries remain in any environment, role reset to MAKER
+3. Takes effect immediately — next API request resolves as MAKER (in this environment)
 ```
 
 ### Guard Rails
@@ -177,12 +197,14 @@ Only `satyam.gupta@apnamart.in` (SUPER_ADMIN) can add/remove checkers.
 
 ### API Endpoints
 
-| Action | Method | Route | Who Can Call |
-|--------|--------|-------|-------------|
-| List checkers | GET | `/api/local/users/checkers` | Anyone |
-| Add checker | POST | `/api/local/users/checkers` | SUPER_ADMIN only |
-| Remove checker | DELETE | `/api/local/users/checkers` | SUPER_ADMIN only |
-| Current user | GET | `/api/local/users/me` | Anyone |
+All checker endpoints are **environment-scoped** via the `X-Optimus-Env` header (UAT or PROD).
+
+| Action | Method | Route | Who Can Call | Environment-Scoped |
+|--------|--------|-------|-------------|-------------------|
+| List checkers | GET | `/api/local/users/checkers` | Anyone | Yes — only checkers for current env |
+| Add checker | POST | `/api/local/users/checkers` | SUPER_ADMIN only | Yes — adds to current env only |
+| Remove checker | DELETE | `/api/local/users/checkers` | SUPER_ADMIN only | Yes — removes from current env only |
+| Current user | GET | `/api/local/users/me` | Anyone | Yes — role resolved per env |
 
 ### Checker List Response
 
@@ -301,7 +323,8 @@ SESSION_CONFIG = {
 
 ```
 ┌─────────────────────────────────────────┐
-│  Manage Approval Users                  │
+│  Manage Approval Users          [UAT]   │
+│  (showing checkers for current env)     │
 │                                         │
 │  Email: [____________] Name: [________] │
 │  [+ Add Checker]                        │
@@ -323,6 +346,7 @@ SESSION_CONFIG = {
 ```
 
 Visible only to SUPER_ADMIN. Triggered by "Users" button in header.
+**Environment-scoped:** Only shows checkers added to the current environment (UAT or PROD). Adding/removing checkers affects only the current environment.
 
 ---
 
@@ -344,8 +368,8 @@ flowchart TD
     KeepMaker --> Store
     BaseRole -->|SUPER_ADMIN| Store
 
-    Store --> APICall["Every /api/local/* request\nsends X-Optimus-User header"]
-    APICall --> ServerResolve["server/middleware/auth.js\nResolves role from DB\n(ignores client role header)"]
+    Store --> APICall["Every /api/local/* request\nsends X-Optimus-User + X-Optimus-Env headers"]
+    APICall --> ServerResolve["server/middleware/auth.js\nResolves role from DB + env\n(ignores client role header)"]
     ServerResolve --> Upsert["Upsert user in DB\nwith resolved role"]
     Upsert --> ReqUser["req.user available\nin all routes"]
 ```

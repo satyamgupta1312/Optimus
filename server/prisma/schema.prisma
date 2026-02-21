@@ -24,7 +24,7 @@ model User {
   requests     Request[]
   comments     Comment[]
   activityLogs ActivityLog[]
-  checkerEntry CheckerList?
+  checkerEntries CheckerList[]
 }
 
 // ── Widget ──
@@ -32,7 +32,8 @@ model User {
 model Widget {
   id        String   @id @default(uuid())
   type      String   // product_rail | collection_banner | masthead
-  slug      String   @unique
+  slug      String
+  env       String   @default("PROD") // UAT | PROD
   title     String   @default("")
   titleHi   String   @default("")
   status    String   @default("DRAFT") // DRAFT | PENDING | APPROVED | REJECTED
@@ -52,6 +53,8 @@ model Widget {
   versions       WidgetVersion[]
   requestWidgets RequestWidget[]
   comments       Comment[]
+
+  @@unique([slug, env])
 }
 
 // ── WidgetVersion ──
@@ -159,10 +162,13 @@ model Product {
 }
 
 // ── CheckerList ──
-// Users authorized as Checkers (approval role)
+// Users authorized as Checkers (approval role), per environment
 model CheckerList {
-  id     String @id @default(uuid())
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id      String   @id @default(uuid())
+  userId  String
+  env     String   @default("PROD") // UAT | PROD
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   addedAt DateTime @default(now())
+
+  @@unique([userId, env])
 }

@@ -352,7 +352,38 @@ All valid `page_type` values for Page Layout:
 
 ---
 
-## 9. Related Documentation
+## 9. Slug Handling — Direct Pass-Through
+
+### Overview
+
+Jo slug SlugBuilder se create hota hai, **wahi directly store hota hai** — koi uniqueness check nahi, koi auto-increment nahi. Same slug Prisma DB mein jaata hai.
+
+**Validation:** Sirf required field check — slug empty nahi hona chahiye.
+
+### Flow
+
+```
+SlugBuilder composes slug from 8 parts
+    ↓
+widget.slug = "rice_mela_spr_sc_rohp_global_allusers_both"
+    ↓
+Submit → ValidationService checks slug is not empty ✓
+    ↓
+Same slug in request payload → Prisma DB
+```
+
+### Rules
+
+| Rule | Detail |
+|:---|:---|
+| Uniqueness check | **None** — same slug allowed |
+| Auto-increment | **None** — slug used as-is |
+| Fetched widgets | Slug preserved from backend via `ApiMapper.js` |
+| Required | Yes — empty slug blocks submit |
+
+---
+
+## 10. Related Documentation
 
 - [Collection Banner Widget](./WIDGET-Collection-Banner.md)
 - [Product Rail Widget](./Widget-spr.md)

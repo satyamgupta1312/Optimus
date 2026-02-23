@@ -64,8 +64,22 @@ export class CategoryGridBuilder {
             slugs.itemEcosystems.push(itemSlugs);
 
             // Step 1: Sub-Category Widget Items (per sub-cat × per state)
-            const subCategories = item.subCategories || [];
+            let subCategories = item.subCategories || [];
             const allSubCatMappingRows = [];
+
+            // For PLP pages without expandPage, use a virtual sub-category for state-wise products
+            if (item.pageType === 'product_listing_page') {
+                if (item.expandPage) {
+                    subCategories = []; // Handled separately later if expandPage is supported
+                } else {
+                    subCategories = [{
+                        name: item.text || '',
+                        nameHi: item.textHi || '',
+                        products: item.stateProducts || { global: '' },
+                        image: item.image
+                    }];
+                }
+            }
 
             for (let j = 0; j < subCategories.length; j++) {
                 const sub = subCategories[j];
@@ -104,19 +118,21 @@ export class CategoryGridBuilder {
                 }
             }
 
-            // Step 2: PLP Widget (per category)
-            this.log(`[CatGrid]   PLP Widget: ${itemSlugs.plp}`);
-            await callApi(ENDPOINTS.widget, {
-                slug_name: itemSlugs.plp,
-                widget_type: 'product_listing',
-                heading: '',
-                start_time: this.dates.start,
-                end_time: this.dates.end,
-                app_configurations: JSON.stringify({ show_sub_cat: true }),
-                filter_dict: '{}',
-                deactivated_flag: 'no',
-            }, { multipart: true });
-            results.push({ step: `item_${n}_plp`, slug: itemSlugs.plp, status: 'ok' });
+            // Step 2: PLP Widget (per category, skipped if expandPage is true)
+            if (!(item.pageType === 'product_listing_page' && item.expandPage)) {
+                this.log(`[CatGrid]   PLP Widget: ${itemSlugs.plp}`);
+                await callApi(ENDPOINTS.widget, {
+                    slug_name: itemSlugs.plp,
+                    widget_type: 'product_listing',
+                    heading: '',
+                    start_time: this.dates.start,
+                    end_time: this.dates.end,
+                    app_configurations: JSON.stringify({ show_sub_cat: true }),
+                    filter_dict: '{}',
+                    deactivated_flag: 'no',
+                }, { multipart: true });
+                results.push({ step: `item_${n}_plp`, slug: itemSlugs.plp, status: 'ok' });
+            }
 
             // Step 3: Page Layout
             this.log(`[CatGrid]   Page Layout: ${itemSlugs.page}`);
@@ -142,15 +158,17 @@ export class CategoryGridBuilder {
                 });
             }
 
-            // Map: PLP → Page
-            const plpCsv = createMappingCsv('layout_widget', itemSlugs.plp);
-            const plpMap = new FormData();
-            plpMap.append('page_layout_slug', itemSlugs.page);
-            plpMap.append('mapping_file', plpCsv, 'mapping.csv');
-            await fetch(`${API_BASE}${ENDPOINTS.mapLayoutWidget}`, {
-                method: 'POST', body: plpMap, credentials: 'include',
-                headers: { 'X-CSRFToken': getCsrfToken() || '' },
-            });
+            // Map: PLP → Page (only if PLP widget was created)
+            if (!(item.pageType === 'product_listing_page' && item.expandPage)) {
+                const plpCsv = createMappingCsv('layout_widget', itemSlugs.plp);
+                const plpMap = new FormData();
+                plpMap.append('page_layout_slug', itemSlugs.page);
+                plpMap.append('mapping_file', plpCsv, 'mapping.csv');
+                await fetch(`${API_BASE}${ENDPOINTS.mapLayoutWidget}`, {
+                    method: 'POST', body: plpMap, credentials: 'include',
+                    headers: { 'X-CSRFToken': getCsrfToken() || '' },
+                });
+            }
 
             // Map: Page → Global
             const pgCsv = createMappingCsv('global_page');

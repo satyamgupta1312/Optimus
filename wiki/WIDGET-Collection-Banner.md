@@ -141,7 +141,7 @@ flowchart TD
 
     subgraph Bottom-Up Creation Flow per Category Item
         direction TB
-        Step1[1. Sub-Category Items - state-specific]
+        Step1[1. Sub-Category Items (Virtual for PLP) - state-specific]
         Step2[2. PLP Widget - product_listing]
         Step3[3. Page Layout - category_page / product_listing_page]
         Step4[4. Category Widget Item]
@@ -191,11 +191,14 @@ flowchart LR
 
 | Step | Object Type | Slug Pattern | Purpose | API Endpoint |
 | :---: | :--- | :--- | :--- | :--- |
-| **1** | Widget Item (Sub-Cat) | `{base}_item_{n}_subcat_{m}_{state}` | State-specific product list | `/api/app/post_widget_item/` |
-| **2** | Widget (PLP) | `{base}_item_{n}_plp` | Product listing for category page | `/api/app/widget/` |
-| **3** | Page Layout | `{base}_item_{n}_page` | Category page structure | `/api/app/post_page_layout/` |
+| **1** | Widget Item (Sub-Cat) | `{base}_item_{n}_subcat_{m}_{state}` | State-specific product list (Virtual 1x1 subcat for PLPs) | `/api/app/post_widget_item/` |
+| **2** | Widget (PLP) | `{base}_item_{n}_plp` | Product listing for category page / PLP | `/api/app/widget/` |
+| **3** | Page Layout | `{base}_item_{n}_page` | Category / PLP page structure | `/api/app/post_page_layout/` |
 | **4** | Widget Item (Category) | `{base}_item_{n}_cat_wi` | Category card in the grid | `/api/app/post_widget_item/` |
 | **5** | Widget (Category Grid) | `{base}_cm_hp` | The main grid widget | `/api/app/widget/` |
+
+> [!NOTE]
+> If a Category Item is set to `product_listing_page`, Step 1 automatically generates a single virtual sub-category to hold its `stateProducts`, passing them directly to the PLP Widget without rendering category tabs.
 
 #### Full Object Tree (Stick)
 

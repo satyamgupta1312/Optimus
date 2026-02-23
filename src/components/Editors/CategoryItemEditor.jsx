@@ -4,6 +4,9 @@ import TextInput from '../Inputs/TextInput';
 import PillSelector from '../Inputs/PillSelector';
 import ImageUpload from '../ImageUpload';
 import SubCategoryList from './SubCategoryList';
+import ExpandPageSection from './ExpandPageSection';
+import StateProductEditor from '../Inputs/StateProductEditor';
+import { ImagePlus } from 'lucide-react';
 
 /**
  * CategoryItemEditor — 2-level accordion for Collection Banner stick mode.
@@ -31,6 +34,9 @@ const CategoryItemEditor = ({
             textHi: '',
             image: null,
             pageType: 'category_page',
+            expandPage: false,
+            plpWidgets: [],
+            stateProducts: { global: '' },
             pageHeading: '',
             subCategories: [],
         };
@@ -61,7 +67,7 @@ const CategoryItemEditor = ({
             )}
 
             {items.map((item, index) => (
-                <div key={index} className="border border-slate-200 rounded-lg mb-2 overflow-hidden bg-white">
+                <div key={index} className="border border-slate-200 rounded-lg mb-2 bg-white">
                     {/* Level 1: Category header */}
                     <button
                         onClick={() => setExpandedIndex(expandedIndex === index ? null : index)}
@@ -94,27 +100,48 @@ const CategoryItemEditor = ({
                     {/* Expanded content */}
                     {expandedIndex === index && (
                         <div className="p-3 space-y-1">
-                            <TextInput
-                                label="Category Name (English)"
-                                value={item.text || ''}
-                                onChange={(val) => updateItem(index, 'text', val)}
-                                required
-                                disabled={disabled}
-                            />
-
-                            <TextInput
-                                label="Category Name (Hindi)"
-                                value={item.textHi || ''}
-                                onChange={(val) => updateItem(index, 'textHi', val)}
-                                disabled={disabled}
-                            />
-
-                            <div className="mb-3">
-                                <ImageUpload
-                                    label="Category Image"
-                                    currentImage={item.image}
-                                    onImageSelect={(file, preview) => updateItem(index, 'image', preview || file)}
-                                />
+                            <div className="flex gap-3 items-start mb-3">
+                                <div className="flex-1 space-y-3">
+                                    <TextInput
+                                        label="Category Name (English)"
+                                        value={item.text || ''}
+                                        onChange={(val) => updateItem(index, 'text', val)}
+                                        required
+                                        disabled={disabled}
+                                    />
+                                    <TextInput
+                                        label="Category Name (Hindi)"
+                                        value={item.textHi || ''}
+                                        onChange={(val) => updateItem(index, 'textHi', val)}
+                                        disabled={disabled}
+                                    />
+                                </div>
+                                {/* Small image upload on right */}
+                                <div className="shrink-0 mt-5">
+                                    <label className="cursor-pointer group block">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                if (e.target.files && e.target.files[0]) {
+                                                    updateItem(index, 'image', e.target.files[0]);
+                                                }
+                                            }}
+                                            disabled={disabled}
+                                        />
+                                        {item.image ? (
+                                            <div className="w-14 h-14 rounded-lg border border-slate-200 overflow-hidden group-hover:ring-2 group-hover:ring-blue-500/30 transition-all">
+                                                <img src={typeof item.image === 'string' ? item.image : URL.createObjectURL(item.image)} alt="" className="w-full h-full object-cover" />
+                                            </div>
+                                        ) : (
+                                            <div className="w-14 h-14 rounded-lg border border-dashed border-slate-300 flex flex-col items-center justify-center bg-slate-50 group-hover:border-blue-400 group-hover:bg-blue-50 transition-all">
+                                                <ImagePlus size={16} className="text-slate-400 group-hover:text-blue-500 mb-0.5" />
+                                                <span className="text-[9px] text-slate-400 group-hover:text-blue-500">Upload</span>
+                                            </div>
+                                        )}
+                                    </label>
+                                </div>
                             </div>
 
                             <PillSelector
@@ -148,6 +175,33 @@ const CategoryItemEditor = ({
                                         showHindi
                                         disabled={disabled}
                                     />
+                                </div>
+                            )}
+
+                            {/* PLP Configuration — only when product_listing_page selected */}
+                            {item.pageType === 'product_listing_page' && (
+                                <div className="mt-3 pt-3 border-t border-slate-200">
+                                    <ExpandPageSection
+                                        expandPage={item.expandPage || false}
+                                        plpWidgets={item.plpWidgets || []}
+                                        onChange={({ expandPage, plpWidgets }) => {
+                                            updateItem(index, 'expandPage', expandPage);
+                                            updateItem(index, 'plpWidgets', plpWidgets);
+                                        }}
+                                        disabled={disabled}
+                                    />
+
+                                    {!item.expandPage && (
+                                        <div className="mt-3">
+                                            <StateProductEditor
+                                                label="Products"
+                                                value={item.stateProducts || { global: '' }}
+                                                onChange={(val) => updateItem(index, 'stateProducts', val)}
+                                                required
+                                                disabled={disabled}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

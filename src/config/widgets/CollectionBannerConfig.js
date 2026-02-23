@@ -217,7 +217,12 @@ export const CollectionBannerConfig = {
                 },
                 subCategories: {
                     label: 'Sub-Categories',
-                    validation: { required: true, minItems: 1, maxItems: 50 },
+                    condition: (pnc, widget, item) => item?.pageType !== 'product_listing_page',
+                    validation: {
+                        required: (pnc, widget, item) => item?.pageType !== 'product_listing_page',
+                        minItems: 1,
+                        maxItems: 50
+                    },
                     itemSchema: {
                         name: {
                             component: 'TextInput',
@@ -251,6 +256,19 @@ export const CollectionBannerConfig = {
                             // Dynamic state entries added via "Add State" button
                         },
                     },
+                },
+                stateProducts: {
+                    label: 'State-Wise Products',
+                    condition: (pnc, widget, item) => item?.pageType === 'product_listing_page' && !item?.expandPage,
+                    global: {
+                        component: 'TextInput',
+                        label: 'Global Products',
+                        validation: {
+                            required: true,
+                            pattern: /^(\d+)(,\s*\d+)*$/,
+                        },
+                        errorMessage: 'Enter comma-separated numeric product codes',
+                    }
                 },
             },
         },

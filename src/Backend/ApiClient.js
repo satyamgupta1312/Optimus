@@ -9,11 +9,26 @@
  *   await callApi('/api/app/widget/', payload, { multipart: true });
  */
 
-import { API_BASE } from '../config/apiConfig';
+import { API_BASE, ENDPOINTS } from '../config/apiConfig';
 
 // ── CSRF ──
 
-function getCsrfToken() {
+/** Module-level CSRF token — set by DeploymentService before deployment */
+let _csrfToken = null;
+
+/**
+ * Store the CSRF token for API calls.
+ * Called by DeploymentService with the token from RequestQueue.
+ */
+export function setCsrfToken(token) {
+    _csrfToken = token || null;
+}
+
+/**
+ * Get the CSRF token — prefers module-level token, falls back to cookie.
+ */
+export function getCsrfToken() {
+    if (_csrfToken) return _csrfToken;
     const value = `; ${document.cookie}`;
     const parts = value.split('; csrftoken=');
     if (parts.length === 2) return parts.pop().split(';').shift();
@@ -44,9 +59,16 @@ export async function callApi(endpoint, payload, { multipart = false } = {}) {
 
     if (multipart) {
         const formData = new FormData();
+        // Include csrfmiddlewaretoken in body (Django checks both header and body)
+        if (csrfToken) formData.append('csrfmiddlewaretoken', csrfToken);
         for (const [key, value] of Object.entries(payload)) {
+            if (value === undefined || value === null) continue;
             formData.append(key, value);
         }
+        // DEBUG: log all fields sent
+        const _debug = {};
+        for (const [k, v] of formData.entries()) _debug[k] = v instanceof Blob ? `[Blob ${v.size}B]` : v;
+        console.log(`[callApi] POST ${url}`, _debug);
         options.body = formData;
     } else {
         options.headers['Content-Type'] = 'application/json';
@@ -57,7 +79,8 @@ export async function callApi(endpoint, payload, { multipart = false } = {}) {
 
     if (!response.ok) {
         const text = await response.text();
-        throw new Error(`API ${response.status}: ${text.substring(0, 200)}`);
+        console.error(`[callApi] \u274c ${response.status} ${url}:`, text);
+        throw new Error(`API ${response.status}: ${text.substring(0, 500)}`);
     }
 
     return response;
@@ -110,13 +133,20 @@ export async function updateApi(url, payload, { json = true } = {}) {
  * Lookup a widget by slug_name. Returns the ID if found, null otherwise.
  * Ported from: SPR_Widget_Optimized.gs → getWidgetId()
  *
+ * Uses ENDPOINTS.fetchWidget (GET /api/app/widget/) with query param.
+ * Falls back to null on 404/405 (Django may not support GET on this endpoint).
+ *
  * @param {string} slugName
  * @returns {Promise<string|null>} Widget ID or null
  */
 export async function getWidgetId(slugName) {
     try {
-        const url = `${API_BASE}/api/app/widget/?slug_name=${encodeURIComponent(slugName)}`;
-        const res = await fetch(url, { credentials: 'include' });
+        // Try the fetchWidget endpoint (supports GET with query params)
+        const url = `${API_BASE}${ENDPOINTS.fetchWidget}?slug_name=${encodeURIComponent(slugName)}`;
+        const res = await fetch(url, {
+            credentials: 'include',
+            headers: { 'X-CSRFToken': getCsrfToken() || '' },
+        });
         if (!res.ok) return null;
         const data = await res.json();
         // Django REST: { results: [...] } or direct array, or single object
@@ -132,13 +162,20 @@ export async function getWidgetId(slugName) {
  * Lookup a widget item by slug_name. Returns the ID if found, null otherwise.
  * Ported from: SPR_Widget_Optimized.gs → getWidgetItemId()
  *
+ * Uses ENDPOINTS.fetchWidgetItem (GET /api/app/widget_item/) with query param.
+ * Note: The POST endpoint is /api/app/post_widget_item/ (different path).
+ *
  * @param {string} slugName
  * @returns {Promise<string|null>} Widget Item ID or null
  */
 export async function getWidgetItemId(slugName) {
     try {
-        const url = `${API_BASE}/api/app/widget_item/?slug_name=${encodeURIComponent(slugName)}`;
-        const res = await fetch(url, { credentials: 'include' });
+        // fetchWidgetItem endpoint supports GET with query params
+        const url = `${API_BASE}${ENDPOINTS.fetchWidgetItem}?slug_name=${encodeURIComponent(slugName)}`;
+        const res = await fetch(url, {
+            credentials: 'include',
+            headers: { 'X-CSRFToken': getCsrfToken() || '' },
+        });
         if (!res.ok) return null;
         const data = await res.json();
         const results = data.results || (Array.isArray(data) ? data : [data]);
@@ -153,13 +190,20 @@ export async function getWidgetItemId(slugName) {
  * Lookup a page layout by slug_name. Returns the ID if found, null otherwise.
  * Ported from: SPR_Widget_Optimized.gs → getPageLayoutId()
  *
+ * Note: The POST endpoint is /api/app/post_page_layout/ but GET listing
+ * may not be supported — returns null on 405, triggering CREATE path.
+ *
  * @param {string} slugName
  * @returns {Promise<string|null>} Page Layout ID or null
  */
 export async function getPageLayoutId(slugName) {
     try {
-        const url = `${API_BASE}/api/app/post_page_layout/?slug_name=${encodeURIComponent(slugName)}`;
-        const res = await fetch(url, { credentials: 'include' });
+        // page_layout doesn't have a separate GET endpoint — try the POST path with GET
+        const url = `${API_BASE}${ENDPOINTS.pageLayout}?slug_name=${encodeURIComponent(slugName)}`;
+        const res = await fetch(url, {
+            credentials: 'include',
+            headers: { 'X-CSRFToken': getCsrfToken() || '' },
+        });
         if (!res.ok) return null;
         const data = await res.json();
         const results = data.results || (Array.isArray(data) ? data : [data]);

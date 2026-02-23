@@ -292,8 +292,8 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
         const loadingToast = toast.loading('Deploying to production...');
 
         try {
-            const { BackendSyncService } = await import('../../services/BackendSyncService');
-            const result = await BackendSyncService.deployRequest(req, { csrftoken: token });
+            const { DeploymentService } = await import('../../Backend/services/DeploymentService');
+            const result = await DeploymentService.deployRequest(req, { csrftoken: token });
 
             toast.dismiss(loadingToast);
             if (result.success) {
@@ -351,8 +351,8 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
 
             // Step 2: Deploy to backend
             const deployToast = toast.loading('Deploying to backend...');
-            const { BackendSyncService } = await import('../../services/BackendSyncService');
-            const result = await BackendSyncService.deployRequest(req, { csrftoken: token });
+            const { DeploymentService } = await import('../../Backend/services/DeploymentService');
+            const result = await DeploymentService.deployRequest(req, { csrftoken: token });
 
             toast.dismiss(deployToast);
             if (result.success) {

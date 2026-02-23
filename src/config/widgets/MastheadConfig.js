@@ -14,12 +14,67 @@
 // ── State Definitions for Secondary Masthead Sub-Categories ──
 // Global is always required. Additional states can be added dynamically via "Add State" button.
 export const STATE_DEFINITIONS = {
+    // ── Always present ──
     global: { levelTag: 'global', levelProperty: 'global', slugSuffix: '_global' },
+
+    // ── Default states (always visible in Add State dropdown) ──
     jh: { levelTag: 'state', levelProperty: 'jharkhand', slugSuffix: '_jh' },
     cg: { levelTag: 'state', levelProperty: 'chhattisgarh', slugSuffix: '_cg' },
     wb: { levelTag: 'state', levelProperty: 'west bengal', slugSuffix: '_wb' },
-    up: { levelTag: 'state', levelProperty: 'uttar pradesh', slugSuffix: '_up' },
-    patna: { levelTag: 'state', levelProperty: 'patna', slugSuffix: '_patna' },
+
+    // ── Default cities ──
+    patna: { levelTag: 'city', levelProperty: 'patna', slugSuffix: '_patna' },
+};
+
+/**
+ * Full catalog of all available Indian states & cities.
+ * Users enable these via the State Manager button in the header.
+ * Enabled keys are persisted in localStorage under 'optimus_enabled_states'.
+ */
+export const STATE_CATALOG = {
+    // ── States ──
+    up: { levelTag: 'state', levelProperty: 'uttar pradesh', slugSuffix: '_up', label: 'Uttar Pradesh', type: 'state' },
+    br: { levelTag: 'state', levelProperty: 'bihar', slugSuffix: '_br', label: 'Bihar', type: 'state' },
+    gj: { levelTag: 'state', levelProperty: 'gujarat', slugSuffix: '_gj', label: 'Gujarat', type: 'state' },
+    mp: { levelTag: 'state', levelProperty: 'madhya pradesh', slugSuffix: '_mp', label: 'Madhya Pradesh', type: 'state' },
+    rj: { levelTag: 'state', levelProperty: 'rajasthan', slugSuffix: '_rj', label: 'Rajasthan', type: 'state' },
+    mh: { levelTag: 'state', levelProperty: 'maharashtra', slugSuffix: '_mh', label: 'Maharashtra', type: 'state' },
+    dl: { levelTag: 'state', levelProperty: 'delhi', slugSuffix: '_dl', label: 'Delhi', type: 'state' },
+    ka: { levelTag: 'state', levelProperty: 'karnataka', slugSuffix: '_ka', label: 'Karnataka', type: 'state' },
+    tn: { levelTag: 'state', levelProperty: 'tamil nadu', slugSuffix: '_tn', label: 'Tamil Nadu', type: 'state' },
+    ap: { levelTag: 'state', levelProperty: 'andhra pradesh', slugSuffix: '_ap', label: 'Andhra Pradesh', type: 'state' },
+    tg: { levelTag: 'state', levelProperty: 'telangana', slugSuffix: '_tg', label: 'Telangana', type: 'state' },
+    od: { levelTag: 'state', levelProperty: 'odisha', slugSuffix: '_od', label: 'Odisha', type: 'state' },
+    as: { levelTag: 'state', levelProperty: 'assam', slugSuffix: '_as', label: 'Assam', type: 'state' },
+    hr: { levelTag: 'state', levelProperty: 'haryana', slugSuffix: '_hr', label: 'Haryana', type: 'state' },
+    pb: { levelTag: 'state', levelProperty: 'punjab', slugSuffix: '_pb', label: 'Punjab', type: 'state' },
+    uk: { levelTag: 'state', levelProperty: 'uttarakhand', slugSuffix: '_uk', label: 'Uttarakhand', type: 'state' },
+    hp: { levelTag: 'state', levelProperty: 'himachal pradesh', slugSuffix: '_hp', label: 'Himachal Pradesh', type: 'state' },
+    ga: { levelTag: 'state', levelProperty: 'goa', slugSuffix: '_ga', label: 'Goa', type: 'state' },
+    ke: { levelTag: 'state', levelProperty: 'kerala', slugSuffix: '_ke', label: 'Kerala', type: 'state' },
+    mn: { levelTag: 'state', levelProperty: 'manipur', slugSuffix: '_mn', label: 'Manipur', type: 'state' },
+    ml: { levelTag: 'state', levelProperty: 'meghalaya', slugSuffix: '_ml', label: 'Meghalaya', type: 'state' },
+    sk: { levelTag: 'state', levelProperty: 'sikkim', slugSuffix: '_sk', label: 'Sikkim', type: 'state' },
+
+    // ── Cities ──
+    ranchi: { levelTag: 'city', levelProperty: 'ranchi', slugSuffix: '_rnc', label: 'Ranchi', type: 'city' },
+    lucknow: { levelTag: 'city', levelProperty: 'lucknow', slugSuffix: '_lko', label: 'Lucknow', type: 'city' },
+    kanpur: { levelTag: 'city', levelProperty: 'kanpur', slugSuffix: '_knp', label: 'Kanpur', type: 'city' },
+    varanasi: { levelTag: 'city', levelProperty: 'varanasi', slugSuffix: '_vns', label: 'Varanasi', type: 'city' },
+    agra: { levelTag: 'city', levelProperty: 'agra', slugSuffix: '_agr', label: 'Agra', type: 'city' },
+    kolkata: { levelTag: 'city', levelProperty: 'kolkata', slugSuffix: '_kol', label: 'Kolkata', type: 'city' },
+    mumbai: { levelTag: 'city', levelProperty: 'mumbai', slugSuffix: '_mum', label: 'Mumbai', type: 'city' },
+    pune: { levelTag: 'city', levelProperty: 'pune', slugSuffix: '_pun', label: 'Pune', type: 'city' },
+    surat: { levelTag: 'city', levelProperty: 'surat', slugSuffix: '_sur', label: 'Surat', type: 'city' },
+    ahmedabad: { levelTag: 'city', levelProperty: 'ahmedabad', slugSuffix: '_ahm', label: 'Ahmedabad', type: 'city' },
+    jaipur: { levelTag: 'city', levelProperty: 'jaipur', slugSuffix: '_jai', label: 'Jaipur', type: 'city' },
+    bhopal: { levelTag: 'city', levelProperty: 'bhopal', slugSuffix: '_bho', label: 'Bhopal', type: 'city' },
+    indore: { levelTag: 'city', levelProperty: 'indore', slugSuffix: '_ind', label: 'Indore', type: 'city' },
+    nagpur: { levelTag: 'city', levelProperty: 'nagpur', slugSuffix: '_ngp', label: 'Nagpur', type: 'city' },
+    raipur: { levelTag: 'city', levelProperty: 'raipur', slugSuffix: '_rpr', label: 'Raipur', type: 'city' },
+    bhubaneswar: { levelTag: 'city', levelProperty: 'bhubaneswar', slugSuffix: '_bbsr', label: 'Bhubaneswar', type: 'city' },
+    guwahati: { levelTag: 'city', levelProperty: 'guwahati', slugSuffix: '_gwh', label: 'Guwahati', type: 'city' },
+    chandigarh: { levelTag: 'city', levelProperty: 'chandigarh', slugSuffix: '_chd', label: 'Chandigarh', type: 'city' },
 };
 
 export const MastheadConfig = {

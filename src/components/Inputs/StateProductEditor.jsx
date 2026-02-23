@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, MapPin, Globe } from 'lucide-react';
-import { STATE_DEFINITIONS } from '../../config/widgets/MastheadConfig';
+import { Plus, Trash2, MapPin, Globe, Building2 } from 'lucide-react';
+import { getEffectiveStateDefinitions } from '../AdminPanel/StateManagerModal';
 
 /**
  * StateProductEditor — Global + per-state product inputs.
@@ -20,6 +20,19 @@ const StateProductEditor = ({
 }) => {
     const [showStateMenu, setShowStateMenu] = useState(false);
     const menuRef = useRef(null);
+    // Reload effective definitions when State Manager saves to localStorage
+    const [stateDefs, setStateDefs] = useState(getEffectiveStateDefinitions);
+
+    useEffect(() => {
+        const onStorage = () => setStateDefs(getEffectiveStateDefinitions());
+        window.addEventListener('storage', onStorage);
+        // Also refresh on focus (same-tab localStorage change)
+        window.addEventListener('optimus_states_changed', onStorage);
+        return () => {
+            window.removeEventListener('storage', onStorage);
+            window.removeEventListener('optimus_states_changed', onStorage);
+        };
+    }, []);
 
     // Close dropdown on outside click
     useEffect(() => {
@@ -34,7 +47,7 @@ const StateProductEditor = ({
     }, [showStateMenu]);
 
     const activeStates = Object.keys(value).filter(k => k !== 'global');
-    const availableStates = Object.entries(STATE_DEFINITIONS)
+    const availableStates = Object.entries(stateDefs)
         .filter(([key]) => key !== 'global' && !activeStates.includes(key));
 
     const handleGlobalChange = (text) => {
@@ -81,15 +94,20 @@ const StateProductEditor = ({
 
             {/* Per-state product inputs */}
             {activeStates.map(stateKey => {
-                const stateDef = STATE_DEFINITIONS[stateKey];
+                const stateDef = stateDefs[stateKey];
+                const isCity = stateDef?.levelTag === 'city';
                 return (
-                    <div key={stateKey} className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 mb-2">
+                    <div key={stateKey} className={`rounded-lg border p-3 mb-2 ${isCity ? 'border-amber-200 bg-amber-50/50' : 'border-emerald-200 bg-emerald-50/50'}`}>
                         <div className="flex items-center justify-between mb-1.5">
                             <div className="flex items-center gap-1.5">
-                                <MapPin size={12} className="text-amber-600" />
-                                <span className="text-xs font-semibold text-amber-700 capitalize">
+                                {isCity
+                                    ? <Building2 size={12} className="text-amber-600" />
+                                    : <MapPin size={12} className="text-emerald-600" />
+                                }
+                                <span className={`text-xs font-semibold capitalize ${isCity ? 'text-amber-700' : 'text-emerald-700'}`}>
                                     {stateDef?.levelProperty || stateKey}
                                 </span>
+                                <span className="font-mono text-[10px] text-slate-400">{stateKey}</span>
                             </div>
                             {!disabled && (
                                 <button

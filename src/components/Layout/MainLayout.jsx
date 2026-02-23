@@ -11,8 +11,9 @@ import ManageApprovalUsers from '../AdminPanel/ManageApprovalUsers';
 import HomepageMappingDashboard from '../Dashboard/HomepageMappingDashboard';
 import WidgetVersionHistory from '../Dashboard/WidgetVersionHistory';
 import DeploymentStatusPanel from '../Dashboard/DeploymentStatusPanel';
+import StateManagerModal from '../AdminPanel/StateManagerModal';
 import { ACTIVE_ENV } from '../../config/apiConfig';
-import { LogOut, Save, CheckCircle, XCircle, Send, RotateCcw, Smartphone, ListTodo, History, Undo2, Redo2, X, Users, Map, Rocket } from 'lucide-react';
+import { LogOut, Save, CheckCircle, XCircle, Send, RotateCcw, Smartphone, ListTodo, History, Undo2, Redo2, X, Users, Map, Rocket, MapPin } from 'lucide-react';
 
 
 const MainLayout = () => {
@@ -32,6 +33,7 @@ const MainLayout = () => {
     const [showMapping, setShowMapping] = React.useState(false);
     const [showVersionHistory, setShowVersionHistory] = React.useState(false);
     const [showDeploy, setShowDeploy] = React.useState(false);
+    const [showStateManager, setShowStateManager] = React.useState(false);
 
     // Keyboard shortcuts
     useKeyboardShortcuts({
@@ -93,8 +95,8 @@ const MainLayout = () => {
                     {/* Environment Badge (read-only — switch from login page) */}
                     <span
                         className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border select-none ${ACTIVE_ENV === 'UAT'
-                                ? 'bg-orange-100 text-orange-700 border-orange-300'
-                                : 'bg-green-100 text-green-700 border-green-300'
+                            ? 'bg-orange-100 text-orange-700 border-orange-300'
+                            : 'bg-green-100 text-green-700 border-green-300'
                             }`}
                     >
                         {ACTIVE_ENV === 'UAT' ? '🧪 UAT' : '🚀 PROD'}
@@ -146,6 +148,16 @@ const MainLayout = () => {
                         <span>Queue</span>
                     </button>
 
+                    {/* State Manager Button */}
+                    <button
+                        onClick={() => setShowStateManager(true)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs font-medium border-slate-200 text-slate-700 hover:bg-violet-50 hover:border-violet-200 hover:text-violet-700`}
+                        title="Manage States & Cities for state-wise mapping"
+                    >
+                        <MapPin size={14} />
+                        <span>States</span>
+                    </button>
+
                     {/* Manage Users Button (Super Admin only) */}
                     {isSuperAdmin && (
                         <button
@@ -162,8 +174,8 @@ const MainLayout = () => {
                     <button
                         onClick={() => setShowMapping(true)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs font-medium ${showMapping
-                                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                                : 'border-slate-200 text-slate-700 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700'
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                            : 'border-slate-200 text-slate-700 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700'
                             }`}
                         title="Homepage Mappings"
                     >
@@ -175,8 +187,8 @@ const MainLayout = () => {
                     <button
                         onClick={() => setShowVersionHistory(true)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs font-medium ${showVersionHistory
-                                ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                                : 'border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700'
+                            ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                            : 'border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700'
                             }`}
                         title="Version History"
                     >
@@ -464,11 +476,10 @@ const MainLayout = () => {
                                     return (
                                         <label
                                             key={hw.id}
-                                            className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${
-                                                isSelected
-                                                    ? 'bg-purple-50 border-purple-200 shadow-sm'
-                                                    : 'bg-white border-slate-100 hover:border-slate-200 opacity-60'
-                                            }`}
+                                            className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${isSelected
+                                                ? 'bg-purple-50 border-purple-200 shadow-sm'
+                                                : 'bg-white border-slate-100 hover:border-slate-200 opacity-60'
+                                                }`}
                                         >
                                             <input
                                                 type="checkbox"
@@ -515,11 +526,10 @@ const MainLayout = () => {
                                     return (
                                         <label
                                             key={w.id}
-                                            className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${
-                                                isSelected
-                                                    ? 'bg-blue-50 border-blue-200 shadow-sm'
-                                                    : 'bg-white border-slate-100 hover:border-slate-200 opacity-60'
-                                            }`}
+                                            className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${isSelected
+                                                ? 'bg-blue-50 border-blue-200 shadow-sm'
+                                                : 'bg-white border-slate-100 hover:border-slate-200 opacity-60'
+                                                }`}
                                         >
                                             <input
                                                 type="checkbox"
@@ -576,6 +586,17 @@ const MainLayout = () => {
                         </div>
                     </div>
                 </>
+            )}
+
+            {/* State Manager Modal */}
+            {showStateManager && (
+                <StateManagerModal
+                    onClose={() => {
+                        setShowStateManager(false);
+                        // Notify all StateProductEditor instances to refresh
+                        window.dispatchEvent(new Event('optimus_states_changed'));
+                    }}
+                />
             )}
 
             {/* Interactive Help Guide */}

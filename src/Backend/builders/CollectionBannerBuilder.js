@@ -10,7 +10,7 @@
  *   Then: Carousel Widget → Map all carousel items
  */
 
-import { callApi, createMappingCsv, getNowStr, getFutureStr } from '../ApiClient';
+import { callApi, createMappingCsv, getNowStr, getFutureStr, getCsrfToken } from '../ApiClient';
 import { SlugGenerator } from '../utils/SlugGenerator';
 import { StateMapper } from '../utils/StateMapper';
 import { API_BASE, ENDPOINTS } from '../../config/apiConfig';
@@ -124,6 +124,7 @@ export class CollectionBannerBuilder {
                 scMap.append('mapping_file', scCsv, 'mapping.csv');
                 await fetch(`${API_BASE}${ENDPOINTS.mapWidgetItems}`, {
                     method: 'POST', body: scMap, credentials: 'include',
+                    headers: { 'X-CSRFToken': getCsrfToken() || '' },
                 });
             }
 
@@ -134,6 +135,7 @@ export class CollectionBannerBuilder {
             plpMap.append('mapping_file', plpCsv, 'mapping.csv');
             await fetch(`${API_BASE}${ENDPOINTS.mapLayoutWidget}`, {
                 method: 'POST', body: plpMap, credentials: 'include',
+                headers: { 'X-CSRFToken': getCsrfToken() || '' },
             });
 
             // Map: Page → Global
@@ -144,6 +146,7 @@ export class CollectionBannerBuilder {
             pgMap.append('mapping_file', pgCsv, 'mapping.csv');
             await fetch(`${API_BASE}${ENDPOINTS.mapPageLayout}`, {
                 method: 'POST', body: pgMap, credentials: 'include',
+                headers: { 'X-CSRFToken': getCsrfToken() || '' },
             });
 
             // Step 4: Carousel Widget Item
@@ -190,6 +193,7 @@ export class CollectionBannerBuilder {
             ciMap.append('mapping_file', ciCsv, 'mapping.csv');
             await fetch(`${API_BASE}${ENDPOINTS.mapWidgetItems}`, {
                 method: 'POST', body: ciMap, credentials: 'include',
+                headers: { 'X-CSRFToken': getCsrfToken() || '' },
             });
             results.push({ step: 'map_items_to_carousel', status: 'ok' });
         }

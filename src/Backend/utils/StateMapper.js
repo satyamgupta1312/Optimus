@@ -22,11 +22,32 @@ export class StateMapper {
      */
     static getActiveStates(products = {}) {
         const states = [];
-        for (const [key, codes] of Object.entries(products)) {
-            if (!codes || !codes.toString().trim()) continue;
-            const def = STATE_DEFINITIONS[key];
-            if (!def) continue;
-            states.push({ key, def, codes: codes.toString().trim() });
+        for (const [key, rawCodes] of Object.entries(products)) {
+            if (!rawCodes) continue;
+
+            // Normalize: array of objects → comma-separated string
+            let codes;
+            if (Array.isArray(rawCodes)) {
+                codes = rawCodes
+                    .map(c => (typeof c === 'object' && c !== null) ? (c.itemCode || c.item_code || '') : c)
+                    .filter(Boolean)
+                    .join(',');
+            } else {
+                codes = rawCodes.toString().trim();
+            }
+
+            // Clean up: split on commas/whitespace, remove blanks, rejoin
+            codes = codes.split(/[,\s]+/).filter(Boolean).join(',');
+            if (!codes) continue;
+
+            // 'global' always has a fallback definition — never skip it
+            // Unknown state keys also get a generic fallback (level_tag = key)
+            const def = STATE_DEFINITIONS[key] || (key === 'global'
+                ? { levelTag: 'global', levelProperty: 'global', slugSuffix: '_global' }
+                : { levelTag: key, levelProperty: key, slugSuffix: `_${key}` }
+            );
+
+            states.push({ key, def, codes });
         }
         // Ensure global is first
         states.sort((a, b) => (a.key === 'global' ? -1 : b.key === 'global' ? 1 : 0));

@@ -45,7 +45,7 @@
 import {
     callApi, updateApi, createMappingCsv,
     getWidgetId, getWidgetItemId, getPageLayoutId,
-    getNowStr, getFutureStr,
+    getNowStr, getFutureStr, getCsrfToken,
 } from '../ApiClient';
 import { SlugGenerator } from '../utils/SlugGenerator';
 import { StateMapper } from '../utils/StateMapper';
@@ -59,14 +59,14 @@ import { API_BASE, ENDPOINTS } from '../../config/apiConfig';
 const VARIANT_MAP = {
     // rows=1 (SPR)
     '1_false_false': 'single_product_row',
-    '1_true_false':  'single_product_row_v2',
-    '1_false_true':  'multimedia_single_product_row',
-    '1_true_true':   'multimedia_single_product_row_v2',
+    '1_true_false': 'single_product_row_v2',
+    '1_false_true': 'multimedia_single_product_row',
+    '1_true_true': 'multimedia_single_product_row_v2',
     // rows=2 (DPR)
     '2_false_false': 'double_product_row',
-    '2_true_false':  'double_product_row_v2',
-    '2_false_true':  'multimedia_double_product_row',
-    '2_true_true':   'multimedia_double_product_row_v2',
+    '2_true_false': 'double_product_row_v2',
+    '2_false_true': 'multimedia_double_product_row',
+    '2_true_true': 'multimedia_double_product_row_v2',
 };
 
 const MULTIMEDIA_TYPES = new Set([
@@ -172,9 +172,26 @@ export class SPRBuilder {
         const mmSlug = this.slugGen.get('_mm');
         this.log(`[ProductRail] Creating multimedia: ${mmSlug}`);
 
+        // Resolve background_media: may be a File object (direct upload) or a URL string (local server)
+        let imageFile = this.widget.background_media || null;
+        if (typeof imageFile === 'string' && imageFile.length > 0) {
+            this.log(`[ProductRail] Fetching media from URL: ${imageFile}`);
+            try {
+                const res = await fetch(imageFile);
+                if (!res.ok) throw new Error(`Media fetch failed: ${res.status}`);
+                const blob = await res.blob();
+                const ext = blob.type.split('/')[1] || 'jpg';
+                imageFile = new File([blob], `background.${ext}`, { type: blob.type });
+                this.log(`[ProductRail] Media resolved: ${blob.type} (${blob.size}B)`);
+            } catch (e) {
+                this.log(`[ProductRail] Warning — media fetch failed: ${e.message}`);
+                imageFile = null;
+            }
+        }
+
         const result = await MultimediaService.create({
             slugName: mmSlug,
-            imageFile: this.widget.background_media || null,
+            imageFile,
             videoUrl: this.widget.background_video || '',
         });
 
@@ -215,9 +232,9 @@ export class SPRBuilder {
         const slugs = {
             plpWidget: this.slugGen.get('_plp_w'),
             page: this.slugGen.get('_page_p'),
-            rowItem: this.slugGen.get('_pr_wi'),
             widget: this.slugGen.get(widgetSuffix),
             scItems: {},
+            rowItems: {},
         };
 
         this.log(`[ProductRail] Deploying as: ${widgetType} (Create/Update mode)`);
@@ -348,10 +365,13 @@ export class SPRBuilder {
             this.log('[ProductRail] Step 4 — Map Sub-Cat → PLP Widget');
             const scCsv = StateMapper.buildMappingCsv(stateProducts, (key) => slugs.scItems[key]);
             const scMap = new FormData();
+            const csrfToken = getCsrfToken();
+            if (csrfToken) scMap.append('csrfmiddlewaretoken', csrfToken);
             scMap.append('widget_slug', slugs.plpWidget);
             scMap.append('mapping_file', scCsv, 'mapping.csv');
             await fetch(`${API_BASE}${ENDPOINTS.mapWidgetItems}`, {
                 method: 'POST', body: scMap, credentials: 'include',
+                headers: { 'X-CSRFToken': csrfToken || '' },
             });
             results.push({ step: 'map_subcat_to_plp', status: 'ok' });
         } catch (e) {
@@ -365,10 +385,13 @@ export class SPRBuilder {
                 `widget_slug_name,level_tag,level_property,priority,cohort\n${slugs.plpWidget},global,global,1,`,
             ], { type: 'text/csv' });
             const plpMap = new FormData();
+            const csrfToken5 = getCsrfToken();
+            if (csrfToken5) plpMap.append('csrfmiddlewaretoken', csrfToken5);
             plpMap.append('page_layout_slug', slugs.page);
             plpMap.append('mapping_file', plpCsv, 'mapping.csv');
             await fetch(`${API_BASE}${ENDPOINTS.mapLayoutWidget}`, {
                 method: 'POST', body: plpMap, credentials: 'include',
+                headers: { 'X-CSRFToken': csrfToken5 || '' },
             });
             results.push({ step: 'map_plp_to_page', status: 'ok' });
         } catch (e) {
@@ -380,11 +403,14 @@ export class SPRBuilder {
             this.log('[ProductRail] Step 6 — Map Page → Global');
             const pgCsv = new Blob(['level_tag,level_property\nglobal,global'], { type: 'text/csv' });
             const pgMap = new FormData();
+            const csrfToken6 = getCsrfToken();
+            if (csrfToken6) pgMap.append('csrfmiddlewaretoken', csrfToken6);
             pgMap.append('page_type', '');
             pgMap.append('page_layout_slug', slugs.page);
             pgMap.append('mapping_file', pgCsv, 'mapping.csv');
             await fetch(`${API_BASE}${ENDPOINTS.mapPageLayout}`, {
                 method: 'POST', body: pgMap, credentials: 'include',
+                headers: { 'X-CSRFToken': csrfToken6 || '' },
             });
             results.push({ step: 'map_page_global', status: 'ok' });
         } catch (e) {
@@ -393,53 +419,58 @@ export class SPRBuilder {
 
         // ─── Flow 2: Home Row ───
 
-        // Step 7: Row Widget Item (item_rows) — Create or Update
-        try {
-            const riId = await getWidgetItemId(slugs.rowItem);
+        // Step 7: Row Widget Items (item_rows) — one per active state, Create or Update
+        for (const state of activeStates) {
+            const riSlug = this.slugGen.get(`_pr_wi_${state.key}`);
+            slugs.rowItems[state.key] = riSlug;
 
-            if (riId) {
-                this.log(`[ProductRail] Step 7 — Row Item exists (${riId}), Updating...`);
-                await updateApi(`/api/app/widget_item/${riId}/`, {
-                    slug_name: slugs.rowItem,
-                    item_type: 'item_rows',
-                    product_list: productCodes,
-                    filter_lst: StateMapper.buildInStockFilter(productCodes),
-                    start_time: this.dates.start,
-                    end_time: this.dates.end,
-                });
-            } else {
-                this.log(`[ProductRail] Step 7 — Row Item new, Creating: ${slugs.rowItem}`);
-                await callApi(ENDPOINTS.widgetItem, {
-                    widget_item_id: 'undefined',
-                    deactivated_flag: 'no',
-                    item_click_action: '',
-                    slug_name: slugs.rowItem,
-                    slave_key: '',
-                    item_type: 'item_rows',
-                    media: '',
-                    text_en: '',
-                    media_en: '',
-                    text_hi: '',
-                    media_hi: '',
-                    text_bg: '',
-                    media_bg: '',
-                    product_list: productCodes,
-                    filters: '[]',
-                    filter_lst: StateMapper.buildInStockFilter(productCodes),
-                    property_lst: '[]',
-                    pl_edit: 'PL',
-                    is_clickable: 'no',
-                    update_product_list: 'no',
-                    start_time: this.dates.start,
-                    end_time: this.dates.end,
-                    click_action_params: '{}',
-                }, { multipart: true });
+            try {
+                const riId = await getWidgetItemId(riSlug);
+
+                if (riId) {
+                    this.log(`[ProductRail] Step 7 — Row Item [${state.key}] exists (${riId}), Updating...`);
+                    await updateApi(`/api/app/widget_item/${riId}/`, {
+                        slug_name: riSlug,
+                        item_type: 'item_rows',
+                        product_list: state.codes,
+                        filter_lst: StateMapper.buildInStockFilter(state.codes),
+                        start_time: this.dates.start,
+                        end_time: this.dates.end,
+                    });
+                } else {
+                    this.log(`[ProductRail] Step 7 — Row Item [${state.key}] new, Creating: ${riSlug}`);
+                    await callApi(ENDPOINTS.widgetItem, {
+                        widget_item_id: 'undefined',
+                        deactivated_flag: 'no',
+                        item_click_action: '',
+                        slug_name: riSlug,
+                        slave_key: '',
+                        item_type: 'item_rows',
+                        media: '',
+                        text_en: '',
+                        media_en: '',
+                        text_hi: '',
+                        media_hi: '',
+                        text_bg: '',
+                        media_bg: '',
+                        product_list: state.codes,
+                        filters: '[]',
+                        filter_lst: StateMapper.buildInStockFilter(state.codes),
+                        property_lst: '[]',
+                        pl_edit: 'PL',
+                        is_clickable: 'no',
+                        update_product_list: 'no',
+                        start_time: this.dates.start,
+                        end_time: this.dates.end,
+                        click_action_params: '{}',
+                    }, { multipart: true });
+                }
+
+                results.push({ step: `row_item_${state.key}`, slug: riSlug, status: 'ok' });
+            } catch (e) {
+                this.log(`[ProductRail] Step 7 — Row Item [${state.key}] failed: ${e.message}`);
+                results.push({ step: `row_item_${state.key}`, slug: riSlug, status: 'failed', error: e.message });
             }
-
-            results.push({ step: 'row_item', slug: slugs.rowItem, status: 'ok' });
-        } catch (e) {
-            this.log(`[ProductRail] Step 7 — Row Item failed: ${e.message}`);
-            results.push({ step: 'row_item', slug: slugs.rowItem, status: 'failed', error: e.message });
         }
 
         // Step 7.5: Create Multimedia (only for multimedia_* variants)
@@ -473,7 +504,7 @@ export class SPRBuilder {
                 });
             } else {
                 this.log(`[ProductRail] Step 8 — Widget new, Creating: ${slugs.widget} (${widgetType})`);
-                await callApi(ENDPOINTS.widget, {
+                const widgetPayload = {
                     slug_name: slugs.widget,
                     widget_type: widgetType,
                     description: '',
@@ -488,10 +519,13 @@ export class SPRBuilder {
                     media_aspect_ratio: '1',
                     view_all_action_name: 'redirect-to-page',
                     view_all_action_params: viewAllParams,
-                    background_multimedia: multimediaSlug,
+                    // Always send background_multimedia — Django requires it even as empty string
+                    // For multimedia variants: pass the slug; for regular SPR/DPR: pass ''
+                    background_multimedia: MULTIMEDIA_TYPES.has(widgetType) ? (multimediaSlug || '') : '',
                     filter_dict: '{}',
                     app_configurations: '{}',
-                }, { multipart: true });
+                };
+                await callApi(ENDPOINTS.widget, widgetPayload, { multipart: true });
             }
 
             results.push({ step: 'widget', slug: slugs.widget, status: 'ok' });
@@ -500,17 +534,18 @@ export class SPRBuilder {
             results.push({ step: 'widget', slug: slugs.widget, status: 'failed', error: e.message });
         }
 
-        // Step 9: Map Row Item → Widget
+        // Step 9: Map Row Items → Widget (state-wise)
         try {
-            this.log('[ProductRail] Step 9 — Map Row → Widget');
-            const riCsv = new Blob([
-                `widget_item_slug_name,level_tag,level_property,priority,cohort\n${slugs.rowItem},global,global,1,`,
-            ], { type: 'text/csv' });
+            this.log('[ProductRail] Step 9 — Map Row → Widget (state-wise)');
+            const riCsv = StateMapper.buildMappingCsv(stateProducts, (key) => slugs.rowItems[key]);
             const riMap = new FormData();
+            const csrfToken9 = getCsrfToken();
+            if (csrfToken9) riMap.append('csrfmiddlewaretoken', csrfToken9);
             riMap.append('widget_slug', slugs.widget);
             riMap.append('mapping_file', riCsv, 'mapping.csv');
             await fetch(`${API_BASE}${ENDPOINTS.mapWidgetItems}`, {
                 method: 'POST', body: riMap, credentials: 'include',
+                headers: { 'X-CSRFToken': csrfToken9 || '' },
             });
             results.push({ step: 'map_row_to_widget', status: 'ok' });
         } catch (e) {

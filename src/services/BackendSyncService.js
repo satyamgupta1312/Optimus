@@ -448,16 +448,41 @@ export const BackendSyncService = {
 
         // ── FLOW 2: Row Widget ──
 
-        // 2.1 Row Widget Item
-        await postForm(API.POST_WIDGET_ITEM, {
-            widget_item_id: 'undefined', deactivated_flag: 'no', item_click_action: '',
-            slug_name: slugs.rowItem, slave_key: '',
-            item_type: 'item_rows', media: '', text_en: '', media_en: '', text_hi: '', media_hi: '', text_bg: '', media_bg: '',
-            product_list: globalCodes, filters: '[]',
-            filter_lst: JSON.stringify([{ condition: 'in_stk_item_codes', value: globalCodes }]),
-            property_lst: '[]', pl_edit: 'PL', is_clickable: 'no', update_product_list: 'no',
-            start_time: startDate, end_time: endDate, click_action_params: '{}',
-        }, tokens, log, 'SPR-Opt 2.1 Row Item');
+        // 2.1 Row Widget Item(s) — per state if stateProducts available
+        const rowMappingRows = ['widget_item_slug_name,level_tag,level_property,priority,cohort'];
+        if (hasStateProducts) {
+            const { STATE_DEFINITIONS: STATE_DEFS } = await import('../config/widgets/MastheadConfig');
+            let riPriority = 1;
+            for (const stateKey of stateKeys) {
+                const stateDef = STATE_DEFS[stateKey] || { levelTag: 'global', levelProperty: 'global', slugSuffix: `_${stateKey}` };
+                const stCodes = stateProducts[stateKey].split(/[,\s]+/).filter(Boolean).join(',');
+                const riSlug = `${slugBase}_pr_wi${stateDef.slugSuffix}_${suffix}`;
+
+                await postForm(API.POST_WIDGET_ITEM, {
+                    widget_item_id: 'undefined', deactivated_flag: 'no', item_click_action: '',
+                    slug_name: riSlug, slave_key: '',
+                    item_type: 'item_rows', media: '', text_en: '', media_en: '', text_hi: '', media_hi: '', text_bg: '', media_bg: '',
+                    product_list: stCodes, filters: '[]',
+                    filter_lst: JSON.stringify([{ condition: 'in_stk_item_codes', value: stCodes }]),
+                    property_lst: '[]', pl_edit: 'PL', is_clickable: 'no', update_product_list: 'no',
+                    start_time: startDate, end_time: endDate, click_action_params: '{}',
+                }, tokens, log, `SPR-Opt 2.1 Row Item (${stateDef.levelProperty})`);
+
+                rowMappingRows.push(`${riSlug},${stateDef.levelTag},${stateDef.levelProperty},${riPriority},`);
+                riPriority++;
+            }
+        } else {
+            await postForm(API.POST_WIDGET_ITEM, {
+                widget_item_id: 'undefined', deactivated_flag: 'no', item_click_action: '',
+                slug_name: slugs.rowItem, slave_key: '',
+                item_type: 'item_rows', media: '', text_en: '', media_en: '', text_hi: '', media_hi: '', text_bg: '', media_bg: '',
+                product_list: globalCodes, filters: '[]',
+                filter_lst: JSON.stringify([{ condition: 'in_stk_item_codes', value: globalCodes }]),
+                property_lst: '[]', pl_edit: 'PL', is_clickable: 'no', update_product_list: 'no',
+                start_time: startDate, end_time: endDate, click_action_params: '{}',
+            }, tokens, log, 'SPR-Opt 2.1 Row Item');
+            rowMappingRows.push(`${slugs.rowItem},global,global,1,`);
+        }
 
         // 2.2 SPR/DPR Widget (widget_type from PNC resolution)
         const widgetFields = {
@@ -473,10 +498,10 @@ export const BackendSyncService = {
         if (multimediaSlug) widgetFields.background_multimedia = multimediaSlug;
         await postForm(API.POST_WIDGET, widgetFields, tokens, log, `SPR-Opt 2.2 Widget (${widgetType})`);
 
-        // 2.3 Map SPR Widget → Row Item (Layer 1)
+        // 2.3 Map SPR Widget → Row Item(s) (Layer 1 — state-wise)
         await postMapping(API.MAP_WIDGET_ITEMS,
             { widget_slug: slugs.rowWidget },
-            `widget_item_slug_name,level_tag,level_property,priority,cohort\n${slugs.rowItem},global,global,1,`,
+            rowMappingRows.join('\n'),
             tokens, log, 'SPR-Opt 2.3 Map SPR→Row');
 
         log(`SPR Optimized Deployed! Final slug: ${slugs.rowWidget}`);

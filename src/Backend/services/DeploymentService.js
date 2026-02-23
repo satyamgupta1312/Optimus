@@ -26,6 +26,7 @@ import { CategoryGridBuilder } from '../builders/CategoryGridBuilder';
 import { CollectionBannerBuilder } from '../builders/CollectionBannerBuilder';
 import { API_BASE, ENDPOINTS } from '../../config/apiConfig';
 import { FETCHED_WIDGET_UPDATE_STRATEGY } from '../../config/BackendFlow';
+import { setCsrfToken } from '../ApiClient';
 
 /**
  * Widget type → Builder class mapping.
@@ -57,6 +58,9 @@ export const DeploymentService = {
         const logs = [];
         const log = (msg) => { console.log(`[Deploy] ${msg}`); logs.push(msg); };
         const results = [];
+
+        // Initialize CSRF token for ApiClient (used by all builders)
+        if (tokens.csrftoken) setCsrfToken(tokens.csrftoken);
 
         log('Starting deployment...');
 

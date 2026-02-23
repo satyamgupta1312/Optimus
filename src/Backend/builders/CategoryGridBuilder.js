@@ -10,7 +10,7 @@
  *   Phase 2: Category Grid Widget → Map all cat items
  */
 
-import { callApi, createMappingCsv, getNowStr, getFutureStr } from '../ApiClient';
+import { callApi, createMappingCsv, getNowStr, getFutureStr, getCsrfToken } from '../ApiClient';
 import { SlugGenerator } from '../utils/SlugGenerator';
 import { StateMapper } from '../utils/StateMapper';
 import { API_BASE, ENDPOINTS } from '../../config/apiConfig';
@@ -138,6 +138,7 @@ export class CategoryGridBuilder {
                 scMap.append('mapping_file', scCsv, 'mapping.csv');
                 await fetch(`${API_BASE}${ENDPOINTS.mapWidgetItems}`, {
                     method: 'POST', body: scMap, credentials: 'include',
+                    headers: { 'X-CSRFToken': getCsrfToken() || '' },
                 });
             }
 
@@ -148,6 +149,7 @@ export class CategoryGridBuilder {
             plpMap.append('mapping_file', plpCsv, 'mapping.csv');
             await fetch(`${API_BASE}${ENDPOINTS.mapLayoutWidget}`, {
                 method: 'POST', body: plpMap, credentials: 'include',
+                headers: { 'X-CSRFToken': getCsrfToken() || '' },
             });
 
             // Map: Page → Global
@@ -158,6 +160,7 @@ export class CategoryGridBuilder {
             pgMap.append('mapping_file', pgCsv, 'mapping.csv');
             await fetch(`${API_BASE}${ENDPOINTS.mapPageLayout}`, {
                 method: 'POST', body: pgMap, credentials: 'include',
+                headers: { 'X-CSRFToken': getCsrfToken() || '' },
             });
 
             // Step 4: Category Widget Item
@@ -211,6 +214,7 @@ export class CategoryGridBuilder {
             ciMap.append('mapping_file', ciCsv, 'mapping.csv');
             await fetch(`${API_BASE}${ENDPOINTS.mapWidgetItems}`, {
                 method: 'POST', body: ciMap, credentials: 'include',
+                headers: { 'X-CSRFToken': getCsrfToken() || '' },
             });
             results.push({ step: 'map_items_to_widget', status: 'ok' });
         }

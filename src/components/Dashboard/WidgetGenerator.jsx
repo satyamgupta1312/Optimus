@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronRight, ChevronLeft, Save, Plus, Trash2, Calendar, Upload, Key, FileText } from 'lucide-react';
-import { BackendSyncService } from '../../services/BackendSyncService';
+import { DeploymentService } from '../../Backend/services/DeploymentService';
 import DateTimeInput from '../Inputs/DateTimeInput';
 
 const WidgetGenerator = ({ onClose }) => {
@@ -51,7 +51,7 @@ const WidgetGenerator = ({ onClose }) => {
         };
 
         try {
-            const result = await BackendSyncService.deployRequest(mockRequest, { csrftoken: config.csrfToken });
+            const result = await DeploymentService.deployRequest(mockRequest, { csrftoken: config.csrfToken });
 
             if (result.success) {
                 setLogs(prev => [...prev, ...result.logs, '✅ Deployment Complete!']);

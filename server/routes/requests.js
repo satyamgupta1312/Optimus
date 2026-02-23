@@ -9,7 +9,7 @@ const router = Router();
 router.get('/', async (req, res, next) => {
   try {
     const { status } = req.query;
-    const where = {};
+    const where = { env: req.env };
     if (status) where.status = status;
 
     const requests = await prisma.request.findMany({
@@ -72,6 +72,7 @@ router.post('/', async (req, res, next) => {
             data: {
               type: w.type || 'unknown',
               slug,
+              env: req.env,
               title: w.title || '',
               titleHi: w.titleHi || '',
               status: 'PENDING',
@@ -89,6 +90,7 @@ router.post('/', async (req, res, next) => {
         const req_ = await tx.request.create({
           data: {
             status: 'PENDING',
+            env: req.env,
             submittedBy: req.user.id,
             headerWidgets: JSON.stringify(headerWidgets || {}),
             requestWidgets: {
@@ -141,6 +143,7 @@ router.post('/', async (req, res, next) => {
     const request = await prisma.request.create({
       data: {
         submittedBy: req.user.id,
+        env: req.env,
         headerWidgets: JSON.stringify(headerWidgets || {}),
         requestWidgets: {
           create: widgets.map((w, i) => ({

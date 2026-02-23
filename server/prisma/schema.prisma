@@ -87,6 +87,7 @@ model Request {
   id              String   @id @default(uuid())
   status          String   @default("DRAFT") // DRAFT | PENDING | APPROVED | REJECTED
   type            String   @default("Homepage Update")
+  env             String   @default("PROD") // UAT | PROD
   submittedBy     String
   submitter       User     @relation(fields: [submittedBy], references: [id])
   rejectionReason String   @default("")
@@ -98,6 +99,7 @@ model Request {
 
   @@index([status])
   @@index([submittedBy])
+  @@index([env])
 }
 
 // ── RequestWidget ──

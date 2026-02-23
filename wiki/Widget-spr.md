@@ -137,158 +137,190 @@ The user selects the **page type** during widget creation. This determines the n
 | Page Type | "View All" Result |
 | :--- | :--- |
 | `product_listing_page` | Opens a flat product listing page directly with all mapped products |
-| `category_page` | Opens a category page with sub-category cards — user picks a sub-category — then sees products |
+| `category_page` | Opens a category page with sub-category tabs — user picks a sub-category — then sees products |
 
-> The page type is set on the **Page Layout** object (Step 1/3) and referenced in the widget's `view_all_action_params`. The user selects the page type **per widget** during configuration.
+> The page type sets `page_type` on the **Page Layout** (Step 3) and `view_all_action_params` on the SPR widget. When `category_page` is selected, the form shows **Sub-Categories** and **Home Row Product Codes** fields instead of the standard Products field.
 
-### Frontend Page Type Selection
+### Form Fields by Page Type
 
 ```
-Single Product Row: "Rice Mela Rail"
-+-------------------------------------------------+
-| Page Type:  [product_listing_page  v]           |
-|             [category_page         ]            |
-|                                                   |
-| Slug:       rice_mela_rail                       |
-| Title:      Rice Mela                            |
-| Products:   1001, 1002, 1003, 1004              |
-+-------------------------------------------------+
+[product_listing_page]:     [category_page]:
+  Slug                         Slug
+  Title                        Title
+  Products (state-wise)  →     Sub-Categories (list of tabs + per-tab state products)
+                               Home Row Product Codes (codes for the home widget card)
+  Start / End time             Start / End time
 ```
 
 ---
 
 ## 4. Form Fields & Validation
 
-Driven from `SPRConfig.fields`:
+Driven from `SPRConfig.fields`.
 
-| Field | Component | Required | Validation | Condition |
-| :--- | :--- | :---: | :--- | :--- |
-| **Page Type** | `SelectInput` | Yes | `product_listing_page` or `category_page` | Always |
-| **Slug** | `SlugBuilder` | Yes | `/^[a-z0-9_]+$/`, 3-100 chars | Always |
-| **Title (English)** | `TextInput` | Conditional | 2-200 chars, auto-translate. **Not required when `has_multimedia = true`** | Always |
-| **Title (Hindi)** | `TextInput` | No | — | Always |
-| **Products (State-wise)** | `StateProductEditor` | Yes (global) | Global required. Per-state optional via "+ Add State" button. Comma-separated numeric item codes. | Always |
-| **Background Media** | `ImageUpload` | No | Supported formats: `.jpeg/.jpg/.png/.webp/.gif/.svg`. Uploaded to `POST /api/app/multimedia/` during deploy. | Only when `has_multimedia = true` |
-| **Background Video URL** | `UrlInput` | No | Valid URL ending `.mp4/.mov/.webm` | Only when `has_multimedia = true` |
-| **View All Page Slug** | `TextInput` | No | `/^[a-z0-9_-]*$/` | Only when `is_optimized = false` |
-| **Start Date & Time** | `DateTimeInput` | Yes | ISO 8601 datetime via calendar + time picker | Always |
-| **End Date & Time** | `DateTimeInput` | Yes | ISO 8601 datetime via calendar + time picker | Always |
+### For `product_listing_page` (default)
 
-### Title — Conditional Required
+| Field | Component | Required | Condition |
+| :--- | :--- | :---: | :--- |
+| **Page Type** | `SelectInput` | Yes | Always |
+| **Slug** | `SlugBuilder` | Yes | Always |
+| **Title (English)** | `TextInput` | Conditional* | Always |
+| **Title (Hindi)** | `TextInput` | No | Always |
+| **Products (State-wise)** | `StateProductEditor` | Yes | `pageType !== 'category_page'` |
+| **Background Media** | `ImageUpload` | No | `pnc.has_multimedia` |
+| **Background Video URL** | `UrlInput` | No | `pnc.has_multimedia` |
+| **View All Background Color** | `ColorPicker` | No | `pnc.has_multimedia` |
+| **View All Text Color** | `ColorPicker` | No | `pnc.has_multimedia` |
+| **View All Page Slug** | `TextInput` | No | `!pnc.is_optimized && pageType !== 'category_page'` |
+| **Start / End Date & Time** | `DateTimeInput` | Yes | Always |
 
-- When `has_multimedia = false` → Title is **required** (2-200 chars)
-- When `has_multimedia = true` → Title is **optional** (the background image is the primary visual)
+*Title required when `has_multimedia = false`.
 
-### Products — State-wise Input (StateProductEditor)
+### For `category_page`
 
-The products field uses `StateProductEditor` component which shows:
-- **Global (Required)** — comma-separated item codes, always visible
-- **+ Add State** button — adds per-state product inputs (jharkhand, chhattisgarh, west bengal, etc.)
-- Each state input is optional — remove with trash icon
+| Field | Component | Required | Notes |
+| :--- | :--- | :---: | :--- |
+| **Page Type** | `SelectInput` | Yes | — |
+| **Slug** | `SlugBuilder` | Yes | — |
+| **Title (English)** | `TextInput` | No* | Used as category page heading |
+| **Title (Hindi)** | `TextInput` | No | — |
+| **Sub-Categories** | `SubCategoryList` | Yes | Replaces Products. Each item has: `name`, `nameHi`, `image`, `products` (state-wise) |
+| **Home Row Product Codes** | `StateProductEditor` | Yes | State-wise product codes for `item_rows` widget item shown on the HOME page. |
+| **Background Media** | `ImageUpload` | No | `pnc.has_multimedia` |
+| **Start / End Date & Time** | `DateTimeInput` | Yes | — |
+
+### Sub-Categories Input (category_page only)
+
+Each sub-category in the `SubCategoryList` has:
+- **Name** — tab label shown on the category page
+- **Products (state-wise)** — per-state product codes for this tab
 
 ```
-┌─ Products (State-wise) ──────────────────────┐
+┌─ Sub-Categories ─────────────────────────────────┐
+│  ▸ #1  Rice & Grains                              │
+│  ▾ #2  Pulses (expanded)                         │
+│     Name:     Pulses                             │
+│     Products: 1001, 1002, 1003   [Global]        │
+│               2001, 2002         [Jharkhand]     │
+│  [+ Add Sub-Category]                            │
+└───────────────────────────────────────────────────┘
+```
+
+### Home Row Product Codes (category_page only)
+
+The **Home Row Product Codes** are shown in the **homepage emulator preview** and used to create the `item_rows` widget item that maps to the SPR widget. They are independent from the sub-categories' product lists. It uses the `StateProductEditor` so you can define global and location-specific home page rows.
+
+```
+┌─ Home Row Product Codes ─────────────────────────┐
 │  🌐 Global (Required)                         │
 │  ┌──────────────────────────────────────┐    │
-│  │ 1001, 1002, 1003, 1004, 1005        │    │
+│  │ 10001, 10002, 10003                  │    │
 │  └──────────────────────────────────────┘    │
-│                                                │
-│  📍 Jharkhand                            🗑   │
-│  ┌──────────────────────────────────────┐    │
-│  │ 2001, 2002, 2003                     │    │
-│  └──────────────────────────────────────┘    │
-│                                                │
-│  📍 West Bengal                          🗑   │
-│  ┌──────────────────────────────────────┐    │
-│  │ 3001, 3002                           │    │
-│  └──────────────────────────────────────┘    │
-│                                                │
 │  [+ Add State]                                 │
-└────────────────────────────────────────────────┘
+└───────────────────────────────────────────────────┘
 ```
 
 ### Multimedia Background — Upload Flow
 
 When `has_multimedia` is enabled and a background image is uploaded:
 1. Image stored locally as `widget.background_media` (File object)
-2. During deploy (Step 0), image uploaded to Django: `POST /api/app/multimedia/`
+2. During deploy (Step 7.5), image uploaded to Django: `POST /api/app/multimedia/`
 3. Returned slug (`{base}_bg_{suffix}`) used as `background_multimedia` on the widget
-4. If `background_multimedia` is empty, field is **omitted** from widget payload (avoids Django error)
-
-```
-Deploy Step 0 (multimedia only):
-  POST /api/app/multimedia/
-  Fields: name={base}_bg_{suffix}, multimedia_type=3, file_en=<image>, aspect_ratio=1
-  Colors: transition_color=#FFFFFF, accent_color=#0000FF, text_color=#FFFFFF, icon_bg_color=#F0F0F0
-```
 
 ---
 
 ## 5. Deploy Strategies
 
-### 5.1 Unified Creation Flow (ALL Variants — Standard & Optimized)
+### 5.1 Product Listing Page Flow (`product_listing_page` — default)
 
-**All Product Rail variants** — regardless of `is_optimized` — create **two parallel flows**: a PLP ecosystem with state-wise `sub_category` items AND a home row widget with `item_rows`.
-
-> The `is_optimized` flag only affects the `widget_type` name (`_v2` suffix) and the home widget slug suffix (`_spr` vs `_spr_opt`). The creation flow, including state-wise products, is **identical** for all variants.
+Creates **two parallel flows**: a PLP ecosystem with state-wise `sub_category` items AND a home row widget with `item_rows`.
 
 ```
--- Step 0: Multimedia Upload (only when has_multimedia = true) --
-Step 0: Upload Multimedia             POST /api/app/multimedia/          (slug: {base}_bg_{suffix})
+-- Step 7.5: Multimedia Upload (only when has_multimedia = true) --
 
--- Flow 1: PLP Ecosystem (state-wise — ALL variants) --
-Step 1: Create Sub-Cat Widget Item(s) POST /api/app/post_widget_item/   (slug: {base}_sc_wi_{state} — per state)
-Step 2: Create PLP Widget             POST /api/app/widget/              (slug: {base}_plp_w)
-Step 3: Create Page Layout            POST /api/app/post_page_layout/   (slug: {base}_page_p)
-Step 4: Map PLP Widget <-> Sub-Cat   (parent: _plp_w, children: _sc_wi_{state} — location CSV)
-Step 5: Map Page <-> PLP Widget      (parent: _page_p, child: _plp_w)
-Step 6: Map Page → Global Registry   (parent: _page_p, page_type: product_listing_page)
+-- Flow 1: PLP Ecosystem (state-wise) --
+Step 1: Create Sub-Cat Widget Item(s) POST /api/app/post_widget_item/  (slug: {base}_sc_wi_{state} — per state)
+Step 2: Create PLP Widget             POST /api/app/widget/             (slug: {base}_plp_w)
+Step 3: Create Page Layout            POST /api/app/post_page_layout/  (slug: {base}_page_p, page_type: product_listing_page)
+Step 4: Map Sub-Cats → PLP Widget    CSV: _sc_wi_{state} per level_tag
+Step 5: Map PLP Widget → Page        CSV: global layout_widget
+Step 6: Register Page → Global       page_type: product_listing_page
 
 -- Flow 2: Home Row --
-Step 7: Create Row Widget Item        POST /api/app/post_widget_item/   (slug: {base}_pr_wi)
-Step 8: Create Homepage Widget        POST /api/app/widget/              (slug: {base}_spr / {base}_spr_opt)
-Step 9: Map Widget <-> Row Item      (parent: widget, child: _pr_wi)
+Step 7: Create Row Widget Item        POST /api/app/post_widget_item/  (slug: {base}_pr_wi_{state} — per state, products from stateProducts)
+Step 8: Create SPR Widget             POST /api/app/widget/             (slug: {base}_spr / {base}_spr_opt)
+Step 9: Map Row Items → Widget        CSV: _pr_wi_{state} per state
 ```
+
+### 5.2 Category Page Flow (`category_page`)
+
+Creates a **category page ecosystem** (one sub-cat widget item per sub-category per state) and a home row item with separate product codes.
+
+```
+-- Flow 1: Category Page Ecosystem --
+Step 1: For each subCategory[j], for each state:
+          Create Sub-Cat Widget Item  POST /api/app/post_widget_item/  (slug: {base}_0_{j}_{state}, item_type: sub_category, text_en: sub.name)
+Step 2: Create PLP Widget             POST /api/app/widget/             (slug: {base}_plp_w, app_configurations: {show_sub_cat: true})
+Step 3: Create Page Layout            POST /api/app/post_page_layout/  (slug: {base}_page_p, page_type: category_page)
+Step 4: Map all Sub-Cat Items → PLP  CSV: all sub-cat slugs
+Step 5: Map PLP Widget → Page        CSV: global layout_widget
+Step 6: Register Page → Global       page_type: category_page
+
+-- Flow 2: Home Row --
+Step 7: Create Row Widget Item        POST /api/app/post_widget_item/  (slug: {base}_pr_wi_global, products from homeRowProducts field)
+Step 8: Create SPR Widget             POST /api/app/widget/             (slug: {base}_spr / {base}_spr_opt)
+Step 9: Map Row Item → Widget         CSV: global, global, P:1
+```
+
+> **Key difference for `category_page`:**
+> - `widget.subCategories` → multiple Sub-Cat Widget Items (each tab on the category page)
+> - `widget.homeRowProducts` → separate codes for the home page `item_rows` item
+> - PLP Widget gets `app_configurations: {show_sub_cat: true}` to render tabs
 
 ```mermaid
 flowchart TD
-    subgraph Flow 1 - PLP Ecosystem
-        direction TB
-        SC_G["Sub-Cat (Global)\nslug: {base}_sc_wi_global\nitem_type: sub_category"]
+    subgraph Flow1A["Flow 1A — product_listing_page"]
+        SC_G["Sub-Cat (Global)\nslug: {base}_sc_wi_global"]
         SC_JH["Sub-Cat (JH)\nslug: {base}_sc_wi_jh"]
-        SC_UP["Sub-Cat (UP)\nslug: {base}_sc_wi_up"]
-
-        PLP["PLP Widget\nslug: {base}_plp_w\nwidget_type: product_listing"]
-        Page["Page Layout\nslug: {base}_page_p\npage_type: product_listing_page / category_page"]
-
-        SC_G -->|"global, global, P:1"| PLP
-        SC_JH -->|"state, jharkhand, P:2"| PLP
-        SC_UP -->|"state, uttar pradesh, P:3"| PLP
-
-        PLP -->|"layout_widget mapping"| Page
-        Page -->|"global mapping"| Global[Global Registry]
+        PLP1["PLP Widget\nslug: {base}_plp_w"]
+        Page1["Page Layout\npage_type: product_listing_page"]
+        SC_G --> PLP1
+        SC_JH --> PLP1
+        PLP1 --> Page1 --> Global1[Global Registry]
     end
 
-    subgraph Flow 2 - Home Row
-        direction TB
-        RI["Row Widget Item\nslug: {base}_pr_wi\nitem_type: item_rows"]
-        SPR["Homepage Widget\nslug: {base}_spr or {base}_spr_opt\nwidget_type: from variant matrix"]
-
-        RI -->|"widget_item mapping"| SPR
+    subgraph Flow1B["Flow 1B — category_page"]
+        SC1["Sub-Cat[0] Global\n{base}_0_0_global\ntext_en: Rice"]
+        SC2["Sub-Cat[1] Global\n{base}_0_1_global\ntext_en: Dal"]
+        SC3["Sub-Cat[1] JH\n{base}_0_1_jh"]
+        PLP2["PLP Widget\nshow_sub_cat: true"]
+        Page2["Page Layout\npage_type: category_page"]
+        SC1 --> PLP2
+        SC2 --> PLP2
+        SC3 --> PLP2
+        PLP2 --> Page2 --> Global2[Global Registry]
     end
 
-    SPR -.->|"view_all_action_params"| Page
+    subgraph Flow2["Flow 2 — Home Row"]
+        RI["Row Widget Item\nitem_type: item_rows\nproducts: homeRowProducts"]
+        SPR["SPR Widget\nview_all → Page"]
+        RI --> SPR
+    end
+
+    SPR -.->|view_all_action_params| Page1
+    SPR -.->|view_all_action_params| Page2
 ```
 
 **Field Mapping:**
 
 | Step | Entity | Slug Suffix | Key Fields |
 | :--- | :--- | :--- | :--- |
-| 1 | Sub-Cat Widget Item | `_sc_wi_{state}` | `item_type: sub_category`, `product_list`, `filter_lst` |
-| 2 | PLP Widget | `_plp_w` | `widget_type: product_listing`, `heading: $title` |
-| 3 | Page Layout | `_page_p` | `page_type: $selectedPageType`, `page_heading: $title`, `page_layout_type: 2` |
-| 7 | Row Widget Item | `_pr_wi` | `item_type: item_rows`, `product_list` |
-| 8 | Homepage Widget | `_spr` / `_spr_opt` | `widget_type: $resolvedWidgetType`, `heading_en/hi`, `view_all: redirect-to-page`, `background_multimedia`, `filter_dict`, `app_configurations` |
+| 1 (PLP) | Sub-Cat Widget Item | `_sc_wi_{state}` | `item_type: sub_category`, `product_list`, `filter_lst` |
+| 1 (CAT) | Sub-Cat Widget Item | `_0_{j}_{state}` | `item_type: sub_category`, `text_en: sub.name`, `product_list` |
+| 2 | PLP Widget | `_plp_w` | `widget_type: product_listing`, `app_configurations: {show_sub_cat:true}` for category_page |
+| 3 | Page Layout | `_page_p` | `page_type: product_listing_page OR category_page`, `page_heading: title` |
+| 7 | Row Widget Item | `_pr_wi_{state}` | `item_type: item_rows`, `product_list: homeRowProducts` (cat) or state codes (plp) |
+| 8 | SPR Widget | `_spr` / `_spr_opt` | `widget_type`, `heading_en/hi`, `view_all_action_params → page` |
 
 ---
 

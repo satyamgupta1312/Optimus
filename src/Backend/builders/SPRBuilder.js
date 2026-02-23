@@ -231,7 +231,7 @@ export class SPRBuilder {
 
         const slugs = {
             plpWidget: this.slugGen.get('_plp_w'),
-            page: this.slugGen.get('_page_p'),
+            page: pageType === 'category_page' ? this.slugGen.get('_Cat_page') : this.slugGen.get('_page_p'),
             widget: this.slugGen.get(widgetSuffix),
             scItems: {},
             rowItems: {},
@@ -241,60 +241,83 @@ export class SPRBuilder {
 
         // ─── Flow 1: PLP Ecosystem ───
 
-        // Step 1: Sub-Category Widget Items — one per active state
-        const stateProducts = this.widget.stateProducts || { global: productCodes };
-        const activeStates = StateMapper.getActiveStates(stateProducts);
-
-        for (const state of activeStates) {
-            const scSlug = this.slugGen.get(`_sc_wi_${state.key}`);
-            slugs.scItems[state.key] = scSlug;
-
-            try {
-                const existingId = await getWidgetItemId(scSlug);
-
-                if (existingId) {
-                    // UPDATE existing sub-cat item (skip media_en for JSON update)
-                    this.log(`[ProductRail] Step 1 — SC Item [${state.key}] exists (${existingId}), Updating...`);
-                    await updateApi(`/api/app/widget_item/${existingId}/`, {
-                        slug_name: scSlug,
-                        item_type: 'sub_category',
-                        text_en: this.widget.title,
-                        text_hi: this.widget.titleHi || '',
-                        product_list: state.codes,
-                        filter_lst: StateMapper.buildInStockFilter(state.codes),
-                        start_time: this.dates.start,
-                        end_time: this.dates.end,
-                    });
-                } else {
-                    // CREATE new sub-cat item
-                    this.log(`[ProductRail] Step 1 — SC Item [${state.key}] new, Creating: ${scSlug}`);
-                    await callApi(ENDPOINTS.widgetItem, {
-                        widget_item_id: 'undefined',
-                        deactivated_flag: 'no',
-                        item_click_action: 'deal-detail-redirect',
-                        slug_name: scSlug,
-                        item_type: 'sub_category',
-                        text_en: this.widget.title,
-                        text_hi: this.widget.titleHi || '',
-                        media_en: blankBlob,
-                        product_list: state.codes,
-                        filters: '[]',
-                        filter_lst: StateMapper.buildInStockFilter(state.codes),
-                        property_lst: '[]',
-                        pl_edit: 'PL',
-                        is_clickable: 'yes',
-                        update_product_list: 'no',
-                        start_time: this.dates.start,
-                        end_time: this.dates.end,
-                    }, { multipart: true });
-                }
-
-                results.push({ step: `sub_cat_item_${state.key}`, slug: scSlug, status: 'ok' });
-            } catch (e) {
-                this.log(`[ProductRail] Step 1 — SC Item [${state.key}] failed: ${e.message}`);
-                results.push({ step: `sub_cat_item_${state.key}`, slug: scSlug, status: 'failed', error: e.message });
-            }
+        // Step 1: Sub-Category Widget Items
+        let subCategoriesList = [];
+        if (pageType === 'category_page') {
+            subCategoriesList = this.widget.subCategories || [];
+        } else {
+            const stateProducts = this.widget.stateProducts || { global: productCodes };
+            subCategoriesList = [{ name: this.widget.title, nameHi: this.widget.titleHi, products: stateProducts }];
         }
+
+        const allSubCatMappingRows = [];
+
+        for (let j = 0; j < subCategoriesList.length; j++) {
+            const sub = subCategoriesList[j];
+            const activeStates = StateMapper.getActiveStates(sub.products || { global: '' });
+
+            for (const state of activeStates) {
+                // If it's a category page, include index j in the slug to prevent collisions
+                const scSlug = pageType === 'category_page'
+                    ? this.slugGen.getNestedStateful(0, j, state.key)
+                    : this.slugGen.get(`_sc_wi_${state.key}`);
+
+                // Track for Flow 2 (Home Row) code merging
+                if (!slugs.scItems[state.key]) slugs.scItems[state.key] = [];
+                slugs.scItems[state.key].push({ slug: scSlug, codes: state.codes });
+
+                try {
+                    const existingId = await getWidgetItemId(scSlug);
+
+                    if (existingId) {
+                        // UPDATE existing sub-cat item (skip media_en for JSON update)
+                        this.log(`[ProductRail] Step 1 — SC Item [${state.key}] exists (${existingId}), Updating...`);
+                        await updateApi(`/api/app/widget_item/${existingId}/`, {
+                            slug_name: scSlug,
+                            item_type: 'sub_category',
+                            text_en: sub.name || this.widget.title || '',
+                            text_hi: sub.nameHi || this.widget.titleHi || '',
+                            product_list: state.codes,
+                            filter_lst: StateMapper.buildInStockFilter(state.codes),
+                            start_time: this.dates.start,
+                            end_time: this.dates.end,
+                        });
+                    } else {
+                        // CREATE new sub-cat item
+                        this.log(`[ProductRail] Step 1 — SC Item [${state.key}] new, Creating: ${scSlug}`);
+
+                        const scPayload = {
+                            widget_item_id: 'undefined',
+                            deactivated_flag: 'no',
+                            item_click_action: 'deal-detail-redirect',
+                            slug_name: scSlug,
+                            item_type: 'sub_category',
+                            text_en: sub.name || this.widget.title || '',
+                            text_hi: sub.nameHi || this.widget.titleHi || '',
+                            media_en: sub.image instanceof File || sub.image instanceof Blob ? sub.image : blankBlob,
+                            product_list: state.codes,
+                            filters: '[]',
+                            filter_lst: StateMapper.buildInStockFilter(state.codes),
+                            property_lst: '[]',
+                            pl_edit: 'PL',
+                            is_clickable: 'yes',
+                            update_product_list: 'no',
+                            start_time: this.dates.start,
+                            end_time: this.dates.end,
+                        };
+                        await callApi(ENDPOINTS.widgetItem, scPayload, { multipart: true });
+                    }
+
+                    allSubCatMappingRows.push(
+                        `${scSlug},${state.def?.levelTag || 'global'},${state.def?.levelProperty || 'global'},${allSubCatMappingRows.length + 1},`
+                    );
+                    results.push({ step: `sub_cat_item_${state.key}`, slug: scSlug, status: 'ok' });
+                } catch (e) {
+                    this.log(`[ProductRail] Step 1 — SC Item [${state.key}] failed: ${e.message}`);
+                    results.push({ step: `sub_cat_item_${state.key}`, slug: scSlug, status: 'failed', error: e.message });
+                }
+            }
+        } // End of subCategoriesList loop
 
         // Step 2: PLP Widget (product_listing) — Create or Update
         try {
@@ -360,10 +383,11 @@ export class SPRBuilder {
             results.push({ step: 'page_layout', slug: slugs.page, status: 'failed', error: e.message });
         }
 
-        // Step 4: Map Sub-Cat → PLP Widget (state-wise CSV)
+        // Step 4: Map Sub-Cats → PLP Widget
         try {
             this.log('[ProductRail] Step 4 — Map Sub-Cat → PLP Widget');
-            const scCsv = StateMapper.buildMappingCsv(stateProducts, (key) => slugs.scItems[key]);
+            const scHeader = 'widget_item_slug_name,level_tag,level_property,priority,cohort';
+            const scCsv = new Blob([scHeader + '\n' + allSubCatMappingRows.join('\n')], { type: 'text/csv' });
             const scMap = new FormData();
             const csrfToken = getCsrfToken();
             if (csrfToken) scMap.append('csrfmiddlewaretoken', csrfToken);
@@ -405,7 +429,7 @@ export class SPRBuilder {
             const pgMap = new FormData();
             const csrfToken6 = getCsrfToken();
             if (csrfToken6) pgMap.append('csrfmiddlewaretoken', csrfToken6);
-            pgMap.append('page_type', '');
+            pgMap.append('page_type', pageType);
             pgMap.append('page_layout_slug', slugs.page);
             pgMap.append('mapping_file', pgCsv, 'mapping.csv');
             await fetch(`${API_BASE}${ENDPOINTS.mapPageLayout}`, {
@@ -420,25 +444,39 @@ export class SPRBuilder {
         // ─── Flow 2: Home Row ───
 
         // Step 7: Row Widget Items (item_rows) — one per active state, Create or Update
-        for (const state of activeStates) {
-            const riSlug = this.slugGen.get(`_pr_wi_${state.key}`);
-            slugs.rowItems[state.key] = riSlug;
+        // For category_page: use homeRowProducts field (separate from sub-cats)
+        // For product_listing_page: use per-state codes merged from scItems
+
+        let homeRowEntries; // [{ key, def, codes }]
+        if (pageType === 'category_page') {
+            homeRowEntries = StateMapper.getActiveStates(this.widget.homeRowProducts || { global: '' });
+        } else {
+            homeRowEntries = Object.entries(slugs.scItems).map(([key, subCats]) => {
+                const codes = [...new Set(subCats.flatMap(sc => sc.codes ? sc.codes.split(',').map(c => c.trim()) : []))].filter(Boolean).join(',');
+                return { key, codes };
+            });
+        }
+
+        for (const { key: stateKey, codes: mergedCodes } of homeRowEntries) {
+
+            const riSlug = this.slugGen.get(`_pr_wi_${stateKey}`);
+            slugs.rowItems[stateKey] = riSlug;
 
             try {
                 const riId = await getWidgetItemId(riSlug);
 
                 if (riId) {
-                    this.log(`[ProductRail] Step 7 — Row Item [${state.key}] exists (${riId}), Updating...`);
+                    this.log(`[ProductRail] Step 7 — Row Item [${stateKey}] exists (${riId}), Updating...`);
                     await updateApi(`/api/app/widget_item/${riId}/`, {
                         slug_name: riSlug,
                         item_type: 'item_rows',
-                        product_list: state.codes,
-                        filter_lst: StateMapper.buildInStockFilter(state.codes),
+                        product_list: mergedCodes,
+                        filter_lst: StateMapper.buildInStockFilter(mergedCodes),
                         start_time: this.dates.start,
                         end_time: this.dates.end,
                     });
                 } else {
-                    this.log(`[ProductRail] Step 7 — Row Item [${state.key}] new, Creating: ${riSlug}`);
+                    this.log(`[ProductRail] Step 7 — Row Item [${stateKey}] new, Creating: ${riSlug}`);
                     await callApi(ENDPOINTS.widgetItem, {
                         widget_item_id: 'undefined',
                         deactivated_flag: 'no',
@@ -453,9 +491,9 @@ export class SPRBuilder {
                         media_hi: '',
                         text_bg: '',
                         media_bg: '',
-                        product_list: state.codes,
+                        product_list: mergedCodes,
                         filters: '[]',
-                        filter_lst: StateMapper.buildInStockFilter(state.codes),
+                        filter_lst: StateMapper.buildInStockFilter(mergedCodes),
                         property_lst: '[]',
                         pl_edit: 'PL',
                         is_clickable: 'no',
@@ -466,10 +504,10 @@ export class SPRBuilder {
                     }, { multipart: true });
                 }
 
-                results.push({ step: `row_item_${state.key}`, slug: riSlug, status: 'ok' });
+                results.push({ step: `row_item_${stateKey}`, slug: riSlug, status: 'ok' });
             } catch (e) {
-                this.log(`[ProductRail] Step 7 — Row Item [${state.key}] failed: ${e.message}`);
-                results.push({ step: `row_item_${state.key}`, slug: riSlug, status: 'failed', error: e.message });
+                this.log(`[ProductRail] Step 7 — Row Item [${stateKey}] failed: ${e.message}`);
+                results.push({ step: `row_item_${stateKey}`, slug: riSlug, status: 'failed', error: e.message });
             }
         }
 
@@ -492,26 +530,30 @@ export class SPRBuilder {
 
             if (sprId) {
                 this.log(`[ProductRail] Step 8 — Widget exists (${sprId}), Updating...`);
+                // Multimedia widgets: title only used in sub-cat item & PLP widget, not in the widget itself
+                const isMultimedia = MULTIMEDIA_TYPES.has(widgetType);
                 await updateApi(`/api/app/widget/${sprId}/`, {
                     slug_name: slugs.widget,
                     widget_type: widgetType,
-                    heading: this.widget.title,
-                    heading_en: this.widget.title,
-                    heading_hi: this.widget.titleHi || '',
+                    heading: isMultimedia ? '' : this.widget.title,
+                    heading_en: isMultimedia ? '' : this.widget.title,
+                    heading_hi: isMultimedia ? '' : (this.widget.titleHi || ''),
                     start_time: this.dates.start,
                     end_time: this.dates.end,
                     view_all_action_params: viewAllParams,
                 });
             } else {
                 this.log(`[ProductRail] Step 8 — Widget new, Creating: ${slugs.widget} (${widgetType})`);
+                // Multimedia widgets: title only used in sub-cat item & PLP widget, not in the widget itself
+                const isMultimedia = MULTIMEDIA_TYPES.has(widgetType);
                 const widgetPayload = {
                     slug_name: slugs.widget,
                     widget_type: widgetType,
                     description: '',
                     heading: '',
                     master_key: '',
-                    heading_en: this.widget.title,
-                    heading_hi: this.widget.titleHi || '',
+                    heading_en: isMultimedia ? '' : this.widget.title,
+                    heading_hi: isMultimedia ? '' : (this.widget.titleHi || ''),
                     heading_bg: '',
                     start_time: this.dates.start,
                     end_time: this.dates.end,
@@ -537,7 +579,16 @@ export class SPRBuilder {
         // Step 9: Map Row Items → Widget (state-wise)
         try {
             this.log('[ProductRail] Step 9 — Map Row → Widget (state-wise)');
-            const riCsv = StateMapper.buildMappingCsv(stateProducts, (key) => slugs.rowItems[key]);
+            // Build mapping CSV from rowItems slugs directly (works for both page types)
+            const riHeader = 'widget_item_slug_name,level_tag,level_property,priority,cohort';
+            const stateDefs = StateMapper.getDefinitions();
+            const riRows = Object.entries(slugs.rowItems).map(([stateKey, riSlug], idx) => {
+                const stateDef = stateDefs[stateKey];
+                const levelTag = stateDef?.levelTag || 'global';
+                const levelProp = stateDef?.levelProperty || 'global';
+                return `${riSlug},${levelTag},${levelProp},${idx + 1},`;
+            });
+            const riCsv = new Blob([riHeader + '\n' + riRows.join('\n')], { type: 'text/csv' });
             const riMap = new FormData();
             const csrfToken9 = getCsrfToken();
             if (csrfToken9) riMap.append('csrfmiddlewaretoken', csrfToken9);

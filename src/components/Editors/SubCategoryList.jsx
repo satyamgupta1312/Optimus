@@ -69,7 +69,7 @@ const SubCategoryList = ({
                 </div>
             )}
             {items.map((item, index) => (
-                <div key={index} className="border border-slate-200 rounded-lg mb-2 overflow-hidden bg-white">
+                <div key={index} className="border border-slate-200 rounded-lg mb-2 bg-white">
                     {/* Accordion header */}
                     <button
                         onClick={() => setExpandedIndex(expandedIndex === index ? null : index)}

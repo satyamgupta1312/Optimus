@@ -61,6 +61,11 @@ const StateProductEditor = ({
     const addState = (stateKey) => {
         onChange({ ...value, [stateKey]: '' });
         setShowStateMenu(false);
+        // Scroll the newly added state into view after a short delay for React to render
+        setTimeout(() => {
+            const el = document.getElementById(`state-input-${stateKey}`);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 100);
     };
 
     const removeState = (stateKey) => {
@@ -97,7 +102,7 @@ const StateProductEditor = ({
                 const stateDef = stateDefs[stateKey];
                 const isCity = stateDef?.levelTag === 'city';
                 return (
-                    <div key={stateKey} className={`rounded-lg border p-3 mb-2 ${isCity ? 'border-amber-200 bg-amber-50/50' : 'border-emerald-200 bg-emerald-50/50'}`}>
+                    <div id={`state-input-${stateKey}`} key={stateKey} className={`rounded-lg border p-3 mb-2 ${isCity ? 'border-amber-200 bg-amber-50/50' : 'border-emerald-200 bg-emerald-50/50'}`}>
                         <div className="flex items-center justify-between mb-1.5">
                             <div className="flex items-center gap-1.5">
                                 {isCity

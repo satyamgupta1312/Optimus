@@ -63,7 +63,16 @@ export async function callApi(endpoint, payload, { multipart = false } = {}) {
         if (csrfToken) formData.append('csrfmiddlewaretoken', csrfToken);
         for (const [key, value] of Object.entries(payload)) {
             if (value === undefined || value === null) continue;
-            formData.append(key, value);
+            // File/Blob must be appended WITH a filename — Django requires it for file upload fields
+            if (value instanceof File) {
+                formData.append(key, value, value.name);
+            } else if (value instanceof Blob) {
+                // Plain Blob (e.g. blankBlob for media_en) — give it a filename
+                const ext = value.type.split('/')[1] || 'png';
+                formData.append(key, value, `${key}.${ext}`);
+            } else {
+                formData.append(key, value);
+            }
         }
         // DEBUG: log all fields sent
         const _debug = {};

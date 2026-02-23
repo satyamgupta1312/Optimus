@@ -29,9 +29,9 @@ export function validateField(field, value, context = {}) {
     const rules = field.validation;
     if (!rules) return null;
 
-    // Required check — supports function(pnc) for conditional required
+    // Required check — supports function(pnc, widget) for conditional required
     const isRequired = typeof rules.required === 'function'
-        ? rules.required(context.pnc || {})
+        ? rules.required(context.pnc || {}, context.widget || {})
         : rules.required;
 
     if (isRequired) {
@@ -119,11 +119,11 @@ export function validateWidget(config, widgetState = {}) {
 
     for (const field of config.fields) {
         // Skip fields whose condition is not met
-        if (field.condition && !field.condition(pnc)) {
+        if (field.condition && !field.condition(pnc, widgetState)) {
             continue;
         }
 
-        errors[field.name] = validateField(field, widgetState[field.name], { pnc });
+        errors[field.name] = validateField(field, widgetState[field.name], { pnc, widget: widgetState });
     }
 
     return errors;

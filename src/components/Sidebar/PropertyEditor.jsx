@@ -330,6 +330,7 @@ const PropertyEditor = ({ widget, onSubmit }) => {
                                         options={field.options}
                                         widget={widget}
                                         {...(field.validation || {})}
+                                        {...field}
                                     />
                                     {field.name === 'background_media' && uploadingMedia && (
                                         <div className="flex items-center gap-2 text-blue-600 text-xs -mt-2 mb-2 ml-1">

@@ -150,10 +150,21 @@ export const SPRConfig = {
             label: 'Sub-Categories',
             helperText: 'Add sub-categories — each with name and state-wise products.',
             condition: (_pnc, widget) => widget?.pageType === 'category_page',
+            showImage: true,
             validation: {
                 required: (_pnc, widget) => widget?.pageType === 'category_page',
             },
             errorMessage: 'At least one sub-category is required for category pages',
+        },
+        {
+            name: 'homeRowProducts',
+            component: 'StateProductEditor',
+            label: 'Home Row Product Codes',
+            helperText: 'State-wise product codes shown on the Home Page row (item_rows).',
+            condition: (_pnc, widget) => widget?.pageType === 'category_page',
+            validation: {
+                required: true,
+            },
         },
         {
             name: 'background_media',
@@ -199,7 +210,7 @@ export const SPRConfig = {
             component: 'TextInput',
             label: 'View All Page Slug',
             placeholder: 'Optional override',
-            condition: (pnc) => !pnc.is_optimized,
+            condition: (pnc, widget) => !pnc.is_optimized && widget?.pageType !== 'category_page',
             validation: {
                 required: false,
                 pattern: /^[a-z0-9_-]*$/,
@@ -563,6 +574,7 @@ export const SPRConfig = {
         title: '',
         stateProducts: { global: '' },
         subCategories: [],
+        homeRowProducts: { global: '' },
         pageType: 'product_listing_page',
         expandPage: false,
         plpWidgets: [],

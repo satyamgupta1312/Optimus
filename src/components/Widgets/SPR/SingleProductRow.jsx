@@ -58,22 +58,28 @@ const SingleProductRow = ({ widget }) => {
         setBgUrl(null);
     }, [hasMultimedia, widget.background_media, widget.background_video]);
 
-    // Resolve product codes from stateProducts (new) or products (legacy)
-    // stateProducts = { global: '1001,1002', jharkhand: '1003,1004' }
-    // products = ['1001', '1002'] (legacy array format)
+    // Resolve product codes for emulator preview
+    // - category_page: homeRowProducts (shown on home row, separate from sub-cat items on PLP)
+    // - stateProducts: normal PLP flow (show global bucket in emulator)
+    // - legacy: products array
     const rawCodes = useMemo(() => {
-        // New format: stateProducts — show global codes in emulator
+        if (widget.pageType === 'category_page' && widget.homeRowProducts && typeof widget.homeRowProducts === 'object') {
+            const globalStr = widget.homeRowProducts.global || '';
+            if (globalStr.trim()) {
+                return globalStr.split(/[\s,]+/).map(c => c.trim()).filter(Boolean);
+            }
+            return [];
+        }
         if (widget.stateProducts && typeof widget.stateProducts === 'object') {
             const globalStr = widget.stateProducts.global || '';
             if (globalStr.trim()) {
-                // Support both comma-separated and space-separated codes
                 return globalStr.split(/[\s,]+/).map(c => c.trim()).filter(Boolean);
             }
             return [];
         }
         // Legacy format: products array
         return widget.products || [];
-    }, [widget.stateProducts, widget.products]);
+    }, [widget.pageType, widget.homeRowProducts, widget.stateProducts, widget.products]);
 
     const resolvedProducts = useMemo(() => {
         if (!rawCodes.length) return [];
@@ -119,13 +125,20 @@ const SingleProductRow = ({ widget }) => {
     const resolvedType = SPRService.resolveVariant(widget);
 
     const handleViewAll = () => {
-        navigateTo('listing', {
-            widgetId: widget.id,
-            itemId: widget.itemId,
-            title: widget.title || 'Products',
-            products,
-            resolvedType,
-        });
+        if (widget.pageType === 'category_page') {
+            navigateTo('category', {
+                heading: widget.title,
+                subCategories: widget.subCategories || []
+            });
+        } else {
+            navigateTo('listing', {
+                widgetId: widget.id,
+                itemId: widget.itemId,
+                title: widget.title || 'Products',
+                products,
+                resolvedType,
+            });
+        }
     };
 
     const handleAdd = useCallback((product) => {
@@ -168,19 +181,27 @@ const SingleProductRow = ({ widget }) => {
             <div className="relative z-10 py-3">
                 {/* Header */}
                 <div className="flex justify-between items-end mb-3 px-4">
-                    <h3
-                        style={{ color: widget.textColor || '#1e293b' }}
-                        className={`font-bold leading-tight ${isOptimized ? 'text-lg' : 'text-xl'}`}
-                    >
-                        {widget.title}
-                    </h3>
+                    {/* Title — hidden for multimedia variants (title lives in sub-cat item & PLP widget) */}
+                    {!hasMultimedia && (
+                        <h3
+                            style={{ color: widget.textColor || '#1e293b' }}
+                            className={`font-bold leading-tight ${isOptimized ? 'text-lg' : 'text-xl'}`}
+                        >
+                            {widget.title}
+                        </h3>
+                    )}
+                    {/* View All button — pill style with user-set colors for multimedia */}
                     <button
                         onClick={handleViewAll}
                         style={hasMultimedia ? {
                             backgroundColor: widget.view_all_background_color || '#ffffff',
-                            color: widget.view_all_color || '#000000',
+                            color: widget.view_all_color || '#111111',
+                            borderColor: widget.view_all_color || '#111111',
                         } : undefined}
-                        className={`text-xs font-bold cursor-pointer hover:underline ${hasMultimedia ? 'px-3 py-1 rounded-full' : 'text-blue-600'}`}
+                        className={`text-xs font-bold cursor-pointer hover:opacity-80 transition-opacity ${hasMultimedia
+                            ? 'px-3 py-1 rounded-full border ml-auto'
+                            : 'text-blue-600 hover:underline'
+                            }`}
                     >
                         View All →
                     </button>

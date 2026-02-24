@@ -304,12 +304,24 @@ The **Carousel Media-Number** controls how many carousel items are visible in th
 
 | Field | Type | Description | Example |
 | :--- | :--- | :--- | :--- |
-| `title` | `String` | Widget title (used for page heading) | `"Summer Sale"` |
-| `start_time` | `DateTime` | Activation start (via `DateTimeInput` calendar + time picker) | `"2026-01-01T00:00:00"` |
-| `end_time` | `DateTime` | Activation end (via `DateTimeInput` calendar + time picker) | `"2026-12-31T23:59:59"` |
-| `image` | `URL` | Banner image URL | `"https://example.com/banner.jpg"` |
-| `productIds` | `String` or `Array` | Product codes (comma-separated, CSV URL, or array) | `"1001,1002,1003"` |
-| `pageType` | `String` | Page type for navigation target | `"product_listing_page"` or `"category_page"` |
+| `title` | `String` | Widget section heading (shown above the carousel) | `"Summer Sale"` |
+| `media_number` | `Number` | Visible items count (e.g. `1.2` = 1 full + peek) | `"1.2"` |
+| `start_time` | `DateTime` | Activation start | `"2026-01-01T00:00:00"` |
+| `end_time` | `DateTime` | Activation end | `"2026-12-31T23:59:59"` |
+| `scrollItems[]` | `Array` | List of carousel banner items (see sub-fields below) | — |
+
+### Scroll Mode — Carousel Item Fields (`scrollItems[]`)
+
+| Field | Type | Required | Description |
+| :--- | :--- | :---: | :--- |
+| `pageHeading` | `String` | Yes | Heading shown on the destination PLP/category page |
+| `image` | `File/URL` | Yes | Banner image. Max **300KB**. Uploaded to local server on pick. |
+| `pageType` | `String` | Yes | `product_listing_page` or `category_page` |
+| `stateProducts` | `Object` | Yes (for PLP) | State-wise product codes `{ global: "1001,1002", JH: "1003" }` |
+| `subCategories[]` | `Array` | Yes (for category) | Sub-category items (same as stick mode) |
+
+> [!NOTE]
+> `productIds` field has been **removed**. Use `stateProducts.global` for product codes. State-specific products go in `stateProducts.JH`, `stateProducts.CG`, etc.
 
 ### Stick Mode — Widget Fields
 

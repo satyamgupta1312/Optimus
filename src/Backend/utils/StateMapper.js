@@ -22,8 +22,11 @@ export class StateMapper {
      */
     static getActiveStates(products = {}) {
         const states = [];
-        for (const [key, rawCodes] of Object.entries(products)) {
+        for (const [rawKey, rawCodes] of Object.entries(products)) {
             if (!rawCodes) continue;
+
+            // Normalize key to lowercase to match STATE_DEFINITIONS keys (jh, cg, wb, global)
+            const key = rawKey.toLowerCase();
 
             // Normalize: array of objects → comma-separated string
             let codes;
@@ -99,8 +102,15 @@ export class StateMapper {
      * @returns {string} JSON stringified filter list
      */
     static buildInStockFilter(productCodes) {
-        if (!productCodes || !productCodes.trim()) return '[]';
-        return JSON.stringify([{ condition: 'in_stk_item_codes', value: productCodes.trim() }]);
+        if (!productCodes || !String(productCodes).trim()) return '[]';
+        // GAS script: value is an array of integers, NOT a string
+        // e.g. [{"condition":"in_stk_item_codes","value":[1001,1002]}]
+        const codes = String(productCodes)
+            .split(/[,\s]+/)
+            .map(c => parseInt(c.trim(), 10))
+            .filter(n => !isNaN(n));
+        if (codes.length === 0) return '[]';
+        return JSON.stringify([{ condition: 'in_stk_item_codes', value: codes }]);
     }
 
     /**

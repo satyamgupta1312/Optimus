@@ -148,7 +148,7 @@ const StateProductEditor = ({
                     </button>
 
                     {showStateMenu && (
-                        <div className="absolute z-40 mt-1 py-1 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[180px]">
+                        <div className="absolute z-50 bottom-full mb-1 py-1 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[180px] max-h-48 overflow-y-auto">
                             {availableStates.map(([key, def]) => (
                                 <button
                                     key={key}

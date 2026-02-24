@@ -119,15 +119,16 @@ export const CollectionBannerConfig = {
             errorMessage: 'At least 1 carousel item is required',
             // Nested schema for each scroll/carousel item
             itemSchema: {
-                title: {
+                pageHeading: {
                     component: 'TextInput',
-                    label: 'Item Title',
+                    label: 'Page Heading',
+                    helperText: 'Heading shown on the destination PLP/category page (not the banner label)',
                     validation: { required: true, minLength: 1, maxLength: 200 },
                 },
                 image: {
                     component: 'ImageUpload',
                     label: 'Banner Image',
-                    helperText: 'Max 300KB. Original dimensions preserved (no aspect ratio override)',
+                    helperText: 'Max 300KB. Uploaded to local server for persistence.',
                     validation: { required: true, maxSizeKB: 300 },
                     errorMessage: 'Image must be under 300KB',
                 },
@@ -141,14 +142,7 @@ export const CollectionBannerConfig = {
                     default: 'product_listing_page',
                     validation: { required: true },
                 },
-                productIds: {
-                    component: 'TextInput',
-                    label: 'Product Codes',
-                    helperText: 'Comma-separated item codes, CSV URL, or newline-separated',
-                    validation: { required: true },
-                    errorMessage: 'Product codes are required',
-                },
-                // Dynamic state-wise products via "Add State" button
+                // State-wise products — no separate productIds field
                 // products.global is required; additional states are optional
                 stateProducts: {
                     label: 'State-Wise Products',

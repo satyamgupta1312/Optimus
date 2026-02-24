@@ -127,6 +127,12 @@ const CategoryItemEditor = ({
                                             onChange={async (e) => {
                                                 if (e.target.files && e.target.files[0]) {
                                                     const file = e.target.files[0];
+                                                    // Enforce 300KB limit
+                                                    if (file.size > 300 * 1024) {
+                                                        alert(`Image too large (${Math.round(file.size / 1024)}KB). Max allowed: 300KB.`);
+                                                        e.target.value = '';
+                                                        return;
+                                                    }
                                                     // 1. Set File immediately for instant preview
                                                     updateItem(index, 'image', file);
                                                     // 2. Upload to local server (same as PropertyEditor background_media)

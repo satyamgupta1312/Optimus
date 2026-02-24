@@ -57,6 +57,18 @@ export class CategoryGridBuilder {
         this.log(`[CatGrid] Dates: ${this.dates.start} → ${this.dates.end}`);
     }
 
+    /**
+     * Sub-category slug resolver — matches SPR pattern:
+     *   PLP page  → {base}_item_{i+1}_sc_wi_{stateKey}  (SPR: get('_sc_wi_'+key))
+     *   Cat page  → {base}_item_{i+1}_subcat_{j+1}_{stateKey}  (SPR: getNestedStateful)
+     */
+    _scSlug(itemIndex, subIndex, stateKey, pageType) {
+        if (pageType === 'product_listing_page') {
+            return this.slugGen.getIndexed(itemIndex, `_sc_wi_${stateKey}`);
+        }
+        return this.slugGen.getNestedStateful(itemIndex, subIndex, stateKey);
+    }
+
     /** 1×1 transparent PNG — same as SPRBuilder.getBlankImageBlob() */
     static getBlankImageBlob() {
         const base64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
@@ -166,7 +178,8 @@ export class CategoryGridBuilder {
                 const activeStates = StateMapper.getActiveStates(sub.products || { global: '' });
 
                 for (const state of activeStates) {
-                    const scSlug = this.slugGen.getNestedStateful(i, j, state.key);
+                    // SPR slug pattern: PLP → _sc_wi_{key}, Cat → _subcat_{j+1}_{key}
+                    const scSlug = this._scSlug(i, j, state.key, pageType);
                     try {
                         const existingId = await getWidgetItemId(scSlug);
 
@@ -187,7 +200,8 @@ export class CategoryGridBuilder {
                             const scPayload = {
                                 widget_item_id: 'undefined',
                                 deactivated_flag: 'no',
-                                item_click_action: 'null',  // GAS sends string 'null'
+                                // SPR uses 'deal-detail-redirect' for PLP; 'null' for category_page (GAS)
+                                item_click_action: pageType === 'product_listing_page' ? 'deal-detail-redirect' : 'null',
                                 slug_name: scSlug,
                                 slave_key: '',
                                 item_type: 'sub_category',
@@ -284,7 +298,8 @@ export class CategoryGridBuilder {
                     const sub = subCategories[j];
                     const activeStates = StateMapper.getActiveStates(sub.products || { global: '' });
                     for (const state of activeStates) {
-                        const scSlug = this.slugGen.getNestedStateful(i, j, state.key);
+                        // MUST use same slug logic as Step 1
+                        const scSlug = this._scSlug(i, j, state.key, pageType);
                         scMappingRows.push(`${scSlug},${state.def.levelTag},${state.def.levelProperty},${scMappingRows.length + 1},`);
                     }
                 }

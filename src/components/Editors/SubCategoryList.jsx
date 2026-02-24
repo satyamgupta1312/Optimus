@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, ChevronDown, ChevronRight, GripVertical, ImagePlus } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronRight, GripVertical, ImagePlus, Loader2 } from 'lucide-react';
 import TextInput from '../Inputs/TextInput';
 import StateProductEditor from '../Inputs/StateProductEditor';
+import { LocalApiService } from '../../services/LocalApiService';
 
 /**
  * SubCategoryList — Shared sub-component for sub-category editing.
@@ -27,6 +28,7 @@ const SubCategoryList = ({
 }) => {
     const items = Array.isArray(itemsProp ?? value) ? (itemsProp ?? value) : [];
     const [expandedIndex, setExpandedIndex] = useState(null);
+    const [uploadingIdx, setUploadingIdx] = useState(null);
 
     const addItem = () => {
         onChange([...items, { name: '', nameHi: '', image: null, products: { global: '' } }]);
@@ -46,12 +48,26 @@ const SubCategoryList = ({
         onChange(next);
     };
 
-    const handleImageSelect = (index, e) => {
+    const handleImageSelect = async (index, e) => {
         const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = () => updateItem(index, 'image', reader.result);
-            reader.readAsDataURL(file);
+        if (!file) return;
+        // Enforce 300KB limit
+        if (file.size > 300 * 1024) {
+            alert(`Image too large (${Math.round(file.size / 1024)}KB). Max allowed: 300KB.`);
+            e.target.value = '';
+            return;
+        }
+        // Show preview immediately
+        updateItem(index, 'image', file);
+        // Upload to local server (persistent URL)
+        try {
+            setUploadingIdx(index);
+            const result = await LocalApiService.uploadMedia(file);
+            if (result.viewUrl) updateItem(index, 'image', result.viewUrl);
+        } catch (err) {
+            console.error('[SubCategoryList] Image upload failed:', err);
+        } finally {
+            setUploadingIdx(null);
         }
     };
 
@@ -125,10 +141,15 @@ const SubCategoryList = ({
                                                 accept="image/*"
                                                 className="hidden"
                                                 onChange={(e) => handleImageSelect(index, e)}
+                                                disabled={disabled}
                                             />
-                                            {item.image ? (
+                                            {uploadingIdx === index ? (
+                                                <div className="w-10 h-10 rounded-lg border border-blue-300 flex items-center justify-center bg-blue-50">
+                                                    <Loader2 size={14} className="animate-spin text-blue-500" />
+                                                </div>
+                                            ) : item.image && (item.image instanceof File || item.image instanceof Blob || (typeof item.image === 'string' && item.image.length > 0)) ? (
                                                 <div className="w-10 h-10 rounded-lg border border-slate-200 overflow-hidden group-hover:ring-2 group-hover:ring-blue-500/30 transition-all">
-                                                    <img src={item.image} alt="" className="w-full h-full object-cover" />
+                                                    <img src={typeof item.image === 'string' ? item.image : URL.createObjectURL(item.image)} alt="" className="w-full h-full object-cover" />
                                                 </div>
                                             ) : (
                                                 <div className="w-10 h-10 rounded-lg border border-dashed border-slate-300 flex items-center justify-center bg-slate-50 group-hover:border-blue-400 group-hover:bg-blue-50 transition-all">

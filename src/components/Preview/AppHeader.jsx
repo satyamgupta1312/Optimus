@@ -22,10 +22,8 @@ const AppHeader = () => {
     const primaryMasthead = headerWidgets?.primaryMasthead || {};
     const multimedia = primaryMasthead.multimedia || {};
 
-    // Debug logging for preview issues
-    console.log('[AppHeader] primaryMasthead:', primaryMasthead);
-    console.log('[AppHeader] multimedia:', multimedia);
-    console.log('[AppHeader] driveFileId:', multimedia.driveFileId);
+    // Canvas widget (from PropertyEditor) — has background_media after local upload
+    const canvasBgMedia = primaryWidget?.background_media;
 
     // Create blob URL for uploaded file (for instant preview)
     useEffect(() => {
@@ -39,24 +37,24 @@ const AppHeader = () => {
     }, [multimedia.file]);
 
     // Use Primary Masthead background if available (for Light Mode), otherwise default to Blue (#0277FA)
-    const headerBg = primaryMasthead.background || multimedia.transition_color || '#0277FA';
+    const headerBg = primaryMasthead.background || multimedia.transition_color || primaryWidget?.transition_color || '#0277FA';
 
     // Helper to determine style
     const getHeaderStyle = () => {
         if (isDark) return { backgroundColor: '#0f172a' };
 
-        // For video type from Drive - show thumbnail (first frame) as background image
-        if (multimedia.type === 'video' && !mediaUrl && multimedia.driveFileId) {
-            const thumbnailUrl = `https://drive.google.com/thumbnail?id=${multimedia.driveFileId}&sz=w1000`;
+        // Priority 0: Canvas widget background_media (set by PropertyEditor after local upload)
+        // This is a persistent URL like http://localhost:8888/api/media/view/...
+        if (canvasBgMedia && typeof canvasBgMedia === 'string' && canvasBgMedia.startsWith('http')) {
             return {
-                backgroundImage: `url(${thumbnailUrl})`,
+                backgroundImage: `url(${canvasBgMedia})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat'
             };
         }
 
-        // Priority 1: Local blob URL (instant preview of uploaded file)
+        // Priority 1: Local blob URL (instant preview of uploaded file before upload completes)
         if (mediaUrl) {
             return {
                 backgroundImage: `url(${mediaUrl})`,
@@ -68,7 +66,6 @@ const AppHeader = () => {
 
         // Priority 2: Google Drive Image (using File ID for reliable thumbnail)
         if (multimedia.driveFileId) {
-            // Use the thumbnail API which is reliable for embedding and handling CORS
             const reliableUrl = `https://drive.google.com/thumbnail?id=${multimedia.driveFileId}&sz=w1000`;
             return {
                 backgroundImage: `url(${reliableUrl})`,

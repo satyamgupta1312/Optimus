@@ -200,8 +200,9 @@ export const MastheadConfig = {
                 { label: '16:9', value: '3' },
                 { label: 'Full', value: '4' },
             ],
-            // Primary defaults to "1", Secondary to "4" — resolved by variant
-            defaultValue: (pnc) => (pnc.variant === 'secondary' ? '4' : '1'),
+            // Primary is always '1' (hardcoded), Secondary defaults to '4'
+            condition: (pnc) => pnc.variant === 'secondary',
+            defaultValue: '4',
             validation: { required: false },
         },
 

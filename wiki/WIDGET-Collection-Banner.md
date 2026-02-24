@@ -408,6 +408,45 @@ Carousel Widget Item: "Summer Sale"
 └──────────────────────────────────────────────────┘
 ```
 
+### Sub-Category Slug Naming — SPR Pattern
+
+Sub-cat widget item slugs follow the **SPR pattern**:
+
+| Item Page Type | Slug Format | Example |
+| :--- | :--- | :--- |
+| `product_listing_page` | `{base}_item_{N}_sc_wi_{state}` | `rice_mela_item_1_sc_wi_global` |
+| `category_page` | `{base}_item_{N}_subcat_{M}_{state}` | `rice_mela_item_1_subcat_2_jh` |
+
+> [!NOTE]
+> State keys are **normalized to lowercase** internally — entering `JH` or `jh` both produce `_jh` suffix. This is handled by `StateMapper.getActiveStates()`.
+
+### Image Upload Rules
+
+| Editor | Max Size | Upload |
+| :--- | :--- | :--- |
+| Category item | **300KB** | Local server via `LocalApiService.uploadMedia()` |
+| Carousel item | **300KB** | Local server via `LocalApiService.uploadMedia()` |
+| Sub-category item | **300KB** | Local server via `LocalApiService.uploadMedia()` |
+
+> [!IMPORTANT]
+> Images are uploaded to the local server immediately on file pick, returning a persistent URL. `_resolveImage()` fetches this URL at deploy time to send as a multipart blob to the backend.
+
+### `filter_lst` Format
+
+`StateMapper.buildInStockFilter()` produces an **array of integers**:
+```json
+[{"condition": "in_stk_item_codes", "value": [1001, 1002, 1003]}]
+```
+`value` must be `[1001, 1002]` — **not** `"1001,1002"` (string) and **not** `["1001"]` (string array).
+
+### `item_click_action` Rules
+
+| Sub-cat type | `item_click_action` |
+| :--- | :--- |
+| PLP page sub-cats | `deal-detail-redirect` |
+| Category page sub-cats | `null` (string literal) |
+| Carousel widget item | `redirect-to-page` |
+
 ### Frontend Behavior — Stick Mode
 
 When `pageType` is **category_page**:
@@ -586,15 +625,19 @@ Item Code,Display Name,Price,MRP,Main Image
 ### Scroll Mode — Sub-Category Widget Item (Step 1)
 ```javascript
 {
-  "slug_name": "summer_sale_sub_cat_wi",
+  "slug_name": "summer_sale_item_1_sc_wi_global",   // PLP: _item_N_sc_wi_{state} | Cat: _item_N_subcat_M_{state}
   "item_type": "sub_category",
   "text_en": "Summer Sale",
   "product_list": "1001,1002,1003",
-  "filter_lst": "[{\"condition\":\"in_stk_item_codes\",\"value\":\"1001,1002,1003\"}]",
-  "media_en": "[blank.gif]",
+  // filter_lst value MUST be array of integers (not string)
+  "filter_lst": "[{\"condition\":\"in_stk_item_codes\",\"value\":[1001,1002,1003]}]",
+  "media_en": "[blank.png]",
   "deactivated_flag": "no",
+  // PLP sub-cats: deal-detail-redirect | Category sub-cats: null
   "item_click_action": "deal-detail-redirect",
-  "is_clickable": "yes"
+  "is_clickable": "yes",
+  "pl_edit": "PL",
+  "update_product_list": "no"
 }
 ```
 
@@ -854,13 +897,16 @@ Each sub-category clickable → product listing
 - **Products not loading on listing page** — Invalid product codes or missing catalog data.
 - **Banner image not displaying** — Image URL blocked by CORS or proxy failure. Use a publicly accessible image URL.
 - **"Slug already exists" error** — Carousel with same slug was previously created. Change the slug.
+- **State-wise sub-cats not created** — Check `filter_lst` format: value must be **array of integers** `[1001,1002]`, not string `"1001,1002"`. Fixed in `StateMapper.buildInStockFilter()`.
+- **State key mismatch** — State keys are normalized to **lowercase** (`jh`, `cg`, `wb`) before slug/mapping. If user entered `JH`, code converts to `jh` automatically.
 
 ### Stick Mode
 - **Duplicate slug (409 Conflict)** — Widget/item slug already exists. Use timestamp suffix.
-- **`filter_lst` product codes must be numbers** — Use `[1003,1004]` not `["1003","1004"]`.
+- **`filter_lst` product codes must be integers** — Use `[1003,1004]` not `["1003","1004"]` or `"1003,1004"`. Fixed in `StateMapper.buildInStockFilter()`.
 - **`page_layout_type` must be string** — Use `"2"` not `2`.
 - **Missing products** — Script skips states with empty product codes.
 - **De-duplication** — `processedStates` object prevents duplicate sub-category creation for the same state.
+- **PLP sub-cats use `deal-detail-redirect`** — Category sub-cats use `'null'` for `item_click_action`. Both are handled automatically based on `pageType`.
 
 ---
 

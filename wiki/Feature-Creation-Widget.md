@@ -300,7 +300,7 @@ item_type:           item_rows
 text_en:             {title}
 text_hi:             {titleHi}
 product_list:        4586,4591,4592
-filter_lst:          [{"condition":"in_stk_item_codes","value":"4586,4591,4592"}]
+filter_lst:          [{"condition":"in_stk_item_codes","value":[4586,4591,4592]}]
 item_click_action:   deal-detail-redirect
 is_clickable:        no
 deactivated_flag:    no
@@ -315,7 +315,7 @@ slug_name:           {base}_sc_wi_{state_suffix}
 item_type:           sub_category
 text_en:             {title}
 product_list:        {state-specific product codes}
-filter_lst:          [{"condition":"in_stk_item_codes","value":"{codes}"}]
+filter_lst:          [{"condition":"in_stk_item_codes","value":[codes]}]   // array of integers, NOT string
 is_clickable:        yes
 item_click_action:   deal-detail-redirect
 start_time:          {start}
@@ -460,7 +460,7 @@ slug_name:           {base}_sub_cat_wi_{state_suffix}
 item_type:           sub_category
 text_en:             {title}
 product_list:        {state-specific product codes}
-filter_lst:          [{"condition":"in_stk_item_codes","value":"{codes}"}]
+filter_lst:          [{"condition":"in_stk_item_codes","value":[codes]}]   // array of integers, NOT string
 media_en:            [blank.gif]
 deactivated_flag:    no
 item_click_action:   deal-detail-redirect

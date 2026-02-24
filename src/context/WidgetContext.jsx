@@ -302,6 +302,15 @@ export const WidgetProvider = ({ children }) => {
                 ? widgets.filter(w => selectedWidgetIds.has(w.id))
                 : widgets;
 
+            // Only include header widgets that are selected
+            const selectedHeaders = {};
+            if (selectedWidgetIds?.has(headerWidgets.primaryMasthead?.id)) {
+                selectedHeaders.primaryMasthead = headerWidgets.primaryMasthead;
+            }
+            if (selectedWidgetIds?.has(headerWidgets.secondaryMasthead?.id)) {
+                selectedHeaders.secondaryMasthead = headerWidgets.secondaryMasthead;
+            }
+
             if (widgetsToSubmit.length === 0) {
                 showToast.error('Please select at least 1 widget to submit.');
                 return;
@@ -335,15 +344,6 @@ export const WidgetProvider = ({ children }) => {
                     return value;
                 }));
             };
-
-            // Only include header widgets that are selected
-            const selectedHeaders = {};
-            if (selectedWidgetIds?.has(headerWidgets.primaryMasthead?.id)) {
-                selectedHeaders.primaryMasthead = headerWidgets.primaryMasthead;
-            }
-            if (selectedWidgetIds?.has(headerWidgets.secondaryMasthead?.id)) {
-                selectedHeaders.secondaryMasthead = headerWidgets.secondaryMasthead;
-            }
 
             await LocalApiService.createRequest({
                 widgets: widgetsToSubmit,

@@ -211,14 +211,12 @@ export const MastheadConfig = {
             name: 'master_key',
             component: 'TextInput',
             label: 'Master Key',
-            placeholder: 'e.g. 1020',
-            helperText: 'Link to category pane widget',
+            placeholder: 'e.g. gl_hp_Deals_category_pane_wi',
+            helperText: 'Slug of the category pane widget to link',
             condition: (pnc) => pnc.variant === 'primary',
             validation: {
                 required: false,
-                pattern: /^\d*$/,
             },
-            errorMessage: 'Master key must be numeric',
         },
 
         // ── Date/Time Fields (both variants) ──

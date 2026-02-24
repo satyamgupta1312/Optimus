@@ -62,12 +62,13 @@ export const MultimediaService = {
         const payload = {
             name: slugName,
             multimedia_type: type,
+            background_color: '',
             aspect_ratio: aspectRatio,
             transition_color: transitionColor,
             accent_color: accentColor,
             text_color: textColor,
             icon_bg_color: iconBgColor,
-            is_multimedia_dark: isDark ? 'True' : 'False',
+            is_multimedia_dark: isDark ? 'true' : 'false',
         };
 
         // Attach file if image

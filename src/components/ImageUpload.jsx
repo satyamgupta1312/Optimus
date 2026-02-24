@@ -50,22 +50,27 @@ const ImageUpload = ({ onImageSelect, onChange, currentImage = '', value, label 
         setUploading(true);
 
         try {
-            // Create preview
+            // Upload to local server to get a persistent URL
+            const { LocalApiService } = await import('../services/LocalApiService');
+            const { viewUrl } = await LocalApiService.uploadMedia(file);
+
+            setPreview(viewUrl);
+            setUploading(false);
+
+            // Return URL string (not File) so it survives JSON.stringify
+            notifyChange(viewUrl, viewUrl);
+
+            showToast.success('Image uploaded successfully');
+        } catch (uploadErr) {
+            console.warn('[ImageUpload] Local upload failed, falling back to File:', uploadErr);
+            // Fallback: use File object directly (won't survive serialization but works for preview)
             const reader = new FileReader();
             reader.onloadend = () => {
-                const result = reader.result;
-                setPreview(result);
+                setPreview(reader.result);
                 setUploading(false);
-
-                // Call parent callback AFTER reader completes
-                notifyChange(file, result);
-
-                showToast.success('Image uploaded successfully');
+                notifyChange(file, reader.result);
             };
             reader.readAsDataURL(file);
-        } catch (error) {
-            showToast.error('Failed to upload image');
-            setUploading(false);
         }
     }, [notifyChange]);
 

@@ -37,6 +37,7 @@ const BUILDER_MAP = {
     'Single Product Row Optimize': SPRBuilder,
     'product_rail': SPRBuilder,
     'Primary Masthead': PrimaryMastheadBuilder,
+    'masthead': PrimaryMastheadBuilder,
     'Category Grid': CategoryGridBuilder,
     'Category Masthead': CategoryGridBuilder,
     'Banner With Product Listing': CollectionBannerBuilder,
@@ -65,21 +66,11 @@ export const DeploymentService = {
         log('Starting deployment...');
 
         try {
-            // ── Header Widgets ──
+            // ── Header Widgets (Secondary Masthead only) ──
+            // Primary Masthead deploys from canvas widgets via BUILDER_MAP
+            // (headerWidgets.primaryMasthead is missing background_media and has nested colors)
             if (requestData.headerWidgets) {
                 const hw = requestData.headerWidgets;
-
-                if (hw.primaryMasthead && hw.primaryMasthead.enabled !== false) {
-                    log('Deploying: Primary Masthead');
-                    try {
-                        const builder = new PrimaryMastheadBuilder(hw.primaryMasthead, { log });
-                        const result = await builder.deploy();
-                        results.push({ widget: 'Primary Masthead', status: 'ok', slug: result.slugs.widget });
-                    } catch (err) {
-                        log(`Primary Masthead failed: ${err.message}`);
-                        results.push({ widget: 'Primary Masthead', status: 'failed', error: err.message });
-                    }
-                }
 
                 if (hw.secondaryMasthead && hw.secondaryMasthead.enabled !== false) {
                     log('Deploying: Secondary Masthead');
@@ -119,6 +110,13 @@ export const DeploymentService = {
                         BuilderClass = (mode === 'stick')
                             ? CategoryGridBuilder
                             : CollectionBannerBuilder;
+                    }
+                    // Special case: 'masthead' has primary/secondary variants
+                    if (widget.type === 'masthead') {
+                        const variant = widget.pnc?.variant || 'primary';
+                        BuilderClass = (variant === 'secondary')
+                            ? SecondaryMastheadBuilder
+                            : PrimaryMastheadBuilder;
                     }
                     if (!BuilderClass) {
                         log(`Skipping unsupported type: ${widget.type}`);

@@ -65,9 +65,16 @@ function checkRule(value, rule) {
 function isExempt(widget, field) {
   if (field !== 'title') return false;
 
-  // product_rail (SPR/DPR): title not required when multimedia is enabled
   const pnc = typeof widget.pnc === 'string' ? JSON.parse(widget.pnc) : (widget.pnc || {});
+
+  // product_rail (SPR/DPR): title not required when multimedia is enabled
   if (widget.type === 'product_rail' && pnc.has_multimedia) return true;
+
+  // masthead: title/heading is optional — not shown as required field
+  if (widget.type === 'masthead') return true;
+
+  // carousel: title optional
+  if (widget.type === 'carousel') return true;
 
   return false;
 }

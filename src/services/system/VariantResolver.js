@@ -26,23 +26,28 @@ export function resolveVariant(config, pnc = {}, widget = {}) {
     // Determine implicit properties
     const hasMultimedia = !!(widget.background_media || widget.backgroundMultimedia || widget.background_video);
 
-    // Build lookup key from PNC + implicit props
-    const lookupProps = {
+    // Detect which keys this config's matrix actually uses
+    // e.g. Masthead uses 'variant'; SPR uses 'rows/is_optimized/has_multimedia'
+    const firstEntry = config.variantMatrix[0];
+    const matrixKeys = Object.keys(firstEntry).filter(k => k !== 'widgetType' && k !== 'available');
+
+    // All possible candidate values (superset — only used keys are matched)
+    const candidates = {
         rows: pnc.rows ?? config.properties?.rows?.default ?? 1,
         is_optimized: pnc.is_optimized ?? config.properties?.is_optimized?.default ?? true,
         has_multimedia: hasMultimedia,
+        variant: pnc.variant ?? config.properties?.variant?.default,
     };
 
-    // Find exact match in the matrix
+    // Match only on keys that exist in this config's matrix
     const match = config.variantMatrix.find(entry =>
-        entry.rows === lookupProps.rows &&
-        entry.is_optimized === lookupProps.is_optimized &&
-        entry.has_multimedia === lookupProps.has_multimedia
+        matrixKeys.every(key => entry[key] === candidates[key])
     );
 
     if (!match) {
         console.warn(
-            '[VariantResolver] No matrix match for:', lookupProps,
+            '[VariantResolver] No matrix match for:',
+            Object.fromEntries(matrixKeys.map(k => [k, candidates[k]])),
             '— falling back to first entry.'
         );
         return config.variantMatrix[0].widgetType;

@@ -48,8 +48,8 @@ router.post('/', async (req, res, next) => {
     const { widgetIds, widgets: inlineWidgets, headerWidgets } = req.body;
 
     // ── Path A: Inline widgets from frontend (create + submit in one step) ──
-    if (Array.isArray(inlineWidgets) && inlineWidgets.length > 0) {
-      // Validate each inline widget
+    if (Array.isArray(inlineWidgets)) {
+      // Validate each inline widget (if any)
       const allErrors = [];
       for (let i = 0; i < inlineWidgets.length; i++) {
         const errors = validateWidget(inlineWidgets[i]);
@@ -59,6 +59,11 @@ router.post('/', async (req, res, next) => {
       }
       if (allErrors.length > 0) {
         return res.status(400).json({ error: 'Validation failed', details: allErrors });
+      }
+
+      // Must have at least body widgets OR header widgets
+      if (inlineWidgets.length === 0 && (!headerWidgets || Object.keys(headerWidgets).length === 0)) {
+        return res.status(400).json({ error: 'At least 1 widget or header widget is required' });
       }
 
       // Create Widget records + Request + RequestWidgets in a single transaction

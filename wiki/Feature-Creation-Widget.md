@@ -595,7 +595,10 @@ Final Assembly:
 │  Name (EN):   [Bread & Buns_________________]        │
 │  Image:       [Choose File]  [bread.jpg]             │
 │  Page Type:   [product_listing_page ▼]               │
-│  ...                                                  │
+│                                                       │
+│  ─── State-Wise Products ────────────────────────    │
+│  Global Products:  [2001, 2002, 2003_________]       │
+│  [ + Add State ]                                      │
 │                                                       │
 │  ═══════════════════════════════════════════════════  │
 │  [ + Add Category Item ]                              │

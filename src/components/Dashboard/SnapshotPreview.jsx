@@ -2,16 +2,14 @@ import React from 'react';
 import { WidgetContext } from '../../context/WidgetContext';
 import SingleProductRow from '../Widgets/SPR/SingleProductRow';
 import CollectionBanner from '../Widgets/CollectionBanner';
-import BannerWithProductListing from '../Widgets/BannerWithProductListing';
-import CategoryGrid from '../Widgets/CategoryGrid';
 import PrimaryMasthead from '../Widgets/PrimaryMasthead';
 
 const componentMap = {
     // Config-driven keys (from WidgetRegistry.rendering.component)
     'SingleProductRow': SingleProductRow,
     'CollectionBanner': CollectionBanner,
-    'BannerWithProductListing': BannerWithProductListing,
-    'CategoryGrid': CategoryGrid,
+    'BannerWithProductListing': CollectionBanner,
+    'CategoryGrid': CollectionBanner,
     'PrimaryMasthead': PrimaryMasthead,
     'SecondaryMasthead': PrimaryMasthead,
     // Legacy type names
@@ -19,28 +17,28 @@ const componentMap = {
     'Single Product Row Optimize': SingleProductRow,
     'Secondary Masthead Carousel': PrimaryMasthead,
     'Primary Masthead': PrimaryMasthead,
-    'Banner With Product Listing': BannerWithProductListing,
-    'Category Grid': CategoryGrid,
+    'Banner With Product Listing': CollectionBanner,
+    'Category Grid': CollectionBanner,
     'Collection Banner': CollectionBanner,
     // Prisma slug-style type names
     'product_rail': SingleProductRow,
     'collection_banner': CollectionBanner,
     'masthead': PrimaryMasthead,
-    'category_grid': CategoryGrid,
-    'banner_product_listing': BannerWithProductListing,
+    'category_grid': CollectionBanner,
+    'banner_product_listing': CollectionBanner,
 };
 
 // Stub context so widget components don't crash outside WidgetProvider
 const stubContextValue = {
     widgets: [],
     selectedWidgetId: null,
-    setSelectedWidgetId: () => {},
-    addWidget: () => {},
-    updateWidget: () => {},
-    deleteWidget: () => {},
-    duplicateWidget: () => {},
-    moveWidget: () => {},
-    navigateTo: () => {},
+    setSelectedWidgetId: () => { },
+    addWidget: () => { },
+    updateWidget: () => { },
+    deleteWidget: () => { },
+    duplicateWidget: () => { },
+    moveWidget: () => { },
+    navigateTo: () => { },
     currentView: 'home',
     viewData: null,
     headerWidgets: {},

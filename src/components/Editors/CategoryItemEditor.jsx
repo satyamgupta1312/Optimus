@@ -6,7 +6,8 @@ import ImageUpload from '../ImageUpload';
 import SubCategoryList from './SubCategoryList';
 import ExpandPageSection from './ExpandPageSection';
 import StateProductEditor from '../Inputs/StateProductEditor';
-import { ImagePlus } from 'lucide-react';
+import { ImagePlus, Loader2 } from 'lucide-react';
+import { LocalApiService } from '../../services/LocalApiService';
 
 /**
  * CategoryItemEditor — 2-level accordion for Collection Banner stick mode.
@@ -25,6 +26,7 @@ const CategoryItemEditor = ({
     disabled,
 }) => {
     const [expandedIndex, setExpandedIndex] = useState(null);
+    const [uploadingImageIdx, setUploadingImageIdx] = useState(null);
 
     const items = Array.isArray(value) ? value : [];
 
@@ -37,7 +39,6 @@ const CategoryItemEditor = ({
             expandPage: false,
             plpWidgets: [],
             stateProducts: { global: '' },
-            pageHeading: '',
             subCategories: [],
         };
         onChange([...items, newItem]);
@@ -123,14 +124,33 @@ const CategoryItemEditor = ({
                                             type="file"
                                             accept="image/*"
                                             className="hidden"
-                                            onChange={(e) => {
+                                            onChange={async (e) => {
                                                 if (e.target.files && e.target.files[0]) {
-                                                    updateItem(index, 'image', e.target.files[0]);
+                                                    const file = e.target.files[0];
+                                                    // 1. Set File immediately for instant preview
+                                                    updateItem(index, 'image', file);
+                                                    // 2. Upload to local server (same as PropertyEditor background_media)
+                                                    try {
+                                                        setUploadingImageIdx(index);
+                                                        const result = await LocalApiService.uploadMedia(file);
+                                                        if (result.viewUrl) {
+                                                            // 3. Replace File with persistent URL
+                                                            updateItem(index, 'image', result.viewUrl);
+                                                        }
+                                                    } catch (err) {
+                                                        console.error('[CategoryItemEditor] Image upload failed:', err);
+                                                    } finally {
+                                                        setUploadingImageIdx(null);
+                                                    }
                                                 }
                                             }}
                                             disabled={disabled}
                                         />
-                                        {item.image ? (
+                                        {uploadingImageIdx === index ? (
+                                            <div className="w-14 h-14 rounded-lg border border-blue-300 flex items-center justify-center bg-blue-50">
+                                                <Loader2 size={16} className="animate-spin text-blue-500" />
+                                            </div>
+                                        ) : item.image && (item.image instanceof File || item.image instanceof Blob || (typeof item.image === 'string' && item.image.length > 0)) ? (
                                             <div className="w-14 h-14 rounded-lg border border-slate-200 overflow-hidden group-hover:ring-2 group-hover:ring-blue-500/30 transition-all">
                                                 <img src={typeof item.image === 'string' ? item.image : URL.createObjectURL(item.image)} alt="" className="w-full h-full object-cover" />
                                             </div>
@@ -154,13 +174,7 @@ const CategoryItemEditor = ({
                                 onChange={(val) => updateItem(index, 'pageType', val)}
                             />
 
-                            <TextInput
-                                label="Page Heading"
-                                value={item.pageHeading || ''}
-                                onChange={(val) => updateItem(index, 'pageHeading', val)}
-                                required
-                                disabled={disabled}
-                            />
+
 
                             {/* Level 2: Sub-Categories — only when category_page selected */}
                             {item.pageType === 'category_page' && (

@@ -111,7 +111,15 @@ export const DeploymentService = {
                     }
 
                     // Look up builder
-                    const BuilderClass = BUILDER_MAP[widget.type];
+                    // Special case: 'collection_banner' has two modes
+                    // displayMode lives in widget.pnc.displayMode (CollectionBannerConfig.initialState)
+                    let BuilderClass = BUILDER_MAP[widget.type];
+                    if (widget.type === 'collection_banner' || widget.type === 'Collection Banner') {
+                        const mode = widget.pnc?.displayMode || widget.displayMode || 'scroll';
+                        BuilderClass = (mode === 'stick')
+                            ? CategoryGridBuilder
+                            : CollectionBannerBuilder;
+                    }
                     if (!BuilderClass) {
                         log(`Skipping unsupported type: ${widget.type}`);
                         results.push({ widget: widgetName, status: 'skipped', error: `Unsupported type: ${widget.type}` });
@@ -192,7 +200,14 @@ export const DeploymentService = {
      */
     async deploySingle(widget) {
         const log = (msg) => console.log(`[Deploy Single] ${msg}`);
-        const BuilderClass = BUILDER_MAP[widget.type];
+        let BuilderClass = BUILDER_MAP[widget.type];
+        // collection_banner → displayMode lives in widget.pnc.displayMode
+        if (widget.type === 'collection_banner' || widget.type === 'Collection Banner') {
+            const mode = widget.pnc?.displayMode || widget.displayMode || 'scroll';
+            BuilderClass = (mode === 'stick')
+                ? CategoryGridBuilder
+                : CollectionBannerBuilder;
+        }
 
         if (!BuilderClass) {
             return { status: 'skipped', error: `Unsupported type: ${widget.type}` };

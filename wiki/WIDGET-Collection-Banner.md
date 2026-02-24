@@ -137,29 +137,33 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Input([User Input: Title, Category Items + Sub-Categories]) --> Process[Category Grid Backend Script]
+    Input([User Input: Title, Category Items + Sub-Categories]) --> Process[CategoryGridBuilder.js]
 
-    subgraph Bottom-Up Creation Flow per Category Item
+    subgraph Per Category Item - Steps 1-7
         direction TB
-        Step1[1. Sub-Category Items (Virtual for PLP) - state-specific]
-        Step2[2. PLP Widget - product_listing]
-        Step3[3. Page Layout - category_page / product_listing_page]
-        Step4[4. Category Widget Item]
+        Step1["Step 1: Sub-Cat Widget Items (sub_category) — Create or Update"]
+        Step2["Step 2: PLP Widget (product_listing) — Create or Update"]
+        Step3["Step 3: Page Layout — Create or Skip if exists"]
+        Step4[Map Sub-Cats → PLP — CSV]
+        Step5[Map PLP → Page — CSV]
+        Step6[Map Page → Global — CSV]
+        Step7["Step 7: Category Widget Item (category) — Create or Update"]
 
-        Step1 -->|widget_item mapping| Step2
-        Step2 -->|layout_widget mapping| Step3
-        Step3 -->|global mapping| Global[Global Page Registry]
-        Step3 -.->|page_layout_slug_name| Step4
+        Step1 --> Step4 --> Step2
+        Step2 --> Step5 --> Step3
+        Step3 --> Step6 --> Global[Global Page Registry]
+        Step3 -.->|page_layout_slug_name| Step7
     end
 
-    subgraph Final Assembly
-        Step5[5. Category Grid Widget]
-        Step4 -->|widget_item mapping| Step5
+    subgraph Phase 2 - Steps 8-9
+        Step8["Step 8: Category Grid Widget (category) — Create or Update"]
+        Step9[Map all Category Items → Widget — CSV]
+        Step7 --> Step9 --> Step8
     end
 
-    Process --> Bottom-Up Creation Flow per Category Item
-    Bottom-Up Creation Flow per Category Item --> Final Assembly
-    Final Assembly --> Output([Final: Category Grid Widget Slug])
+    Process --> Per Category Item - Steps 1-7
+    Per Category Item - Steps 1-7 --> Phase 2 - Steps 8-9
+    Phase 2 - Steps 8-9 --> Output([Final: Category Grid Widget Slug])
 ```
 
 ---
@@ -189,13 +193,17 @@ flowchart LR
 
 ### Stick Mode (Category Grid)
 
-| Step | Object Type | Slug Pattern | Purpose | API Endpoint |
+| Step | Object Type | Slug Pattern | Purpose | Create/Update |
 | :---: | :--- | :--- | :--- | :--- |
-| **1** | Widget Item (Sub-Cat) | `{base}_item_{n}_subcat_{m}_{state}` | State-specific product list (Virtual 1x1 subcat for PLPs) | `/api/app/post_widget_item/` |
-| **2** | Widget (PLP) | `{base}_item_{n}_plp` | Product listing for category page / PLP | `/api/app/widget/` |
-| **3** | Page Layout | `{base}_item_{n}_page` | Category / PLP page structure | `/api/app/post_page_layout/` |
-| **4** | Widget Item (Category) | `{base}_item_{n}_cat_wi` | Category card in the grid | `/api/app/post_widget_item/` |
-| **5** | Widget (Category Grid) | `{base}_cm_hp` | The main grid widget | `/api/app/widget/` |
+| **1** | Widget Item (Sub-Category) | `{base}_item_{n}_subcat_{m}_{state}` | State-specific product list; if PLP page type, auto-creates 1 virtual sub-cat from stateProducts | CREATE or UPDATE |
+| **2** | Widget (PLP) | `{base}_item_{n}_plp` | Product Listing Widget for the category/PLP page | CREATE or UPDATE |
+| **3** | Page Layout | `{base}_item_{n}_cat_page` or `{base}_item_{n}_plp_page` | Category or PLP page structure | CREATE or SKIP |
+| **4** | Map Sub-Cats → PLP | CSV | `widget_item_slug_name` mapping | POST CSV |
+| **5** | Map PLP → Page | CSV | `widget_slug_name` mapping | POST CSV |
+| **6** | Map Page → Global | CSV | `level_tag,level_property` | POST CSV |
+| **7** | Widget Item (Category) | `{base}_item_{n}_cat_wi` | Category card with `click_action_params` pointing to the page | CREATE or UPDATE |
+| **8** | Widget (Category Grid) | `{base}_cm_hp` | The main category grid container | CREATE or UPDATE |
+| **9** | Map Category Items → Widget | CSV | `widget_item_slug_name` mapping | POST CSV |
 
 > [!NOTE]
 > If a Category Item is set to `product_listing_page`, Step 1 automatically generates a single virtual sub-category to hold its `stateProducts`, passing them directly to the PLP Widget without rendering category tabs.
@@ -319,13 +327,13 @@ The **Carousel Media-Number** controls how many carousel items are visible in th
 
 | Field | Type | Required | Description |
 | :--- | :--- | :---: | :--- |
-| `text` | String | Yes | Category name (English) |
+| `text` | String | Yes | Category name (English) — also used as `page_heading` in Page Layout |
 | `textHi` | String | No | Category name (Hindi) |
-| `image` | URL/File | Yes | Category item image (max 300KB) |
-| `pageHeading` | String | Yes | Page heading text (used for `page_heading` in Page Layout payload) |
+| `image` | URL/File | Yes | Category item image (max 300KB). Falls back to blank 1×1 PNG if not uploaded |
 | `pageType` | String | Yes | `"category_page"` or `"product_listing_page"` |
-| `categoryPage.heading` | String | Yes | Page heading for the target page |
-| `subCategories` | Array | Yes | List of sub-categories |
+| `subCategories` | Array | Conditional | List of sub-categories (only when `pageType` = `category_page`) |
+| `stateProducts` | Object | Conditional | State-wise product codes (only when `pageType` = `product_listing_page`) |
+| `expandPage` | Boolean | No | Toggle for multi-widget PLPs on PLP pages |
 
 ### Stick Mode — Sub-Category Fields
 
@@ -390,6 +398,7 @@ Carousel Widget Item: "Summer Sale"
 
 ### Frontend Behavior — Stick Mode
 
+When `pageType` is **category_page**:
 ```
 Category Item: "Basmati Rice"
 ┌──────────────────────────────────────────────────┐
@@ -403,14 +412,26 @@ Category Item: "Basmati Rice"
 │ │ │ Products: 1003, 1004                   │    │ │
 │ │ └────────────────────────────────────────┘    │ │
 │ │                                                │ │
-│ │ ┌─ State: Chhattisgarh ─────────────────┐    │ │
-│ │ │ Products: 1005, 1006                   │    │ │
-│ │ └────────────────────────────────────────┘    │ │
-│ │                                                │ │
 │ │  [ + Add State ]                               │ │
 │ └──────────────────────────────────────────────┘ │
 │                                                    │
 │ [ + Add Sub-Category ]                             │
+└──────────────────────────────────────────────────┘
+```
+
+When `pageType` is **product_listing_page** (and `expandPage` is false):
+```
+Category Item: "Basmati Rice"
+┌──────────────────────────────────────────────────┐
+│ Page Type: [product_listing_page ▼]              │
+│                                                    │
+│ 🌐 Global Products:  1001, 1002, 1003            │
+│                                                    │
+│ ┌─ State: Jharkhand ──────────────────────────┐  │
+│ │ Products: 1003, 1004                         │  │
+│ └──────────────────────────────────────────────┘  │
+│                                                    │
+│  [ + Add State ]                                   │
 └──────────────────────────────────────────────────┘
 ```
 
@@ -615,49 +636,67 @@ Item Code,Display Name,Price,MRP,Main Image
 ### Stick Mode — Sub-Category Widget Item (Step 1 — per state)
 
 ```javascript
+// CREATE payload (if slug does not exist on backend)
+// For PLP page type, this is auto-generated from item.stateProducts
 {
   "slug_name": "rice_mela_item_1_subcat_1_jh",
   "item_type": "sub_category",
+  "item_click_action": "deal-detail-redirect",
   "text_en": "Premium Basmati",
   "text_hi": "प्रीमियम बासमती",
-  "media_en": "https://example.com/basmati.jpg",
+  "media_en": "[image_file_or_blank_1x1_png]",
   "product_list": "1003,1004",
   "filter_lst": "[{\"condition\":\"in_stk_item_codes\",\"value\":[1003,1004]}]",
   "filters": "[]",
   "property_lst": "[]",
   "pl_edit": "PL",
   "deactivated_flag": "no",
-  "is_clickable": "yes"
+  "is_clickable": "yes",
+  "update_product_list": "no",
+  "start_time": "2024-01-01 00:00:00",
+  "end_time": "2034-01-01 00:00:00",
+  "click_action_params": "{}"
 }
+// UPDATE payload (if slug already exists — uses PUT /api/app/widget_item/{id}/)
+// Only updates: text_en, text_hi, product_list, filter_lst, start_time, end_time
 ```
 
 ### Stick Mode — PLP Widget (Step 2 — per category item)
 
 ```javascript
+// CREATE payload
 {
   "slug_name": "rice_mela_item_1_plp",
   "widget_type": "product_listing",
   "heading": "",
+  "heading_en": "",
+  "heading_hi": "",
+  "heading_bg": "",
   "start_time": "2024-01-01 00:00:00",
   "end_time": "2034-01-01 00:00:00",
   "app_configurations": "{\"show_sub_cat\": true}",
+  "configurations": "{}",
   "filter_dict": "{}",
-  "deactivated_flag": "no"
+  "deactivated_flag": "no",
+  "media_aspect_ratio": "1"
 }
+// UPDATE: updates heading_en, heading, start_time, end_time
 ```
 
 ### Stick Mode — Page Layout (Step 3 — per category item)
 
 ```javascript
+// CREATE only — skipped if slug already exists on backend (getPageLayoutId check)
+// page_heading is derived from item.text (category name) — no separate field
 {
-  "slug_name": "rice_mela_item_1_page",
-  "page_type": "category_page",  // or "product_listing_page" — selected per category item
-  "page_heading": "Basmati Rice",
+  "slug_name": "rice_mela_item_1_cat_page",   // _cat_page or _plp_page depending on pageType
+  "page_type": "category_page",               // or "product_listing_page" — selected per item
+  "page_heading": "Basmati Rice",             // = item.text (category name)
   "page_layout_type": "2"
 }
 ```
 
-### Stick Mode — Category Widget Item (Step 4 — per category item)
+### Stick Mode — Category Widget Item (Step 7 — per category item)
 
 ```javascript
 {
@@ -674,20 +713,24 @@ Item Code,Display Name,Price,MRP,Main Image
 }
 ```
 
-### Stick Mode — Category Grid Widget (Step 5)
+### Stick Mode — Category Grid Widget (Step 8)
 
 ```javascript
+// CREATE payload
 {
   "slug_name": "rice_mela_cm_hp",
   "widget_type": "category",
   "heading_en": "Rice Mela",
   "heading_hi": "राइस मेला",
+  "heading": "",
+  "heading_bg": "",
   "start_time": "2024-01-01 00:00:00",
   "end_time": "2034-01-01 00:00:00",
   "media_aspect_ratio": "1",
   "filter_dict": "{}",
   "app_configurations": "{}"
 }
+// UPDATE: updates heading_en, heading_hi, heading, start_time, end_time
 ```
 
 ---
@@ -753,16 +796,29 @@ Each sub-category clickable → product listing
 
 ---
 
-## 15. Backend Script Reference
+### Frontend Components
 
 | File | Mode | Purpose |
 | :--- | :--- | :--- |
-| `scripts/CLP_Automation.gs` | Scroll | Bottom-up carousel creation logic |
-| `scripts/Category_Grid_Backend.gs` | Stick | Bottom-up category grid creation logic |
-| `src/services/BackendSyncService.js` | Both | Frontend deploy (`deployCLPWidget()` / `deployCategoryGrid()`) |
-| `src/components/Widgets/BannerWithProductListing.jsx` | Scroll | Frontend carousel component |
-| `src/components/Widgets/CategoryGrid.jsx` | Stick | Frontend grid component |
-| `src/components/Preview/CategoryPage.jsx` | Stick | Category page preview |
+| `src/components/Widgets/CollectionBanner/index.jsx` | Both | Entry point — routes to Scroll or Stick based on `displayMode` |
+| `src/components/Widgets/CollectionBanner/Scroll.jsx` | Scroll | Carousel banner component (delegates to BannerWithProductListing) |
+| `src/components/Widgets/CollectionBanner/Stick.jsx` | Stick | 4-column category grid — uses `useCatalog()` for PLP product page resolution |
+| `src/components/Preview/CategoryPage.jsx` | Stick | Category page preview (sub-categories grid) |
+
+### Backend Builders
+
+| File | Mode | Purpose |
+| :--- | :--- | :--- |
+| `src/Backend/builders/CategoryGridBuilder.js` | Stick | 9-step Create/Update deploy flow (mirrors SPRBuilder pattern) |
+| `src/Backend/builders/CollectionBannerBuilder.js` | Scroll | 5-step deploy flow for carousel creation |
+| `src/Backend/services/DeploymentService.js` | Both | Routes to correct builder based on `widget.pnc.displayMode` |
+
+### GAS Script References
+
+| File | Mode | Purpose |
+| :--- | :--- | :--- |
+| `scripts/CLP_Automation.gs` | Scroll | Original scroll creation logic |
+| `scripts/Category_Grid_Backend.gs` | Stick | Original stick creation logic (ported to CategoryGridBuilder.js) |
 
 ---
 

@@ -176,9 +176,20 @@ export class CollectionBannerBuilder {
         await callApi(ENDPOINTS.widget, {
             slug_name: slugs.widget,
             widget_type: 'carousel',
+            description: '',
+            heading: '',
+            master_key: '',
+            heading_en: this.widget.title || '',
+            heading_hi: this.widget.titleHi || '',
+            heading_bg: '',
             media_number: this.widget.media_number || '3.5',
             start_time: this.dates.start,
             end_time: this.dates.end,
+            clear_bg_media: '',
+            background_multimedia: '',
+            filter_dict: '{}',
+            app_configurations: '{}',
+            deactivated_flag: 'no',
         }, { multipart: true });
         results.push({ step: 'carousel_widget', slug: slugs.widget, status: 'ok' });
 

@@ -210,11 +210,7 @@ export const CollectionBannerConfig = {
                     default: 'category_page',
                     validation: { required: true },
                 },
-                pageHeading: {
-                    component: 'TextInput',
-                    label: 'Page Heading',
-                    validation: { required: true, minLength: 1, maxLength: 200 },
-                },
+
                 subCategories: {
                     label: 'Sub-Categories',
                     condition: (pnc, widget, item) => item?.pageType !== 'product_listing_page',
@@ -595,7 +591,9 @@ export const CollectionBannerConfig = {
         stick: {
             subCategoryItem: '{base}_item_{n}_subcat_{m}_{state}',
             plpWidget: '{base}_item_{n}_plp',
-            pageLayout: '{base}_item_{n}_page',
+            // pageLayout slug differs by pageType to avoid collisions
+            pageLayoutCategory: '{base}_item_{n}_cat_page',
+            pageLayoutPlp: '{base}_item_{n}_plp_page',
             categoryItem: '{base}_item_{n}_cat_wi',
             categoryWidget: '{base}_cm_hp',
             fallback: 'category_grid_{timestamp}',
@@ -613,23 +611,23 @@ export const CollectionBannerConfig = {
             fallbackImage: 'blank.gif',
         },
         stick: {
-            // Category grid images support Google Drive file IDs
+            // Category grid images: uploaded File or blank 1×1 PNG fallback
+            // (matches SPRBuilder.getBlankImageBlob() pattern)
             imagePriority: [
-                'driveFileId',       // Google Drive thumbnail (sz=w200)
-                'driveDirectUrl',    // lh3.googleusercontent.com
-                'noImageFallback',   // No image
+                'uploadedFile',      // File/Blob from form upload
+                'blankPng',          // 1×1 transparent PNG (auto fallback)
             ],
         },
     },
 
     // ── Rendering Hints ──
     rendering: {
-        component: 'CollectionBanner',
+        component: 'CollectionBanner',          // src/components/Widgets/CollectionBanner/index.jsx
         scroll: {
-            component: 'BannerWithProductListing',
+            component: 'CollectionBanner/Scroll', // delegates to BannerWithProductListing
         },
         stick: {
-            component: 'CategoryGrid',
+            component: 'CollectionBanner/Stick',  // 4-col category grid with useCatalog PLP
             gridCols: 4,
         },
     },

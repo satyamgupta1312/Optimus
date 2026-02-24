@@ -1,9 +1,8 @@
 import React from 'react';
 import { X, Copy } from 'lucide-react';
-import BannerWithProductListing from './BannerWithProductListing';
 import SingleProductRow from './SPR/SingleProductRow';
 import PrimaryMasthead from './PrimaryMasthead';
-import CategoryGrid from './CategoryGrid';
+// CollectionBanner handles both Scroll (carousel) and Stick (category grid) modes
 import CollectionBanner from './CollectionBanner';
 import { useWidgetContext } from '../../context/WidgetContext';
 import { WidgetRegistry } from '../../config/WidgetRegistry';
@@ -17,8 +16,9 @@ const WidgetRenderer = ({ widget, isSelected, onClick, deleteWidget }) => {
         'Single Product Row Optimize': SingleProductRow,
         'Secondary Masthead Carousel': PrimaryMasthead,
         'Primary Masthead': PrimaryMasthead,
-        'Banner With Product Listing': BannerWithProductListing,
-        'Category Grid': CategoryGrid,
+        // Both scroll (carousel) and stick (category grid) modes go through CollectionBanner
+        'Banner With Product Listing': CollectionBanner,
+        'Category Grid': CollectionBanner,
         'Collection Banner': CollectionBanner,
     };
 
@@ -26,8 +26,8 @@ const WidgetRenderer = ({ widget, isSelected, onClick, deleteWidget }) => {
     const configComponentMap = {
         'SingleProductRow': SingleProductRow,
         'CollectionBanner': CollectionBanner,
-        'BannerWithProductListing': BannerWithProductListing,
-        'CategoryGrid': CategoryGrid,
+        'BannerWithProductListing': CollectionBanner,
+        'CategoryGrid': CollectionBanner,
         'PrimaryMasthead': PrimaryMasthead,
         'SecondaryMasthead': PrimaryMasthead,
     };

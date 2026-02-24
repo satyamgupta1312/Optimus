@@ -142,7 +142,7 @@ const PropertyEditor = ({ widget, onSubmit }) => {
         updateWidget(widget.id, { [field]: value });
 
         // Sync implicit has_multimedia when background media changes
-        if (field === 'background_media' || field === 'background_video') {
+        if (field === 'background_media') {
             const currentPnc = widget.pnc || {};
             updateWidget(widget.id, {
                 pnc: { ...currentPnc, has_multimedia: !!value }

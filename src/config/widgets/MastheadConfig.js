@@ -154,16 +154,7 @@ export const MastheadConfig = {
             },
             errorMessage: 'Must be a supported image format',
         },
-        {
-            name: 'background_video',
-            component: 'UrlInput',
-            label: 'Background Video URL',
-            validation: {
-                required: false,
-                pattern: /^https?:\/\/.+\.(mp4|mov|webm)$/i,
-            },
-            errorMessage: 'Must be a valid video URL (.mp4, .mov, .webm)',
-        },
+
         {
             name: 'transition_color',
             component: 'ColorPicker',

@@ -136,7 +136,7 @@ const ImageUpload = ({ onImageSelect, onChange, currentImage = '', value, label 
                     <img
                         src={preview}
                         alt="Preview"
-                        className="w-full h-48 object-cover rounded-lg border-2 border-slate-200"
+                        className="w-full h-24 object-cover rounded-lg border-2 border-slate-200"
                     />
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-3">
                         <button
@@ -161,8 +161,8 @@ const ImageUpload = ({ onImageSelect, onChange, currentImage = '', value, label 
                     onDrop={handleDrop}
                     onClick={handleClick}
                     className={`
-            relative w-full h-48 border-2 border-dashed rounded-lg
-            flex flex-col items-center justify-center gap-3
+            relative w-full h-24 border-2 border-dashed rounded-lg
+            flex items-center justify-center gap-3
             cursor-pointer transition-all duration-200
             ${isDragging
                             ? 'border-blue-500 bg-blue-50'
@@ -171,24 +171,18 @@ const ImageUpload = ({ onImageSelect, onChange, currentImage = '', value, label 
             ${uploading ? 'pointer-events-none opacity-50' : ''}
           `}
                 >
-                    <div className="w-16 h-16 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center">
+                    <div className="w-9 h-9 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center shrink-0">
                         {uploading ? (
-                            <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                         ) : (
-                            <Upload size={28} className="text-slate-400" />
+                            <Upload size={14} className="text-slate-400" />
                         )}
                     </div>
-
                     <div className="text-center">
-                        <p className="text-sm font-medium text-slate-700">
-                            {uploading ? 'Uploading...' : isDragging ? 'Drop image here' : 'Click to upload or drag & drop'}
+                        <p className="text-xs font-medium text-slate-700">
+                            {uploading ? 'Uploading...' : isDragging ? 'Drop here' : 'Click to upload or drag & drop'}
                         </p>
-                        <p className="text-xs text-slate-500 mt-1">
-                            PNG, JPG, GIF up to 5MB
-                        </p>
-                        <p className="text-xs text-slate-400 mt-2">
-                            Tip: You can also paste (Cmd+V) an image
-                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">PNG, JPG, GIF, MP4, WebM</p>
                     </div>
                 </div>
             )}

@@ -39,16 +39,17 @@ const PLP_WIDGET_TYPES = [
  * Wiki: wiki/PLP-PAGE-widget-support.md §3-4
  * Config: src/config/widgets/PLP-PAGE-widget-support.js → EXPAND_PAGE_CONFIG
  */
-const ExpandPageSection = ({ expandPage, plpWidgets = [], onChange, disabled }) => {
+const ExpandPageSection = ({ value, expandPage: expandPageProp, plpWidgets: plpWidgetsProp = [], onChange, disabled }) => {
+    // Support both: value={expandPage, plpWidgets} (from PropertyEditor) AND direct props
+    const expandPage = value?.expandPage ?? expandPageProp ?? false;
+    const plpWidgets = value?.plpWidgets ?? plpWidgetsProp ?? [];
+
     const [showPicker, setShowPicker] = useState(false);
     const [expandedWidgetId, setExpandedWidgetId] = useState(null);
 
     const toggleExpand = () => {
         const next = !expandPage;
-        onChange({
-            expandPage: next,
-            plpWidgets: next ? plpWidgets : [],
-        });
+        onChange({ expandPage: next, plpWidgets: next ? plpWidgets : [] });
     };
 
     const addPlpWidget = (widgetType) => {
@@ -99,14 +100,12 @@ const ExpandPageSection = ({ expandPage, plpWidgets = [], onChange, disabled }) 
                 <button
                     onClick={toggleExpand}
                     disabled={disabled}
-                    className={`relative w-10 h-5 rounded-full transition-colors ${
-                        expandPage ? 'bg-violet-500' : 'bg-slate-300'
-                    } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    className={`relative w-10 h-5 rounded-full transition-colors ${expandPage ? 'bg-violet-500' : 'bg-slate-300'
+                        } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                 >
                     <div
-                        className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                            expandPage ? 'translate-x-5' : 'translate-x-0.5'
-                        }`}
+                        className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${expandPage ? 'translate-x-5' : 'translate-x-0.5'
+                            }`}
                     />
                 </button>
             </div>

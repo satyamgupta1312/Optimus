@@ -144,16 +144,17 @@ const PhoneFrame = () => {
                             }
                         `}</style>
 
-                        {/* Secondary Masthead (Blue Banner) */}
-                        {headerWidgets?.secondaryMasthead?.enabled && (() => {
+                        {/* Secondary Masthead (Banner + Carousel) */}
+                        {(() => {
                             const secondaryWidget = widgets.find(w => w.type === 'masthead' && w.pnc?.variant === 'secondary');
-                            const isSecondarySelected = secondaryWidget && selectedWidgetId === secondaryWidget.id;
+                            if (!secondaryWidget) return null;
+                            const isSecondarySelected = selectedWidgetId === secondaryWidget.id;
                             return (
                                 <div
                                     className={`mb-2 cursor-pointer ${isSecondarySelected ? 'ring-2 ring-blue-500 rounded-xl' : ''}`}
-                                    onClick={() => secondaryWidget && setSelectedWidgetId(secondaryWidget.id)}
+                                    onClick={() => setSelectedWidgetId(secondaryWidget.id)}
                                 >
-                                    <SecondaryMasthead widget={headerWidgets.secondaryMasthead} />
+                                    <SecondaryMasthead widget={secondaryWidget} />
                                 </div>
                             );
                         })()}

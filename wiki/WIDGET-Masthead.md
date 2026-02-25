@@ -33,22 +33,22 @@ The multimedia background configuration is **identical** for both Primary and Se
 ### Upload Flow (Same for Both)
 
 ```
-1. User uploads file (image / video / webm) via the sidebar input
+1. User uploads file (image / video / webm) via the sidebar ImageUpload component
     ↓
-2. File uploaded to Google Drive → returns {fileId, viewUrl}
+2. ImageUpload auto-uploads to local Express server → returns persistent URL
     ↓
-3. Preview shown immediately using local blob URL
+3. Widget state stores URL string (e.g. /api/local/media/view/xxx)
     ↓
-4. On deploy: Backend fetches blob from Drive → POST to /api/app/multimedia/
+4. URL survives JSON.stringify → stored in DB snapshot → available at deploy time
+    ↓
+5. On deploy: Builder fetches URL → converts to Blob → POST to /api/app/multimedia/
 ```
 
 ### Background Preview Priority (Same for Both)
 
 ```
-1. Local blob URL        → immediate preview after upload
-2. Google Drive thumbnail → via driveFileId
-3. Google Drive URL      → driveUrl fallback
-4. Solid color fallback  → #0277FA
+1. Canvas widget background_media URL → uploaded image from local server
+2. Transition color fallback       → solid color (#0277FA default)
 ```
 
 ### Multimedia API Payload (Same for Both)
@@ -136,8 +136,8 @@ The **Primary Masthead** is a header-only widget that displays category navigati
 
 ```mermaid
 flowchart LR
-    BG["1. Multimedia Background\n{base}_bg\nPOST /api/app/multimedia/"] -.->
-    PM["2. Primary Masthead Widget\n{base}_pm_hp\nPOST /api/app/widget/"]
+    BG["1. Multimedia Background\n{slug}_bg\nPOST /api/app/multimedia/"] -.->
+    PM["2. Primary Masthead Widget\n{slug} (user's slug directly)\nPOST /api/app/widget/\nSlug collision → retry with _1, _2..."]
     PM --> Live([Widget LIVE ✓])
 ```
 
@@ -172,16 +172,17 @@ flowchart TD
 
 | Step | Object Type | Slug Pattern | Purpose | API Endpoint |
 | :---: | :--- | :--- | :--- | :--- |
-| **1** | Multimedia | `{base}_bg` | Background media (image/video/lottie) | `/api/app/multimedia/` |
-| **2** | Widget (Primary Masthead) | `{base}_pm_hp` | The masthead widget container | `/api/app/widget/` |
+| **1** | Multimedia | `{slug}_bg` | Background media (image/video/lottie) | `/api/app/multimedia/` |
+| **2** | Widget (Primary Masthead) | `{slug}` (user's slug directly) | The masthead widget container | `/api/app/widget/` |
 
-**Fallback slug:** `primary_masthead_{timestamp}` (if no slug provided)
+> **Slug collision**: If widget slug already exists, builder retries with `{slug}_1`, `{slug}_2`, ... up to `{slug}_10`.  
+> **Multimedia collision**: If multimedia slug already exists, builder continues silently (links to existing one).
 
 ### Object Hierarchy
 
 ```
 Widget (masthead_primary)
-├── slug_name: diwali_2024_pm_hp
+├── slug_name: diwali_2024
 ├── widget_type: masthead_primary
 ├── master_key: 1020 (optional)
 └── background_multimedia: diwali_2024_bg
@@ -222,7 +223,7 @@ These are the fields the user fills in the PropertyEditor / HeaderConfiguration.
 
 | Field | Type | Required | Description | Example |
 | :--- | :--- | :---: | :--- | :--- |
-| `slug_name` | String | Yes | Unique identifier | `diwali_2024_pm_hp` |
+| `slug_name` | String | Yes | Unique identifier (= user's slug) | `diwali_2024` |
 | `widget_type` | String | Yes | Must be `masthead_primary` | `masthead_primary` |
 | `master_key` | String | No | Link to category pane widget | `1020` |
 | `background_multimedia` | String | No | Multimedia slug for background (omit if empty) | `diwali_2024_bg` |
@@ -240,7 +241,7 @@ These are the fields the user fills in the PropertyEditor / HeaderConfiguration.
 
 ```javascript
 {
-  "slug_name": "diwali_2024_pm_hp",
+  "slug_name": "diwali_2024",
   "widget_type": "masthead_primary",
   "master_key": "1020",
   "background_multimedia": "diwali_2024_bg",
@@ -263,18 +264,22 @@ These are the fields the user fills in the PropertyEditor / HeaderConfiguration.
 ### Behavior
 
 - Displays category icon buttons (All, Buy Again, Rice, Kirana, Body Care, etc.)
-- Renders icons with configurable colors from multimedia config
+- Reads colors **directly from canvas widget** via `useWidgetContext()` (no props needed)
 - Background is inherited from AppHeader (not rendered directly)
 - Categories are hardcoded by default but can be overridden via `widget.categories`
 
-### Key Props
+### Color Logic (Emulator Preview)
 
-| Prop | Source | Purpose |
+| Color Field | Emulator Usage | Source |
 | :--- | :--- | :--- |
-| `widget.multimedia.accent_color` | Multimedia API | Icon fill color when active |
-| `widget.multimedia.text_color` | Multimedia API | Label text color |
-| `widget.multimedia.icon_bg_color` | Multimedia API | Icon container background |
-| `widget.categories` | Widget config | Array of `{name, icon, active}` |
+| `transition_color` | Header solid background (fallback when no image) | `primaryWidget.transition_color` |
+| `background_media` | Header background image (uploaded image URL) | `primaryWidget.background_media` |
+| `accent_color` | Active icon color (highlighted category) | `primaryWidget.accent_color` |
+| `text_color` | Category labels, all header text | `primaryWidget.text_color` |
+| `icon_bg_color` | Active icon container background | `primaryWidget.icon_bg_color` |
+| `is_multimedia_dark` | If true → forces white text over dark bg | `primaryWidget.is_multimedia_dark` |
+
+> **Live Preview**: Change any color in PropertyEditor → emulator updates instantly (reads from canvas widget state).
 
 ## 8. Mapping Flow
 
@@ -327,7 +332,8 @@ The following filters and configurations are **universal** — they apply to the
 
 | File | Purpose |
 | :--- | :--- |
-| `scripts/Primary_Masthead_Automation.gs` | Google Sheets → Backend API creation |
+| `src/Backend/builders/PrimaryMastheadBuilder.js` | Deploy builder (try-create with slug increment) |
+| `src/Backend/services/DeploymentService.js` | Routes masthead from canvas widgets via BUILDER_MAP |
 | `src/services/BackendSyncService.js` | Frontend deploy via `deployPrimaryMasthead()` |
 
 ---
@@ -340,16 +346,18 @@ The following filters and configurations are **universal** — they apply to the
 
 The **Secondary Masthead** is a promotional banner with a complex nested carousel ecosystem. It features a full-width banner background with multiple carousel items below it, where each carousel item links to its own page (category page or product listing page) with state-specific sub-categories.
 
-**Backend Widget Type:** `masthead_secondary_category_hp`
+**Backend Widget Type:** `masthead_secondary_carousal_hp`
 
 **Key Characteristics:**
 - Full-width banner (header) + carousel items (body)
 - Supports multimedia backgrounds (Image, Video, Lottie)
+- **Banner tap → View All redirect** (dedicated page ecosystem, configurable ON/OFF)
 - Each carousel item creates a full page layout ecosystem (Page Layout → PLP → Sub-Categories)
 - **Each carousel widget item has its own page type selection** (`category_page` or `product_listing_page`)
-- State-based product mapping (Global, JH, CG, WB)
-- Uses **3-Phase Creation Logic** to handle nested dependencies
-- Configurable aspect ratio (1–4)
+- State-based product mapping (Global, JH, CG, WB + dynamic states)
+- Uses **4-Phase Creation Logic** (Phase 1 → 1.5 → 2 → 3)
+- **Color fields hidden** (Transition, Accent, Text, Icon BG) — not applicable to secondary
+- Configurable carousel media-number (e.g. 2.5 = 2 full + half peek)
 
 ### Emulator Preview — Secondary Masthead
 
@@ -373,39 +381,56 @@ The **Secondary Masthead** is a promotional banner with a complex nested carouse
 └───────────────────────────────────────────────────┘
 ```
 
-### System Overview — 3-Phase Architecture
+### System Overview — 4-Phase Architecture
 
 ```mermaid
 flowchart TD
-    User([User Input: Banner + Carousel Items]) --> Phase1
+    User([User Input: Banner + View All + Carousel Items]) --> Phase1
 
     subgraph Phase1 [Phase 1: Parent Containers]
-        MM["1. Multimedia Background\n{base}_bg"] -.->
-        SMW["2. Secondary Masthead Widget\n{base}_sm_hp"]
+        MM["1. Multimedia Background\n{slug}_bg"] -.->
+        SMW["2. Secondary Masthead Widget\n{slug}\nAspect ratio auto-computed"]
     end
 
-    Phase1 --> Phase2
+    Phase1 --> Phase15
 
-    subgraph Phase2 [Phase 2: Per Carousel Item]
-        Page["3. Page Layout\ncategory_page / product_listing_page"]
-        PLP["4. PLP Widget\nproduct_listing"]
-        SC["5. Sub-Category Items\nper state: global · jh · cg · wb"]
-        CI["6. Carousel Widget Item\nclick → page_layout_slug_name"]
+    subgraph Phase15 ["Phase 1.5: View All Redirect Ecosystem (if toggle ON)"]
+        VASC["Sub-Cat Widget Items\n(per state)"]
+        VAPLP["PLP Widget\n{slug}_va_plp"]
+        VAPage["Page Layout\n{slug}_va_cat_page or _va_plp_page"]
+        VAExpand["Expand Page Widgets\n{slug}_va_ep_1, _ep_2..."]
+        VASC --> VAPLP --> VAPage
+        VAExpand --> VAPage
+    end
 
-        SC -->|widget_item| PLP
-        PLP -->|layout_widget| Page
-        Page -->|global mapping| GR[Global Registry]
-        Page -.->|slug reference| CI
+    Phase15 --> Phase2
+
+    subgraph Phase2 ["Phase 2: Per Carousel Item (same as CollectionBannerBuilder)"]
+        SC["1. Sub-Cat Widget Items\n(per state, CREATE or UPDATE)"]
+        PLP["2. PLP Widget\nproduct_listing"]
+        Page["3. Page Layout"]
+        MapSC["4. Map Sub-Cats → PLP"]
+        MapPLP["5. Map PLP → Page"]
+        MapPage["6. Map Page → Global"]
+        CI["7. Carousel Widget Item\n(CREATE or UPDATE)"]
+
+        SC --> MapSC --> PLP
+        PLP --> MapPLP --> Page
+        Page --> MapPage --> Global[Global Registry]
+        Page -.-|slug reference| CI
     end
 
     Phase2 --> Phase3
 
-    subgraph Phase3 [Phase 3: Final Mapping]
-        Map["7. Map all Carousel Items → SM Widget"]
+    subgraph Phase3 [Phase 3: Final Mapping + View All Update]
+        Map["Map all Carousel Items → SM Widget"]
+        VA["Update SM Widget → view_all_action_params\n(dedicated VA page slug)"]
     end
 
     Phase3 --> Live([Widgets LIVE ✓])
 ```
+
+> **Aspect Ratio**: Now **hardcoded** from uploaded image/video dimensions (`width / height`) — no longer a user-configurable field. Maps to API values: ~1:1→`"1"`, ~4:3→`"2"`, ~16:9→`"3"`, other→`"4"` (Full).
 
 ## 2. Widget Composition
 
@@ -460,12 +485,15 @@ The Secondary Masthead creates the following objects per carousel item:
 
 | Step | Object Type | Slug Pattern | Purpose | API Endpoint |
 | :---: | :--- | :--- | :--- | :--- |
-| **1** | Multimedia | `{base}_bg` | Banner background | `/api/app/multimedia/` |
-| **2** | Widget (SM) | `{base}_sm_hp` | Secondary Masthead container | `/api/app/widget/` |
-| **3** | Page Layout | `{base}_item_{n}_page` | Category page or product listing page per carousel item | `/api/app/post_page_layout/` |
-| **4** | Widget (PLP) | `{base}_item_{n}_plp` | Product listing per carousel item | `/api/app/widget/` |
-| **5** | Widget Item (Sub-Cat) | `{base}_item_{n}_subcat_{m}_{state}` | State-specific product list | `/api/app/post_widget_item/` |
-| **6** | Widget Item (Carousel) | `{base}_item_{n}_carousel` | Carousel banner item | `/api/app/post_widget_item/` |
+| **1** | Multimedia | `{slug}_bg` | Banner background | `/api/app/multimedia/` |
+| **2** | Widget (SM) | `{slug}` (user's slug directly) | Secondary Masthead container | `/api/app/widget/` |
+| **1.5a** | Widget (VA PLP) | `{slug}_va_plp` | View All redirect PLP | `/api/app/widget/` |
+| **1.5b** | Page Layout (VA) | `{slug}_va_cat_page` or `{slug}_va_plp_page` | View All redirect page | `/api/app/post_page_layout/` |
+| **1.5c** | Widget (VA Expand) | `{slug}_va_ep_{n}` | View All expand page widgets | `/api/app/widget/` |
+| **3** | Page Layout | `{slug}_item_{n}_page` | Category/PLP page per carousel item | `/api/app/post_page_layout/` |
+| **4** | Widget (PLP) | `{slug}_item_{n}_plp` | Product listing per carousel item | `/api/app/widget/` |
+| **5** | Widget Item (Sub-Cat) | `{slug}_item_{n}_subcat_{m}_{state}` | State-specific product list | `/api/app/post_widget_item/` |
+| **6** | Widget Item (Carousel) | `{slug}_item_{n}_carousel` | Carousel banner item | `/api/app/post_widget_item/` |
 
 **Fallback slug:** `secondary_masthead_{timestamp}` (if no slug provided)
 
@@ -498,38 +526,72 @@ Secondary Masthead Widget (masthead_secondary_category_hp)
     └─→ Category Page Ecosystem (same structure)
 ```
 
-## 5. 3-Phase Creation Strategy
+## 5. 4-Phase Creation Strategy
 
-The Secondary Masthead uses a **3-Phase batch creation** approach to resolve nested dependencies:
+The Secondary Masthead uses a **4-Phase batch creation** approach to resolve nested dependencies:
 
 ### Phase 1: Create Parent Containers
 
 ```
-1. Create Multimedia (background)
-2. Create Secondary Masthead Widget (links to multimedia)
+1. Create Multimedia (background) — {slug}_bg
+2. Create Secondary Masthead Widget — {slug} (user's slug directly)
+   - view_all_action_name: '' (set empty, updated after Phase 1.5)
+   - view_all_action_params: '' (API rejects '{}', needs empty string)
+   - media_aspect_ratio: user's media_number (e.g. '2.5')
 ```
 
-### Phase 2: Create Item Ecosystems (per carousel item)
+### Phase 1.5: View All Redirect Ecosystem (only when toggle ON)
+
+```
+If view_all_redirect = true:
+  1. Create sub-cat widget items for view_all page (per state)
+     - category_page → real view_all_sub_categories[]
+     - product_listing_page → virtual sub-cat from view_all_state_products
+  2. Create VA PLP Widget — {slug}_va_plp
+  3. Create VA Page Layout — {slug}_va_cat_page or {slug}_va_plp_page
+  4. Map sub-cats → VA PLP
+  5. If Expand Page ON:
+     - Create expand widgets — {slug}_va_ep_1, {slug}_va_ep_2...
+     - Create sub-cat items per expand widget
+     - Map sub-cats → expand widgets
+  6. Map PLP + expand widgets → VA Page (priority order)
+  7. Map VA Page → Global
+```
+
+> **View All Expand Page**: When `view_all_expand.expandPage` is ON, the standalone `view_all_state_products` field is hidden. Each expand widget has its own title + state-wise products — same as CarouselItemEditor PLP flow.
+
+### Phase 2: Create Item Ecosystems (per carousel item) — Same as CollectionBannerBuilder
 
 ```
 For each carousel item:
-  1. Select Page Type → "category_page" or "product_listing_page"
-  2. Create Page Layout (with selected page_type)
-  3. Create PLP Widget (product_listing)
-  4. Map PLP → Page Layout (layout_widget mapping)
-  5. Map Page Layout → Global (page_layout mapping)
-  6. Create Sub-Category Items (per state — dynamically added)
-  7. Map Sub-Categories → PLP (widget_item mapping)
-  8. Create Carousel Widget Item (with click_action_params → page_layout + page_type)
+  1. Determine sub-categories:
+     - category_page → real subCategories[]
+     - product_listing_page → virtual single sub-cat from stateProducts
+  2. CREATE or UPDATE Sub-Category Widget Items (per state)
+     - Check if slug exists via getWidgetItemId → update or create
+     - PLP page: item_click_action = "deal-detail-redirect"
+     - Cat page: item_click_action = "null"
+  3. CREATE PLP Widget (product_listing)
+  4. CREATE Page Layout (with page_type, page_layout_type: '2')
+  5. Map Sub-Cats → PLP Widget (CSV via mapWidgetItems)
+  6. Map PLP → Page Layout (CSV via mapLayoutWidget)
+  7. Map Page → Global (CSV via mapPageLayout, page_type: '')
+  8. CREATE or UPDATE Carousel Widget Item
+     - Resolve image via _resolveImage (URL → fetch → File, or blank PNG)
+     - click_action_params → page_layout_slug_name + page_type
 ```
 
-### Phase 3: Final Mapping
+### Phase 3: Final Mapping + View All Update
 
 ```
-Map all Carousel Items → Secondary Masthead Widget (widget_item mapping)
+1. Map all Carousel Items → SM Widget (widget_item mapping)
+2. If view_all_redirect ON:
+   - Update SM Widget → view_all_action_name: 'redirect-to-page'
+   - Update SM Widget → view_all_action_params: {page_type, page_layout_slug_name: VA page slug}
 ```
 
-**Why 3 Phases?**
+**Why 4 Phases?**
+- Phase 1.5 creates View All page before carousel items (independent ecosystem)
 - Dependencies are 100% resolved before child creation
 - No orphaned references
 - Prevents "slug not found" errors during mapping
@@ -583,33 +645,45 @@ Carousel Item #3 → page_type: "category_page"         + state-wise products (G
 
 | Field | Type | Required | Description | Example |
 | :--- | :--- | :---: | :--- | :--- |
-| `slug_name` | String | Yes | Unique identifier | `festive_banner_sm_hp` |
-| `widget_type` | String | Yes | Must be `masthead_secondary_category_hp` | `masthead_secondary_category_hp` |
+| `slug_name` | String | Yes | Unique identifier (user's slug directly) | `festive_banner` |
+| `widget_type` | String | Yes | Must be `masthead_secondary_carousal_hp` | `masthead_secondary_carousal_hp` |
 | `background_multimedia` | String | No | Multimedia slug (omit if empty) | `festive_banner_bg` |
-| `master_key` | String | No | Link to parent | `gl_hp_global_category_pane_wi` |
-| `media_aspect_ratio` | String | No | Aspect ratio (default `"4"`) | `4` |
-| `start_time` | DateTime | Yes | Activation start (via `DateTimeInput` calendar + time picker) | `2024-03-01T10:00:00` |
-| `end_time` | DateTime | Yes | Activation end (via `DateTimeInput` calendar + time picker) | `2025-03-01T10:00:00` |
+| `media_aspect_ratio` | String | User | Carousel media-number (items visible) | `2.5` |
+| `start_time` | DateTime | Yes | Activation start | `2024-03-01T10:00:00` |
+| `end_time` | DateTime | Yes | Activation end | `2025-03-01T10:00:00` |
+| `view_all_action_name` | String | No | `'redirect-to-page'` when toggle ON | `redirect-to-page` |
+| `view_all_action_params` | JSON String | No | `{page_type, page_layout_slug_name}` | See below |
+
+### View All Click Action Fields (Editor — Secondary Only)
+
+| Field | Component | Condition | Description |
+| :--- | :--- | :--- | :--- |
+| `view_all_redirect` | `ToggleInput` | variant=secondary | ON = banner tap redirects to page |
+| `view_all_page_type` | `PillSelector` | toggle ON | `category_page` or `product_listing_page` |
+| `view_all_sub_categories` | `SubCategoryList` | toggle ON + category_page | Sub-cats for category page |
+| `view_all_expand` | `ExpandPageSection` | toggle ON + product_listing_page | Expand Page toggle + PLP widgets |
+| `view_all_state_products` | `StateProductEditor` | toggle ON + PLP + expand OFF | Direct item codes for PLP |
+
+> **Expand Page ON** hides `view_all_state_products` — each expand widget has its own products.
 
 ### Carousel Item Fields
 
 | Field | Type | Required | Description |
 | :--- | :--- | :---: | :--- |
-| `text` | String | Yes | Display text / heading |
+| `pageHeading` | String | Yes | Heading text (shown on destination page) |
 | `image` | URL/File | Yes | Carousel item image |
 | `pageType` | String | Yes | `"category_page"` or `"product_listing_page"` |
-| `categoryPage.heading` | String | Yes | Page heading for the target page |
-| `subCategories` | Array | Yes | List of sub-categories |
+| `subCategories` | Array | CP only | List of sub-categories with images |
+| `stateProducts` | Object | PLP only | State-wise product codes `{global, jh, cg...}` |
 
-### Sub-Category Fields
+### Hidden Fields for Secondary Variant
 
-| Field | Type | Required | Description |
-| :--- | :--- | :---: | :--- |
-| `name` | String | Yes | Sub-category name |
-| `products.global` | String | Yes | Global product codes (comma-separated) |
-| `products.{state}` | String | No | State-specific product codes (dynamically added) |
-
-> State-specific product fields are **not hardcoded**. Users can add any number of states using the **"Add State"** button (see Section 8 below).
+| Field | Reason |
+| :--- | :--- |
+| `transition_color` | Not applicable — SM uses image-based banner |
+| `accent_color` | Not applicable |
+| `text_color` | Not applicable |
+| `icon_bg_color` | Not applicable |
 
 ## 8. State-Based Product Mapping (Dynamic)
 
@@ -804,35 +878,40 @@ festive_banner_item_3_carousel,global,global,3,
 
 ### Click Behavior
 
-Depends on the **page type** selected for that carousel item:
+**Banner tap (View All redirect — when toggle ON):**
+```
+User taps banner (top area above carousel items)
+    ↓
+If view_all_page_type = 'product_listing_page':
+  → navigateTo('listing', { title, products from view_all_state_products })
+  → ProductListingPage fetches real data via searchProductsBatch
+If view_all_page_type = 'category_page':
+  → navigateTo('category', { heading, subCategories from view_all_sub_categories })
+```
 
-**If page_type = `category_page`:**
+> When toggle ON, a small **"View All →"** badge appears top-right on the banner.
+
+**Carousel item tap:**
+
+**If pageType = `category_page`:**
 ```
 User clicks Carousel Item
     ↓
-navigateTo('category', {
-  heading: item.categoryPage.heading,
-  subCategories: item.subCategories
-})
+navigateTo('category', { heading: item.pageHeading, subCategories: item.subCategories })
     ↓
 CategoryPage renders sub-categories as cards
-    ↓
-Each sub-category clickable → product listing
 ```
 
-**If page_type = `product_listing_page`:**
+**If pageType = `product_listing_page`:**
 ```
 User clicks Carousel Item
     ↓
-navigateTo('listing', {
-  heading: item.categoryPage.heading,
-  products: item.products
-})
+Extracts item codes from stateProducts.global → searchProductsBatch
     ↓
-Product Listing Page renders products in grid layout
+navigateTo('listing', { title: item.pageHeading, products })
+    ↓
+ProductListingPage fetches real catalog data (images, prices) from Google Sheet
 ```
-
-> Multimedia handling (upload flow, media types, preview priority) is documented in the **Shared: Multimedia Background** section above.
 
 ## 11. API Endpoints (Secondary Masthead)
 
@@ -905,10 +984,9 @@ The following filters and configurations are **universal** — they apply to the
 
 | File | Purpose |
 | :--- | :--- |
-| `scripts/Secondary_Masthead_Automation.gs` | Google Sheets → Backend API creation |
-| `scripts/Secondary_Masthead_Backend.gs` | 3-Phase batch creation logic |
-| `src/services/BackendSyncService.js` | Frontend deploy via `deploySecondaryMasthead()` |
-| `src/components/Sidebar/HeaderConfiguration.jsx` | UI form for configuring both mastheads |
+| `src/Backend/builders/SecondaryMastheadBuilder.js` | 3-Phase deploy builder (aligned with CollectionBannerBuilder flow) |
+| `src/Backend/services/DeploymentService.js` | Routes masthead variant to correct builder |
+| `src/services/BackendSyncService.js` | Frontend deploy entry point |
 
 ---
 
@@ -918,21 +996,23 @@ The following filters and configurations are **universal** — they apply to the
 
 | Aspect | Primary Masthead | Secondary Masthead |
 | :--- | :--- | :--- |
-| **Widget Type** | `masthead_primary` | `masthead_secondary_category_hp` |
+| **Widget Type** | `masthead_primary` | `masthead_secondary_carousal_hp` |
 | **Purpose** | Category navigation icons | Promotional banner + carousel |
 | **Display** | Icon buttons with background | Full banner + carousel items grid |
 | **Complexity** | Simple (1 widget + multimedia) | Complex (multi-item ecosystem) |
-| **Creation Phases** | 1 phase | 3 phases |
+| **Creation Phases** | 1 phase | 4 phases (incl. Phase 1.5 for View All) |
 | **Requires Item Mapping** | No | Yes |
-| **Supports State Mapping** | No | Yes (Global/JH/CG/WB) |
+| **Supports State Mapping** | No | Yes (Global/JH/CG/WB + dynamic) |
+| **View All Redirect** | N/A | Dedicated page ecosystem (toggle ON/OFF) |
 | **Multimedia Background** | Shared input & design (image/video/webm) | Shared input & design (image/video/webm) |
+| **Color Fields** | All 4 (transition, accent, text, icon_bg) | Hidden (not applicable) |
 | **Carousel Items** | None | Dynamic carousel items |
 | **Sub-Categories** | N/A | Yes (with state-specific products) |
-| **Page Type Selection** | N/A | Per carousel item (`category_page` or `product_listing_page`) |
-| **Click Behavior** | Links to category pane via `master_key` | Navigates to category page or product listing page (per item) |
-| **Default Aspect Ratio** | `1` | `4` |
+| **Page Type Selection** | N/A | Per carousel item + View All page |
+| **Click Behavior** | Links to category pane via `master_key` | Banner tap → View All page; Item tap → Item page |
+| **Default Aspect Ratio** | `1` (hardcoded) | Auto-computed from image dimensions |
 | **Frontend Component** | `PrimaryMasthead.jsx` | `SecondaryMasthead.jsx` |
-| **Widget Slug Suffix** | `_pm_hp` | `_sm_hp` |
+| **Widget Slug** | *(user's slug directly)* | *(user's slug directly)* |
 
 ---
 
@@ -943,18 +1023,23 @@ The following filters and configurations are **universal** — they apply to the
     type: 'masthead',
     pnc: { variant: 'primary', has_multimedia: false },
     slug: '',
-    background_media: null,       // File upload (ImageUpload component)
-    background_video: '',         // Alternative: direct URL (UrlInput component)
-    transition_color: '#FFFFFF',  // ColorPicker
-    accent_color: '#0000FF',      // ColorPicker
-    text_color: '#FFFFFF',        // ColorPicker
-    icon_bg_color: '#F0F0F0',     // ColorPicker
-    is_multimedia_dark: false,    // ToggleInput
-    media_aspect_ratio: '1',      // PillSelector (Primary: '1', Secondary: '4')
-    master_key: '',               // Primary only
+    background_media: null,
+    background_video: '',
+    transition_color: '#FFFFFF',              // Primary only (hidden for secondary)
+    accent_color: '#0000FF',                  // Primary only (hidden for secondary)
+    text_color: '#FFFFFF',                    // Primary only (hidden for secondary)
+    icon_bg_color: '#F0F0F0',                 // Primary only (hidden for secondary)
+    is_multimedia_dark: false,
+    master_key: '',                           // Primary only
     start_time: '',
     end_time: '',
-    carouselItems: [],            // Secondary only
+    view_all_redirect: false,                 // Secondary only: toggle
+    view_all_page_type: 'category_page',      // Secondary only
+    view_all_sub_categories: [],              // Secondary only: for category_page
+    view_all_state_products: { global: '' },  // Secondary only: for product_listing_page
+    view_all_expand: { expandPage: false, plpWidgets: [] }, // Secondary only: expand page
+    media_number: '2.5',                      // Secondary only: carousel items visible
+    carouselItems: [],                        // Secondary only
 }
 ```
 

@@ -974,11 +974,16 @@ Each sub-category clickable → product listing
 
 ## 21. Update Strategy
 
-The Collection Banner widget does **NOT** currently support in-place updates. The automation scripts always create new objects. To modify an existing widget:
+Both modes now support **Create or Update** via their respective builders:
 
-1. Create a new widget with a different slug
-2. Delete the old widget manually (if needed)
-3. **Future Enhancement**: Implement update logic similar to `SPR_Widget_Optimized.gs`
+| Mode | Builder | Update Strategy |
+| :--- | :--- | :--- |
+| **Scroll** | `CollectionBannerBuilder.js` | Create new objects; slug collision → error |
+| **Stick** | `CategoryGridBuilder.js` | Create or Update — checks if slug exists via `getWidgetId`/`getWidgetItemId`, updates existing or creates new |
+
+**Deploy routing**: `DeploymentService.js` routes `collection_banner` type to the correct builder based on `widget.pnc.displayMode`:
+- `scroll` → `CollectionBannerBuilder`
+- `stick` → `CategoryGridBuilder`
 
 ---
 

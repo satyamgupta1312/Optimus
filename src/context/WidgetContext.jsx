@@ -200,12 +200,14 @@ export const WidgetProvider = ({ children }) => {
                         after: updated,
                         productsCount: updated.products?.length || 0
                     });
-                    logActivity('widget_updated', { widgetId: id, changes: Object.keys(updateObj) });
                     return updated;
                 }
                 return w;
             });
         });
+        // Log outside setWidgets to avoid cross-provider setState during render
+        const updateKeys = typeof updates === 'function' ? ['(functional)'] : Object.keys(updates);
+        logActivity('widget_updated', { widgetId: id, changes: updateKeys });
     };
 
     const deleteWidget = (id) => {

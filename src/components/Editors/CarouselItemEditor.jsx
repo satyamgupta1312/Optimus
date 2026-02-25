@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, ChevronDown, ChevronRight, GripVertical, Layers } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronRight, GripVertical, Layers, Image as ImageIcon, ImagePlus, Loader2 } from 'lucide-react';
 import TextInput from '../Inputs/TextInput';
 import PillSelector from '../Inputs/PillSelector';
-import ImageUpload from '../ImageUpload';
+import StateProductEditor from '../Inputs/StateProductEditor';
 import SubCategoryList from './SubCategoryList';
 import ExpandPageSection from './ExpandPageSection';
+import { LocalApiService } from '../../services/LocalApiService';
 
 /**
  * CarouselItemEditor — Accordion list for Secondary Masthead carousel items.
- * Each item has: text, image, pageType, pageHeading, subCategories
+ *
+ * Full category_page flow (same as ScrollItemEditor / Collection Banner Scroll):
+ *   - Heading (page heading on destination page)
+ *   - Banner Image (uploaded to local server)
+ *   - Page Type: category_page | product_listing_page
+ *   - PLP: ExpandPageSection + StateProductEditor
+ *   - Category: SubCategoryList with showImage + showHindi
  *
  * Props (InputRegistry interface):
  * - label, value: CarouselItem[], onChange(items), helperText, error, required
@@ -23,17 +30,18 @@ const CarouselItemEditor = ({
     disabled,
 }) => {
     const [expandedIndex, setExpandedIndex] = useState(null);
+    const [uploadingImageIdx, setUploadingImageIdx] = useState(null);
 
     const items = Array.isArray(value) ? value : [];
 
     const addItem = () => {
         const newItem = {
-            text: '',
+            pageHeading: '',
             image: null,
             pageType: 'category_page',
             expandPage: false,
             plpWidgets: [],
-            pageHeading: '',
+            stateProducts: { global: '' },
             subCategories: [],
         };
         onChange([...items, newItem]);
@@ -65,18 +73,26 @@ const CarouselItemEditor = ({
             {items.map((item, index) => (
                 <div key={index} className="border border-slate-200 rounded-lg mb-2 overflow-hidden bg-white">
                     {/* Accordion header */}
-                    <button
+                    <div
                         onClick={() => setExpandedIndex(expandedIndex === index ? null : index)}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+                        className="w-full flex items-center gap-2 px-3 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-left cursor-pointer"
                     >
                         <GripVertical size={12} className="text-slate-300" />
                         {expandedIndex === index
                             ? <ChevronDown size={14} className="text-slate-400" />
                             : <ChevronRight size={14} className="text-slate-400" />
                         }
-                        <Layers size={14} className="text-teal-500" />
+                        {item.image
+                            ? <div className="w-6 h-6 rounded bg-slate-200 overflow-hidden shrink-0">
+                                <img src={typeof item.image === 'string' ? item.image : URL.createObjectURL(item.image)} alt="" className="w-full h-full object-cover" />
+                            </div>
+                            : <Layers size={14} className="text-teal-500" />
+                        }
                         <span className="text-sm text-slate-700 flex-1 truncate">
-                            {item.text || `Carousel Item ${index + 1}`}
+                            {item.pageHeading || item.text || `Item ${index + 1}`}
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">
+                            {item.pageType === 'category_page' ? 'CAT' : 'PLP'}
                         </span>
                         {item.subCategories?.length > 0 && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-600 border border-teal-200">
@@ -91,25 +107,66 @@ const CarouselItemEditor = ({
                                 <Trash2 size={12} />
                             </button>
                         )}
-                    </button>
+                    </div>
 
                     {/* Expanded content */}
                     {expandedIndex === index && (
                         <div className="p-3 space-y-1">
+                            {/* Heading → maps to page_heading in Page Layout */}
                             <TextInput
-                                label="Display Text"
-                                value={item.text || ''}
-                                onChange={(val) => updateItem(index, 'text', val)}
+                                label="Heading"
+                                placeholder="Page heading (shown on destination page)"
+                                value={item.pageHeading || ''}
+                                onChange={(val) => updateItem(index, 'pageHeading', val)}
                                 required
                                 disabled={disabled}
                             />
 
-                            <div className="mb-3">
-                                <ImageUpload
-                                    label="Carousel Image"
-                                    currentImage={item.image}
-                                    onImageSelect={(file, preview) => updateItem(index, 'image', preview || file)}
-                                />
+                            {/* Banner Image — uploaded to local server */}
+                            <div className="mb-2">
+                                <label className="block text-xs font-medium text-slate-500 mb-1">Carousel Image</label>
+                                <label className="cursor-pointer group block w-fit">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={async (e) => {
+                                            if (e.target.files && e.target.files[0]) {
+                                                const file = e.target.files[0];
+                                                if (file.size > 300 * 1024) {
+                                                    alert(`Image too large (${Math.round(file.size / 1024)}KB). Max allowed: 300KB.`);
+                                                    e.target.value = '';
+                                                    return;
+                                                }
+                                                updateItem(index, 'image', file);
+                                                try {
+                                                    setUploadingImageIdx(index);
+                                                    const result = await LocalApiService.uploadMedia(file);
+                                                    if (result.viewUrl) updateItem(index, 'image', result.viewUrl);
+                                                } catch (err) {
+                                                    console.error('[CarouselItemEditor] Image upload failed:', err);
+                                                } finally {
+                                                    setUploadingImageIdx(null);
+                                                }
+                                            }
+                                        }}
+                                        disabled={disabled}
+                                    />
+                                    {uploadingImageIdx === index ? (
+                                        <div className="w-14 h-14 rounded-lg border border-blue-300 flex items-center justify-center bg-blue-50">
+                                            <Loader2 size={16} className="animate-spin text-blue-500" />
+                                        </div>
+                                    ) : item.image && (item.image instanceof File || item.image instanceof Blob || (typeof item.image === 'string' && item.image.length > 0)) ? (
+                                        <div className="w-14 h-14 rounded-lg border border-slate-200 overflow-hidden group-hover:ring-2 group-hover:ring-blue-500/30 transition-all">
+                                            <img src={typeof item.image === 'string' ? item.image : URL.createObjectURL(item.image)} alt="" className="w-full h-full object-cover" />
+                                        </div>
+                                    ) : (
+                                        <div className="w-14 h-14 rounded-lg border border-dashed border-slate-300 flex flex-col items-center justify-center bg-slate-50 group-hover:border-blue-400 group-hover:bg-blue-50 transition-all">
+                                            <ImagePlus size={16} className="text-slate-400 group-hover:text-blue-500 mb-0.5" />
+                                            <span className="text-[9px] text-slate-400 group-hover:text-blue-500">Upload</span>
+                                        </div>
+                                    )}
+                                </label>
                             </div>
 
                             <PillSelector
@@ -122,6 +179,7 @@ const CarouselItemEditor = ({
                                 onChange={(val) => updateItem(index, 'pageType', val)}
                             />
 
+                            {/* PLP: ExpandPage + State Products */}
                             {item.pageType === 'product_listing_page' && (
                                 <ExpandPageSection
                                     expandPage={item.expandPage || false}
@@ -135,15 +193,17 @@ const CarouselItemEditor = ({
                                 />
                             )}
 
-                            <TextInput
-                                label="Page Heading"
-                                value={item.pageHeading || ''}
-                                onChange={(val) => updateItem(index, 'pageHeading', val)}
-                                required
-                                disabled={disabled}
-                            />
+                            {item.pageType === 'product_listing_page' && (
+                                <StateProductEditor
+                                    label="State-Wise Products"
+                                    value={item.stateProducts || { global: '' }}
+                                    onChange={(val) => updateItem(index, 'stateProducts', val)}
+                                    helperText="Global is required. Add states for location-specific products."
+                                    disabled={disabled}
+                                />
+                            )}
 
-                            {/* Sub-Categories — only when category_page selected */}
+                            {/* Category Page: Sub-Categories with image + hindi */}
                             {item.pageType === 'category_page' && (
                                 <div className="mt-3 pt-3 border-t border-slate-200">
                                     <label className="block text-xs font-semibold text-slate-500 mb-2">
@@ -152,6 +212,8 @@ const CarouselItemEditor = ({
                                     <SubCategoryList
                                         items={item.subCategories || []}
                                         onChange={(subs) => updateItem(index, 'subCategories', subs)}
+                                        showImage={true}
+                                        showHindi={true}
                                         disabled={disabled}
                                     />
                                 </div>

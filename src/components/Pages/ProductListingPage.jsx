@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Search, ShoppingCart } from 'lucide-react';
 import { useWidgetContext } from '../../context/WidgetContext';
-import { searchProduct } from '../../services/CatalogService';
+import { searchProductsBatch } from '../../services/CatalogService';
 
 const ProductListingPage = ({ title, widgetId, itemId, products: initialProducts }) => {
     const { navigateTo } = useWidgetContext();
@@ -10,44 +10,50 @@ const ProductListingPage = ({ title, widgetId, itemId, products: initialProducts
     const [loading, setLoading] = useState(!initialProducts);
 
     useEffect(() => {
-        // If we don't have initial products, fetch them
-        if (!initialProducts && widgetId) {
-            // For demo purposes, we'll use the catalog to show some products
-            // In production, this would call the API endpoint from the cURL
-            const loadProducts = async () => {
-                try {
-                    // Simulate loading some products from catalog
-                    const sampleItemCodes = ['10009582', '10012598', '10020256', '10020257', '10009581', '10012597'];
-                    const loadedProducts = [];
-
-                    for (const itemCode of sampleItemCodes) {
-                        const product = await searchProduct(itemCode);
-                        if (product) {
-                            loadedProducts.push({
-                                id: product.itemCode,
-                                itemCode: product.itemCode,
-                                name: product.name,
-                                image: product.image,
-                                price: product.price,
-                                originalPrice: '₹250',
-                                discount: '21%',
-                                previouslyBought: Math.random() > 0.5,
-                                salePrice: Math.random() > 0.5 ? `₹${Math.floor(parseInt(product.price.replace('₹', '')) * 0.9)}` : null
-                            });
-                        }
-                    }
-
-                    setProducts(loadedProducts);
-                    setLoading(false);
-                } catch (error) {
-                    console.error('Failed to load products:', error);
-                    setLoading(false);
+        const loadProducts = async () => {
+            setLoading(true);
+            try {
+                // Determine item codes to fetch
+                let itemCodes = [];
+                if (initialProducts && initialProducts.length > 0) {
+                    itemCodes = initialProducts.map(p => p.itemCode).filter(Boolean);
+                } else if (widgetId) {
+                    itemCodes = ['10009582', '10012598', '10020256', '10020257', '10009581', '10012597'];
                 }
-            };
 
-            loadProducts();
-        }
+                if (itemCodes.length === 0) { setLoading(false); return; }
+
+                // Batch fetch (local CSV first, then Google Sheet for misses)
+                const resultMap = await searchProductsBatch(itemCodes);
+
+                const loadedProducts = itemCodes
+                    .map(code => resultMap[code])
+                    .filter(Boolean)
+                    .map(product => ({
+                        id: product.itemCode,
+                        itemCode: product.itemCode,
+                        name: product.name,
+                        image: product.image,
+                        price: product.price,
+                        originalPrice: product.mrp || product.price,
+                        discount: product.mrp > product.price
+                            ? `${Math.round(((product.mrp - product.price) / product.mrp) * 100)}% OFF`
+                            : '',
+                        salePrice: product.price,
+                    }));
+
+                setProducts(loadedProducts.length > 0 ? loadedProducts : (initialProducts || []));
+            } catch (error) {
+                console.error('Failed to load products:', error);
+                setProducts(initialProducts || []);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadProducts();
     }, [widgetId, initialProducts]);
+
 
     const handleBack = () => {
         navigateTo('home');

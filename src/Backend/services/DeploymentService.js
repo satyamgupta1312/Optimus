@@ -66,24 +66,11 @@ export const DeploymentService = {
         log('Starting deployment...');
 
         try {
-            // ── Header Widgets (Secondary Masthead only) ──
-            // Primary Masthead deploys from canvas widgets via BUILDER_MAP
-            // (headerWidgets.primaryMasthead is missing background_media and has nested colors)
-            if (requestData.headerWidgets) {
-                const hw = requestData.headerWidgets;
-
-                if (hw.secondaryMasthead && hw.secondaryMasthead.enabled !== false) {
-                    log('Deploying: Secondary Masthead');
-                    try {
-                        const builder = new SecondaryMastheadBuilder(hw.secondaryMasthead, { log });
-                        const result = await builder.deploy();
-                        results.push({ widget: 'Secondary Masthead', status: 'ok', slug: result.slugs.widget });
-                    } catch (err) {
-                        log(`Secondary Masthead failed: ${err.message}`);
-                        results.push({ widget: 'Secondary Masthead', status: 'failed', error: err.message });
-                    }
-                }
-            }
+            // ── Header Widgets ──
+            // Both Primary and Secondary Masthead now deploy from canvas widgets via BUILDER_MAP
+            // (headerWidgets path is obsolete — canvas widgets have full data including
+            //  background_media, carouselItems, view_all_redirect, media_number, etc.)
+            // NOTE: headerWidgets block kept for any future non-masthead header widgets
 
             // ── Body Widgets ──
             const widgets = requestData.widgets || [];

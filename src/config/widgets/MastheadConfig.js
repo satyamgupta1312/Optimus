@@ -160,6 +160,7 @@ export const MastheadConfig = {
             component: 'ColorPicker',
             label: 'Transition Color',
             defaultValue: '#FFFFFF',
+            condition: (pnc) => pnc.variant !== 'secondary',
             validation: { required: false },
         },
         {
@@ -167,6 +168,7 @@ export const MastheadConfig = {
             component: 'ColorPicker',
             label: 'Accent Color',
             defaultValue: '#0000FF',
+            condition: (pnc) => pnc.variant !== 'secondary',
             validation: { required: false },
         },
         {
@@ -174,6 +176,7 @@ export const MastheadConfig = {
             component: 'ColorPicker',
             label: 'Text Color',
             defaultValue: '#FFFFFF',
+            condition: (pnc) => pnc.variant !== 'secondary',
             validation: { required: false },
         },
         {
@@ -181,6 +184,7 @@ export const MastheadConfig = {
             component: 'ColorPicker',
             label: 'Icon Background Color',
             defaultValue: '#F0F0F0',
+            condition: (pnc) => pnc.variant !== 'secondary',
             validation: { required: false },
         },
         {
@@ -190,21 +194,10 @@ export const MastheadConfig = {
             defaultValue: false,
             validation: { required: false },
         },
-        {
-            name: 'media_aspect_ratio',
-            component: 'PillSelector',
-            label: 'Aspect Ratio',
-            options: [
-                { label: '1:1', value: '1' },
-                { label: '4:3', value: '2' },
-                { label: '16:9', value: '3' },
-                { label: 'Full', value: '4' },
-            ],
-            // Primary is always '1' (hardcoded), Secondary defaults to '4'
-            condition: (pnc) => pnc.variant === 'secondary',
-            defaultValue: '4',
-            validation: { required: false },
-        },
+        // media_aspect_ratio is now HARDCODED:
+        //   Primary: always '1'
+        //   Secondary: auto-computed from image/video dimensions in SecondaryMastheadBuilder
+
 
         // ── Primary-Only Fields ──
         {
@@ -237,6 +230,87 @@ export const MastheadConfig = {
 
         // ── Secondary-Only Fields ──
         {
+            name: 'master_key',
+            component: 'TextInput',
+            label: 'Master Key',
+            placeholder: 'e.g. categories_masthead_cl_all_masthead_item_1_carousel',
+            helperText: 'Link to parent category pane carousel widget item (required)',
+            condition: (pnc) => pnc.variant === 'secondary',
+            defaultValue: '',
+            validation: { required: true },
+        },
+        {
+            name: 'view_all_redirect',
+            component: 'ToggleInput',
+            label: 'View All Click Action',
+            helperText: 'ON = Redirect to page when banner tapped, OFF = No redirect',
+            condition: (pnc) => pnc.variant === 'secondary',
+            defaultValue: false,
+            validation: { required: false },
+        },
+        {
+            name: 'view_all_page_type',
+            component: 'PillSelector',
+            label: 'View All → Page Type',
+            helperText: 'Page type to open when the masthead banner is tapped',
+            options: [
+                { label: 'Category Page', value: 'category_page' },
+                { label: 'Product Listing', value: 'product_listing_page' },
+            ],
+            condition: (pnc, state) => pnc.variant === 'secondary' && state?.view_all_redirect === true,
+            defaultValue: 'category_page',
+            validation: { required: false },
+        },
+        {
+            name: 'view_all_heading',
+            component: 'TextInput',
+            label: 'View All → Heading',
+            placeholder: 'e.g. Best Deals, Top Products',
+            helperText: 'Page heading shown when the banner is tapped',
+            condition: (pnc, state) => pnc.variant === 'secondary' && state?.view_all_redirect === true,
+            defaultValue: '',
+            validation: { required: false },
+        },
+        {
+            name: 'view_all_sub_categories',
+            component: 'SubCategoryList',
+            label: 'View All → Sub-Categories',
+            helperText: 'Sub-categories to show on the category page when banner is tapped',
+            showImage: true,
+            showHindi: true,
+            condition: (pnc, state) => pnc.variant === 'secondary' && state?.view_all_redirect === true && state?.view_all_page_type === 'category_page',
+            defaultValue: [],
+            validation: { required: false },
+        },
+        {
+            name: 'view_all_expand',
+            component: 'ExpandPageSection',
+            label: 'Expand Page',
+            helperText: 'Add extra widgets (SPR, Carousel, etc.) to the View All PLP page',
+            condition: (pnc, state) => pnc.variant === 'secondary' && state?.view_all_redirect === true && state?.view_all_page_type === 'product_listing_page',
+            defaultValue: { expandPage: false, plpWidgets: [] },
+            validation: { required: false },
+        },
+        {
+            name: 'view_all_state_products',
+            component: 'StateProductEditor',
+            label: 'View All → State-Wise Products',
+            helperText: 'Products for the PLP when the banner is tapped. Global is required.',
+            condition: (pnc, state) => pnc.variant === 'secondary' && state?.view_all_redirect === true && state?.view_all_page_type === 'product_listing_page' && !state?.view_all_expand?.expandPage,
+            defaultValue: { global: '' },
+            validation: { required: false },
+        },
+        {
+            name: 'media_number',
+            component: 'TextInput',
+            label: 'Carousel Media-Number',
+            placeholder: 'e.g. 2.5 (items visible at once)',
+            helperText: 'Number of carousel items visible (e.g. 2.5 shows 2 full + half peek)',
+            condition: (pnc) => pnc.variant === 'secondary',
+            defaultValue: '2.5',
+            validation: { required: false },
+        },
+        {
             name: 'carouselItems',
             component: 'CarouselItemEditor',
             label: 'Carousel Items',
@@ -250,9 +324,9 @@ export const MastheadConfig = {
             errorMessage: 'At least 1 carousel item is required',
             // Nested schema for each carousel item
             itemSchema: {
-                text: {
+                pageHeading: {
                     component: 'TextInput',
-                    label: 'Display Text',
+                    label: 'Heading',
                     validation: { required: true, minLength: 1, maxLength: 200 },
                 },
                 image: {
@@ -615,10 +689,16 @@ export const MastheadConfig = {
         text_color: '#FFFFFF',
         icon_bg_color: '#F0F0F0',
         is_multimedia_dark: false,
-        media_aspect_ratio: '1',
         master_key: '',
         start_time: '',
         end_time: '',
+        view_all_redirect: false,
+        view_all_page_type: 'category_page',
+        view_all_heading: '',
+        view_all_sub_categories: [],
+        view_all_state_products: { global: '' },
+        view_all_expand: { expandPage: false, plpWidgets: [] }, // Secondary only: expand page for view_all PLP
+        media_number: '2.5',
         carouselItems: [],
     },
 

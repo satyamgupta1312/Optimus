@@ -1,139 +1,150 @@
 import React, { useEffect, useState } from 'react';
 import { useWidgetContext } from '../../context/WidgetContext';
 
+/**
+ * SecondaryMasthead — Emulator preview.
+ *
+ * Design: Unified block — background banner extends visually
+ * from the top through the carousel items below.
+ * Carousel items show image ONLY (text is embedded in the image).
+ */
 const SecondaryMasthead = ({ widget }) => {
-    // This is the Blue Banner (formerly PrimaryMasthead)
     const { navigateTo } = useWidgetContext();
     const [mediaUrl, setMediaUrl] = useState(null);
 
-    const multimedia = widget.multimedia || {};
+    // Canvas widget has background_media as URL string (auto-uploaded to local server)
+    const bgMedia = widget.background_media;
 
-    // Create blob URL for uploaded file (for instant local preview)
     useEffect(() => {
-        if (multimedia.file && multimedia.file instanceof File) {
-            const url = URL.createObjectURL(multimedia.file);
+        if (!bgMedia) { setMediaUrl(null); return; }
+        if (bgMedia instanceof File || bgMedia instanceof Blob) {
+            const url = URL.createObjectURL(bgMedia);
             setMediaUrl(url);
             return () => URL.revokeObjectURL(url);
-        } else {
-            setMediaUrl(null);
         }
-    }, [multimedia.file]);
+        if (typeof bgMedia === 'string') {
+            setMediaUrl(bgMedia);
+        }
+    }, [bgMedia]);
 
-    const handleClick = () => {
-        navigateTo('listing', {
-            title: widget.title || 'Malamal THURSDAY',
-            widgetId: widget.id,
-            products: [] // Will fetch default
-        });
-    };
+    const carouselItems = widget.carouselItems || widget.items || [];
+    const mediaNumber = parseFloat(widget.media_number || '2.5');
+    const viewAllRedirect = !!widget.view_all_redirect;
+    const viewAllPageType = widget.view_all_page_type || 'category_page';
 
-    // Helper to determine background style
-    const getBackgroundStyle = () => {
-        // Priority 1: Local blob URL (instant preview of uploaded file)
+    // Background style for the header section
+    const getBgStyle = () => {
         if (mediaUrl) {
             return {
                 backgroundImage: `url(${mediaUrl})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
-                backgroundRepeat: 'no-repeat'
+                backgroundRepeat: 'no-repeat',
             };
         }
-
-        // Priority 2: Google Drive Image (using File ID for reliable thumbnail)
-        if (multimedia.driveFileId) {
-            const reliableUrl = `https://drive.google.com/thumbnail?id=${multimedia.driveFileId}&sz=w1000`;
-            return {
-                backgroundImage: `url(${reliableUrl})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                backgroundRepeat: 'no-repeat'
-            };
-        }
-
-        // Priority 3: Google Drive URL (Fallback)
-        if (multimedia.driveUrl) {
-            return {
-                backgroundImage: `url(${multimedia.driveUrl})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                backgroundRepeat: 'no-repeat'
-            };
-        }
-
-        // Priority 4: Simple background color fallback
         return { backgroundColor: widget.background || '#0277FA' };
     };
 
+    const handleBannerClick = () => {
+        if (!viewAllRedirect) return;
+        if (viewAllPageType === 'product_listing_page') {
+            const globalCodes = widget.view_all_state_products?.global || '';
+            const codes = globalCodes.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+            navigateTo('listing', {
+                title: widget.view_all_heading || 'View All',
+                products: codes.map(code => ({ id: code, itemCode: code, name: `Product ${code}`, price: '₹0', image: '' })),
+            });
+        } else {
+            navigateTo('category', {
+                heading: widget.view_all_heading || 'View All',
+                subCategories: widget.view_all_sub_categories || [],
+            });
+        }
+    };
+
     return (
-        <div className="flex flex-col">
+        <div className="flex flex-col overflow-hidden rounded-b-[2rem] -mt-1 shadow-lg">
+            {/* ── Header background — clickable for View All ── */}
             <div
-                className="h-32 rounded-b-[2rem] -mt-1 relative z-10 shadow-lg overflow-hidden"
-                style={getBackgroundStyle()}
+                className={`relative z-10 overflow-hidden ${viewAllRedirect ? 'cursor-pointer active:brightness-95' : ''}`}
+                style={{ ...getBgStyle(), minHeight: '120px' }}
+                onClick={handleBannerClick}
             >
-                {/* Media-only - no text overlay */}
+                {viewAllRedirect && (
+                    <div className="absolute top-3 right-3 bg-white/20 backdrop-blur-sm rounded-full px-2 py-0.5">
+                        <span className="text-[9px] text-white font-semibold">View All →</span>
+                    </div>
+                )}
             </div>
 
-            {/* Image (Optional - below the banner) */}
-            {widget.image && (
-                <div className="mt-[-20px] mx-4 relative z-0">
-                    <img
-                        src={widget.image}
-                        alt="Banner"
-                        className="w-full h-auto rounded-xl shadow-md"
-                    />
-                </div>
-            )}
+            {/* ── Carousel Items — same background extends ── */}
+            {carouselItems.length > 0 && (
+                <div
+                    className="relative z-10 px-3 pt-0 pb-4"
+                    style={getBgStyle()}
+                >
+                    <div
+                        className="flex gap-2 overflow-x-auto scrollbar-hide"
+                        style={{ scrollSnapType: 'x mandatory' }}
+                    >
+                        {carouselItems.map((item, idx) => {
+                            // Resolve image URL
+                            const imgSrc = typeof item.image === 'string'
+                                ? item.image
+                                : (item.image instanceof File || item.image instanceof Blob)
+                                    ? URL.createObjectURL(item.image)
+                                    : null;
 
-            {/* Carousel Items Preview */}
-            {widget.items && widget.items.length > 0 && (
-                <div className="px-4 py-3 space-y-2">
-                    <div className="text-[10px] font-semibold text-slate-500 mb-2">Carousel Categories</div>
-                    <div className="grid grid-cols-3 gap-2">
-                        {widget.items.map((item, idx) => (
-                            <div
-                                key={idx}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigateTo('category', {
-                                        heading: item.categoryPage?.heading || item.text,
-                                        subCategories: item.subCategories || []
-                                    });
-                                }}
-                                className="bg-gradient-to-br from-pink-50 to-orange-50 rounded-xl p-2 shadow-sm border border-pink-100 cursor-pointer active:scale-95 transition-transform"
-                            >
-                                {/* Category Heading */}
-                                <div className="text-[9px] font-bold text-pink-700 mb-1.5 leading-tight min-h-[20px]">
-                                    {item.categoryPage?.heading || item.text || 'Category'}
+                            const itemWidth = `${100 / mediaNumber}%`;
+
+                            return (
+                                <div
+                                    key={idx}
+                                    className="flex-shrink-0 cursor-pointer active:scale-95 transition-transform"
+                                    style={{ width: itemWidth, scrollSnapAlign: 'start' }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (item.pageType === 'product_listing_page') {
+                                            // Extract product codes from stateProducts.global
+                                            const globalCodes = item.stateProducts?.global || '';
+                                            const codes = globalCodes.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+                                            const products = codes.map(code => ({
+                                                id: code,
+                                                itemCode: code,
+                                                name: `Product ${code}`,
+                                                price: '₹0',
+                                                image: '',
+                                            }));
+                                            navigateTo('listing', {
+                                                title: item.pageHeading || 'Product Listing',
+                                                products,
+                                            });
+                                        } else {
+                                            navigateTo('category', {
+                                                heading: item.pageHeading || '',
+                                                subCategories: item.subCategories || [],
+                                            });
+                                        }
+                                    }}
+                                >
+                                    {/* Image only — no text over image */}
+                                    <div className="rounded-xl overflow-hidden aspect-square bg-white/10">
+                                        {imgSrc ? (
+                                            <img
+                                                src={imgSrc}
+                                                alt={item.pageHeading || `Item ${idx + 1}`}
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => { e.target.style.display = 'none'; }}
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center bg-white/20">
+                                                <span className="text-[9px] text-white/60">No Image</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-
-                                {/* Category Image */}
-                                {item.image && (
-                                    <div className="aspect-square bg-white rounded-lg overflow-hidden border border-pink-200">
-                                        <img
-                                            src={item.image.includes('googleusercontent.com') || item.image.includes('drive.google.com')
-                                                ? item.image.replace('/view', '').replace('?usp=sharing', '')
-                                                : item.image}
-                                            alt={item.text}
-                                            className="w-full h-full object-cover"
-                                            onError={(e) => {
-                                                // Try to extract file ID and use thumbnail URL
-                                                const fileIdMatch = e.target.src.match(/\/d\/([^\/]+)/);
-                                                if (fileIdMatch) {
-                                                    e.target.src = `https://drive.google.com/thumbnail?id=${fileIdMatch[1]}&sz=w400`;
-                                                } else {
-                                                    e.target.style.display = 'none';
-                                                }
-                                            }}
-                                        />
-                                    </div>
-                                )}
-                                {!item.image && (
-                                    <div className="aspect-square bg-white rounded-lg flex items-center justify-center border border-dashed border-pink-300">
-                                        <span className="text-[8px] text-pink-300">No Image</span>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             )}
@@ -142,4 +153,3 @@ const SecondaryMasthead = ({ widget }) => {
 };
 
 export default SecondaryMasthead;
-

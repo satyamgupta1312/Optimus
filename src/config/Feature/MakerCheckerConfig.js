@@ -30,6 +30,9 @@ export const ROLE_PERMISSIONS = {
         canReopen: true,
         canDeploy: true,
         canManageCheckers: true,
+        canViewHistory: true,
+        canLoadFromHistory: true,
+        canManageStates: true,
     },
     CHECKER: {
         label: 'Checker',
@@ -43,6 +46,9 @@ export const ROLE_PERMISSIONS = {
         canReopen: true,
         canDeploy: true,
         canManageCheckers: false,
+        canViewHistory: true,
+        canLoadFromHistory: true,  // Can load to canvas for preview (not edit)
+        canManageStates: true,
     },
     MAKER: {
         label: 'Maker',
@@ -56,6 +62,9 @@ export const ROLE_PERMISSIONS = {
         canReopen: false,
         canDeploy: false,
         canManageCheckers: false,
+        canViewHistory: true,
+        canLoadFromHistory: true,  // Can load to canvas, edit, then submit
+        canManageStates: true,
     },
 };
 
@@ -298,5 +307,9 @@ export const UI_COMPONENTS = {
     LocalApiService: { file: 'src/services/LocalApiService.js', role: 'Express backend API client (submit, approve, widgets, users, catalog)' },
     ValidationService: { file: 'src/services/ValidationService.js', role: 'Pre-submit validation + slug uniqueness checks' },
     PrismaSchema: { file: 'server/prisma/schema.prisma', role: 'Database models (Widget with env field, Request, RequestWidget, User, etc.)' },
-    SnapshotPreview: { file: 'src/components/Dashboard/SnapshotPreview.jsx', role: 'Visual widget renderer from version snapshot — used in WidgetVersionHistory Preview tab' },
+    SnapshotPreview: { file: 'src/components/Dashboard/SnapshotPreview.jsx', role: 'Visual widget renderer from snapshot — used in WidgetHistory Preview' },
+    MapToPageModal: { file: 'src/components/Dashboard/MapToPageModal.jsx', role: 'Post-deploy Layer 2 mapping modal — maps deployed widget slugs to page layout (Checker only)' },
+    WidgetHistory: { file: 'src/components/Dashboard/WidgetHistory.jsx', role: 'Date-based widget history — browse submissions by date, load to canvas (spreads ALL snapshot fields), edit, submit/approve' },
+    StateManagerModal: { file: 'src/components/AdminPanel/StateManagerModal.jsx', role: 'Manage states/cities — backend-persisted via Location model (Prisma DB)' },
+    LocationService: { file: 'src/services/LocationService.js', role: 'Async state definitions fetcher with in-memory cache — replaces localStorage-based sync approach' },
 };

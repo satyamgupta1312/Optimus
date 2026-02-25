@@ -7,7 +7,7 @@ import { WidgetRegistry } from '../../config/WidgetRegistry';
 import { ChevronRight, ArrowLeft } from 'lucide-react';
 
 const Sidebar = () => {
-    const { selectedWidgetId, setSelectedWidgetId, widgets, addWidget } = useWidgetContext();
+    const { selectedWidgetId, setSelectedWidgetId, widgets, addWidget, pageStatus, resetToDraft } = useWidgetContext();
     const selectedWidget = widgets.find(w => w.id === selectedWidgetId);
     const sidebarRef = useRef(null);
 
@@ -34,7 +34,15 @@ const Sidebar = () => {
         <div ref={sidebarRef} className="flex flex-col h-full bg-slate-50 overflow-y-auto custom-scrollbar">
             {/* Fetch Widget Section */}
             <div className="p-4 border-b border-slate-200 bg-white">
-                <FetchWidget onWidgetFetched={(w) => addWidget(w)} />
+                <FetchWidget onWidgetFetched={(w) => {
+                    // Auto-reset to DRAFT if page is in review — user is loading
+                    // a saved widget, so they clearly intend to edit.
+                    if (pageStatus !== 'DRAFT' && pageStatus !== 'REJECTED') {
+                        resetToDraft();
+                    }
+                    const newId = addWidget(w);
+                    if (newId) setSelectedWidgetId(newId);
+                }} />
             </div>
 
             {/* Widget Library Section */}

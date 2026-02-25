@@ -162,7 +162,9 @@ export const WidgetProvider = ({ children }) => {
     };
 
     const addWidget = (widget) => {
-        if (pageStatus !== 'DRAFT' && pageStatus !== 'REJECTED') {
+        // Allow DB-loaded widgets (_fromDB) to bypass the page status guard —
+        // the user is loading a saved widget for editing, not creating new content.
+        if (!widget._fromDB && pageStatus !== 'DRAFT' && pageStatus !== 'REJECTED') {
             showToast.warning("Cannot edit while in review or approved");
             return;
         }

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Trash2, MapPin, Globe, Building2 } from 'lucide-react';
-import { getEffectiveStateDefinitions } from '../AdminPanel/StateManagerModal';
+import { fetchEffectiveStateDefinitions, getEffectiveStateDefinitionsSync } from '../../services/LocationService';
 
 /**
  * StateProductEditor — Global + per-state product inputs.
@@ -20,17 +20,17 @@ const StateProductEditor = ({
 }) => {
     const [showStateMenu, setShowStateMenu] = useState(false);
     const menuRef = useRef(null);
-    // Reload effective definitions when State Manager saves to localStorage
-    const [stateDefs, setStateDefs] = useState(getEffectiveStateDefinitions);
+    // Reload effective definitions from backend (async with sync fallback)
+    const [stateDefs, setStateDefs] = useState(getEffectiveStateDefinitionsSync);
 
     useEffect(() => {
-        const onStorage = () => setStateDefs(getEffectiveStateDefinitions());
-        window.addEventListener('storage', onStorage);
-        // Also refresh on focus (same-tab localStorage change)
-        window.addEventListener('optimus_states_changed', onStorage);
+        // Initial async fetch
+        fetchEffectiveStateDefinitions().then(setStateDefs);
+        // Re-fetch when State Manager saves changes
+        const onChanged = () => fetchEffectiveStateDefinitions().then(setStateDefs);
+        window.addEventListener('optimus_states_changed', onChanged);
         return () => {
-            window.removeEventListener('storage', onStorage);
-            window.removeEventListener('optimus_states_changed', onStorage);
+            window.removeEventListener('optimus_states_changed', onChanged);
         };
     }, []);
 

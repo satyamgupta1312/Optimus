@@ -883,9 +883,31 @@ Version History panel mein ab **Diff | Preview** tab switcher hai:
 
 **Memoization:** `React.memo` on `TimelineEntry`, `useMemo` on diff computation.
 
+**History → Emulator Preview (Restore):**
+- MainLayout toolbar mein "History" button click karne pe selected widget ka DB ID (`_dbId` or canvas `id`) aur slug pass hota hai `WidgetVersionHistory` ko
+- Pehle hardcoded slug tha (`rice_mela_spr_opt`) — ab dynamic hai based on `selectedWidgetId`
+- `onRestore` callback connected: snapshot → `updateWidget(canvasId, snapshot)` → PhoneFrame emulator mein widget instantly update hota hai
+- Agar koi widget selected nahi hai to toast error: "Select a widget first to view its history"
+
 ---
 
-### 9.10 Activity Log Persistence (Audit Trail)
+### 9.10 Map to Page (Post-Deploy)
+
+**Files:** `src/components/Dashboard/MapToPageModal.jsx` (NEW), `src/components/Dashboard/RequestQueue.jsx`
+
+Deploy ke baad Checker ko "Map to Page" button dikhta hai (purple gradient). Click karne pe `MapToPageModal` open hota hai:
+- Page Layout Slug input (default: `GL-HP-global` from HomepageMappingConfig)
+- Deployed widget slugs with checkboxes (only `status === 'ok'` or `'updated'`)
+- Per-widget: Level dropdown (global/state/city/store_id), Value input, Priority number
+- Submit pe single batch CSV build hota hai aur `POST /api/app/update_layout_widget_mapping/` call
+
+**API replaces all mappings** for the given `page_layout_slug`, so batching all selected widgets into one CSV is correct behavior.
+
+**Visibility:** Sirf Checker (admin) ko dikhta hai — `!isMaker` guard.
+
+---
+
+### 9.11 Activity Log Persistence (Audit Trail)
 
 **Files:** `src/context/ActivityLogContext.jsx`, `src/components/ActivityLogPanel.jsx`, `src/services/LocalApiService.js` → `appendActivity()`, `getActivity()`
 

@@ -12,6 +12,7 @@ import activityRouter from './routes/activity.js';
 import commentsRouter from './routes/comments.js';
 import headerWidgetsRouter from './routes/headerWidgets.js';
 import mediaRouter from './routes/media.js';
+import locationsRouter from './routes/locations.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -37,6 +38,7 @@ app.use('/api/local/catalog', catalogRouter);
 app.use('/api/local/activity', activityRouter);
 app.use('/api/local/comments', commentsRouter);
 app.use('/api/local/header-widgets', headerWidgetsRouter);
+app.use('/api/local/locations', locationsRouter);
 
 // ── Error Handler ──
 app.use(errorHandler);

@@ -109,15 +109,16 @@ MainLayout
 │       └── PhoneFrame
 ├── ManageApprovalUsers modal (slide-in right)
 ├── HomepageMappingDashboard modal (slide-in right)
-├── WidgetVersionHistory modal (slide-in right)
+├── WidgetHistory modal (slide-in right, date-based, request-grouped)
 ├── DeploymentStatusPanel modal (slide-in right)
+├── StateManagerModal (centered modal, API-backed)
 └── HelpGuide (FAB)
 ```
 
 **State:**
 ```js
 showQueue, showManageUsers,
-showMapping, showVersionHistory, showDeploy
+showMapping, showHistory, showDeploy, showStateManager
 ```
 
 ---
@@ -454,76 +455,143 @@ HomepageMappingDashboard
 
 ---
 
-## Screen 11: Widget Version History
+## Screen 11: Widget History (Date-Based)
 
-**Path:** `src/components/Dashboard/WidgetVersionHistory.jsx`
-**Purpose:** View, compare, preview, and restore previous widget versions.
+**Path:** `src/components/Dashboard/WidgetHistory.jsx`
+**Purpose:** Browse submitted widgets by date, grouped by their submission request. Both Maker and Checker can preview and load widgets to canvas.
 
 ```
-┌───────────────────────────────────────────────────────────────────┐
-│ ← Version History: {widgetSlug}                            [X]   │
-│ (gradient indigo header)                                         │
-├────────────────────┬──────────────────────────────────────────────┤
-│ Timeline           │ Version 3 — Updated prods  [Restore]        │
-│                    │                                              │
-│  ● v3 (current)   │ [Diff] [Preview]                             │
-│  │ 2h ago          │                                              │
-│  │ satyam.gupta    │ ┌── Diff Tab ──────────────────────────────┐│
-│  │ Updated prods   │ │  {                                       ││
-│  │                 │ │    "title": "Rice Mela"                  ││
-│  ○ v2             │ │  - "products": [101, 102]                ││
-│  │ 1d ago          │ │  + "products": [101, 102, 103]          ││
-│  │ checker1        │ │  }                                       ││
-│  │ Approved        │ └──────────────────────────────────────────┘│
-│  │                 │                                              │
-│  ○ v1             │ ┌── Preview Tab (alt view) ─────────────────┐│
-│    3d ago          │ │  v2 (Previous)      v3 (Selected)        ││
-│    satyam.gupta    │ │  ┌──────────┐      ┌──────────┐         ││
-│    Created         │ │  │[Widget   ]│      │[Widget   ]│        ││
-│                    │ │  │ Render   ]│      │ Render   ]│        ││
-│ [Load older vers.] │ │  └──────────┘      └──────────┘         ││
-│                    │ └──────────────────────────────────────────┘│
-├────────────────────┴──────────────────────────────────────────────┤
-│ 20 versions loaded (more available)                       [Close]│
-└───────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│  📅 Widget History                                       [X] │
+│  (gradient indigo-violet header)                              │
+├───────────────────────────────────────────────────────────────┤
+│  Date: [____2026-02-25____]  [Today] [Yesterday] [This Week] │
+├───────────────────────────────────────────────────────────────┤
+│  2 submissions · 6 widgets on 25 Feb, 2026                   │
+│                                                               │
+│  ┌─ 📦 4 Widgets ── APPROVED ──────────────── 2:30 PM ───┐  │
+│  │  👤 satyam         Homepage Update                  [v] │  │
+│  │  ┌─────────────────────────────────────────────────────┐│  │
+│  │  │ rice_mela_spr_opt  PRODUCT_RAIL                     ││  │
+│  │  │ Rice Mela         [Preview] [Load to Canvas]        ││  │
+│  │  ├─────────────────────────────────────────────────────┤│  │
+│  │  │ thursday_bazaar    PRODUCT_RAIL                     ││  │
+│  │  │ Thursday Bazaar   [Preview] [Load to Canvas]        ││  │
+│  │  ├─────────────────────────────────────────────────────┤│  │
+│  │  │ diwali_cb          COLLECTION_BANNER                ││  │
+│  │  │ Diwali Banner     [Preview] [Load to Canvas]        ││  │
+│  │  ├─────────────────────────────────────────────────────┤│  │
+│  │  │ grocery_cat_grid   CATEGORY_GRID                    ││  │
+│  │  │ Grocery Grid      [Preview] [Load to Canvas]        ││  │
+│  │  └─────────────────────────────────────────────────────┘│  │
+│  └─────────────────────────────────────────────────────────┘  │
+│                                                               │
+│  ┌─ 📦 2 Widgets ── PENDING ──────────────── 11:15 AM ───┐  │
+│  │  👤 checker          Homepage Update                [v] │  │
+│  │  ...                                                    │  │
+│  └─────────────────────────────────────────────────────────┘  │
+├───────────────────────────────────────────────────────────────┤
+│ 2 submissions · 6 widgets                             [Close] │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 **Component Tree:**
 ```
-WidgetVersionHistory
-├── Header (gradient indigo)
-├── Content (2-panel split)
-│   ├── Left: Timeline
-│   │   ├── TimelineEntry[] (React.memo, clickable)
-│   │   │   ├── Version badge + "current" label
-│   │   │   ├── Timestamp (relative)
-│   │   │   ├── User (email prefix)
-│   │   │   └── Change log
-│   │   └── "Load older versions" button (cursor pagination)
-│   └── Right: Tab Switcher + Content
-│       ├── Tab: [Diff] [Preview]
-│       ├── Diff tab: JSON diff (green/red lines, memoized)
-│       ├── Preview tab: side-by-side SnapshotPreview
-│       │   ├── Left: previous version visual render (if exists)
-│       │   └── Right: selected version visual render
-│       └── Restore button (for non-current versions)
-└── Footer (version count + hasMore indicator)
+WidgetHistory
+├── Header (gradient indigo-violet)
+├── Date Controls (date input + Today/Yesterday/This Week quick buttons)
+├── Content (scrollable list)
+│   └── Request Card[] (expandable, auto-expanded)
+│       ├── Request Header (click to expand/collapse)
+│       │   ├── Package icon + "{N} Widgets" badge
+│       │   ├── Status badge (APPROVED/PENDING/REJECTED)
+│       │   ├── Submitter name
+│       │   └── Time (prominent, right side, indigo bold)
+│       └── Widget List (inside expanded request)
+│           └── Widget Row[]
+│               ├── Slug (monospace bold) + Type badge
+│               ├── Title
+│               ├── [Preview] button → SnapshotPreview inline
+│               └── [Load to Canvas] button → dbWidgetToCanvas()
+└── Footer (submission count + widget count)
 ```
 
-**New Component:** `SnapshotPreview.jsx` — Visual widget renderer from version snapshot
-- Maps `snapshot.type` to component (SingleProductRow, CollectionBanner, etc.)
-- Same componentMap as `WidgetRenderer.jsx` (config-driven + legacy + Prisma type names)
-- Wraps in stub `WidgetContext.Provider` (no-op functions)
-- 360px wide container (phone width, scaled 0.85x)
+**Key Feature:** `dbWidgetToCanvas()` — Spreads ALL snapshot fields first, then config for DB fallback:
+```javascript
+// Snapshot is the original canvas widget — all fields at top level
+const { id, lastModified, lastModifiedBy, ...srcFields } = src;
+const canvasWidget = {
+    ...srcFields,       // spread ALL snapshot fields (stateProducts, background_media, etc.)
+    ...config,          // then spread DB config blob (for DB-format widgets)
+    type, slug_name, title, titleHi, status,  // explicit overrides
+    pnc: resolvedPnc,   // set LAST so config spread can't overwrite
+    products, _fetched: true, _fromDB: true, _dbId
+};
+```
 
-**Props:** `{ widgetId, widgetSlug, onClose, onRestore }`
-**State:** `versions, loading, loadingMore, hasMore, nextCursor, selectedVersion, rightTab`
-**Data Source:** `LocalApiService.getWidgetVersions(id, { limit, cursor })` — paginated
-**Optimizations:** `React.memo` on `TimelineEntry`; `useMemo` on diff + parsed snapshots; `useCallback` on `formatTime`
+**Props:** `{ onClose }`
+**State:** `date, requests, loading, previewId, expandedRequests`
+**Data Source:** `LocalApiService.getRequestsByDate(date)` — date-filtered requests with requestWidgets
+**Context:** `useWidgetContext()` — for `addWidget()` (Load to Canvas)
+
+### Screen 11b: State Manager Modal
+
+**Path:** `src/components/AdminPanel/StateManagerModal.jsx`
+**Purpose:** Manage states/cities for state-wise product mapping. Backend-persisted via Prisma Location model.
+
+**Data Source:** `LocalApiService.getLocations()` — all locations from Prisma DB
+**API Routes:** GET, POST, PATCH toggle, DELETE — `server/routes/locations.js`
+**Cache:** `LocationService.js` — `fetchEffectiveStateDefinitions()` async, `invalidateLocationCache()` on close
+
+**Integration with MainLayout:**
+- States button in toolbar opens StateManagerModal
+- On close: calls `invalidateLocationCache()` + dispatches `optimus_states_changed` event
+- StateProductEditor listens for the event and re-fetches state definitions
 
 ---
 
-## Screen 12: Deployment Status Panel (NEW)
+## Screen 12: Map to Page Modal (NEW)
+
+**Path:** `src/components/Dashboard/MapToPageModal.jsx`
+**Purpose:** Map deployed widget slugs to a CMS page layout (Layer 2 mapping) with level/priority controls.
+
+```
+┌─────────────────────────────────────────┐
+│  📍 Map Widgets to Page            [X]  │
+│                                         │
+│  Page Layout Slug:                      │
+│  ┌──────────────────────────────────┐   │
+│  │ GL-HP-global                     │   │
+│  └──────────────────────────────────┘   │
+│                                         │
+│  Deployed Widgets (3)                   │
+│                                         │
+│  ┌─ ☑ rice_mela_spr_opt ───────────┐   │
+│  │  Level: [global ▾]  Value: global│   │
+│  │  Priority: [1]                   │   │
+│  └──────────────────────────────────┘   │
+│                                         │
+│  ┌─ ☑ thursday_bazaar_spr_opt ──────┐   │
+│  │  Level: [state ▾]  Value: [jh]   │   │
+│  │  Priority: [2]                   │   │
+│  └──────────────────────────────────┘   │
+│                                         │
+│  ┌─ ☐ primary_masthead (unchecked) ─┐   │
+│  └──────────────────────────────────┘   │
+│                                         │
+│       [Cancel]     [Map 2 Widgets]      │
+└─────────────────────────────────────────┘
+```
+
+**Props:** `{ slugs, onClose, onMapped }`
+**State:** `pageSlug, rows[] (per-widget: checked, levelTag, levelProperty, priority), mapping, mapResult`
+**Data Source:** Deploy results from `RequestQueue.deployResults[req.id]`
+**API:** `POST /api/app/update_layout_widget_mapping/` (batch CSV, single call)
+**Visibility:** Checker only (`!isMaker` guard)
+
+---
+
+## Screen 13: Deployment Status Panel (NEW)
 
 **Path:** `src/components/Dashboard/DeploymentStatusPanel.jsx`
 **Purpose:** Show real-time deploy progress and per-widget results.
@@ -752,7 +820,9 @@ DeploymentStatusPanel
 | PhoneFrame | `useWidgetContext()` | DnD library |
 | RequestQueue | `useAuth()` | `LocalApiService` |
 | HomepageMappingDashboard | — | `LocalApiService.getWidgets()` (env-scoped via `X-Optimus-Env` header) |
-| WidgetVersionHistory | — | `LocalApiService.getWidgetVersions()` (paginated: limit + cursor) |
+| WidgetHistory | `useWidgetContext()` | `LocalApiService.getRequestsByDate()` (date-filtered requests) |
+| StateManagerModal | — | `LocalApiService.getLocations/toggleLocation/createLocation/deleteLocation` |
+| LocationService | — | Async cache for state definitions (`fetchEffectiveStateDefinitions()`) |
 | DeploymentStatusPanel | — | Mock data (future: BackendSyncService) |
 | FilterEditor | — | Widget config `filters` |
 | AppConfigEditor | — | Widget config `appConfigurations` |

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle, XCircle, Clock, Eye, RefreshCw, FileText, ChevronDown, ChevronUp, X, Loader2, User, AlertCircle, MessageSquare, Rocket } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Eye, RefreshCw, FileText, ChevronDown, ChevronUp, X, Loader2, User, AlertCircle, MessageSquare, Rocket, MapPin } from 'lucide-react';
 import { useWidgetContext } from '../../context/WidgetContext';
 import { useAuth } from '../../context/AuthContext';
 import { LocalApiService } from '../../services/LocalApiService';
 import { getCsrfToken } from '../../services/AuthService';
+import MapToPageModal from './MapToPageModal';
 import toast from 'react-hot-toast';
 
 // Normalize Prisma response shape to the UI shape the component expects
@@ -109,6 +110,8 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
     // Feature 9: Rejection reason dialog
     const [rejectDialog, setRejectDialog] = useState(null); // { req } when open
     const [rejectReason, setRejectReason] = useState('');
+    // Map to Page dialog
+    const [mapToPageDialog, setMapToPageDialog] = useState(null); // { reqId, slugs[] } when open
 
     const toggleExpand = (reqId) => {
         setExpandedReqs(prev => {
@@ -301,6 +304,13 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                     result.summary || 'Deployed successfully!',
                     { icon: '🚀', duration: 4000 }
                 );
+                // Update Prisma status to APPROVED after successful deploy
+                try {
+                    await LocalApiService.approveRequest(req.id);
+                    fetchRequests(); // Refresh the list so status badge updates
+                } catch (e) {
+                    console.warn('[Deploy] Prisma status update failed (non-fatal):', e.message);
+                }
             } else {
                 toast.error(`Deployment failed: ${result.error}`, { duration: 8000 });
                 // Log full deployment details for debugging
@@ -688,6 +698,17 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                                         Deploy
                                     </button>
                                 )}
+
+                                {/* Map to Page — Checker only, visible when deploy results have successful slugs */}
+                                {!isMaker && deployResults[req.id]?.some(r => (r.status === 'ok' || r.status === 'updated') && r.slug) && (
+                                    <button
+                                        onClick={() => setMapToPageDialog({ reqId: req.id, slugs: deployResults[req.id] })}
+                                        className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-semibold py-2 px-3 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1.5"
+                                    >
+                                        <MapPin size={14} />
+                                        Map to Page
+                                    </button>
+                                )}
                             </div>
 
                             {/* Feature 5: Per-Widget Deploy Results */}
@@ -725,6 +746,15 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                     );
                 })}
             </div>
+
+            {/* Map to Page Modal */}
+            {mapToPageDialog && (
+                <MapToPageModal
+                    slugs={mapToPageDialog.slugs}
+                    onClose={() => setMapToPageDialog(null)}
+                    onMapped={() => setMapToPageDialog(null)}
+                />
+            )}
 
             {/* Feature 9: Rejection Reason Dialog */}
             {rejectDialog && (

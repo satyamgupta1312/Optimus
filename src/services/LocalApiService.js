@@ -123,6 +123,19 @@ export const LocalApiService = {
     return res.json();
   },
 
+  // ── Locations ──
+  getLocations: (params) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/locations${qs ? '?' + qs : ''}`);
+  },
+  createLocation: (data) => request('/locations', { method: 'POST', body: JSON.stringify(data) }),
+  toggleLocation: (key) => request(`/locations/${key}/toggle`, { method: 'PATCH' }),
+  deleteLocation: (key) => request(`/locations/${key}`, { method: 'DELETE' }),
+
+  // ── Widgets by Date ──
+  getWidgetsByDate: (date) => request(`/widgets?date=${date}`),
+  getRequestsByDate: (date) => request(`/requests?date=${date}`),
+
   // ── Comments ──
   getComments: (widgetId) => request(`/comments/widget/${widgetId}`),
   addComment: (widgetId, text) =>

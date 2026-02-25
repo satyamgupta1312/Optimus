@@ -62,15 +62,15 @@ export const SCREEN_REGISTRY = [
         path: 'src/components/Layout/MainLayout.jsx',
         purpose: 'Primary workspace — header + resizable sidebar + phone preview.',
         props: null,
-        state: ['showQueue', 'showHeaderConfig', 'showManageUsers', 'showMapping', 'showVersionHistory', 'showDeploy'],
+        state: ['showQueue', 'showHeaderConfig', 'showManageUsers', 'showMapping', 'showHistory', 'showDeploy', 'showStateManager'],
         context: ['useAuth()', 'useWidgetContext()', 'useAppSettings()'],
         mockData: null,
         isNew: false,
         children: [
             'Header', 'Sidebar', 'PhoneFrame',
             'HeaderConfiguration', 'ManageApprovalUsers',
-            'HomepageMappingDashboard', 'WidgetVersionHistory', 'DeploymentStatusPanel',
-            'HelpGuide',
+            'HomepageMappingDashboard', 'WidgetHistory', 'DeploymentStatusPanel',
+            'StateManagerModal', 'HelpGuide',
         ],
     },
     {
@@ -163,16 +163,27 @@ export const SCREEN_REGISTRY = [
         isNew: false,
     },
     {
-        id: 'version_history',
-        name: 'Widget Version History',
-        path: 'src/components/Dashboard/WidgetVersionHistory.jsx',
-        purpose: 'View, compare (diff), preview (visual render), and restore previous widget versions. Supports cursor-based pagination.',
-        props: ['widgetId', 'widgetSlug', 'onClose', 'onRestore'],
-        state: ['versions', 'loading', 'loadingMore', 'hasMore', 'nextCursor', 'selectedVersion', 'rightTab'],
-        context: [],
-        dataSource: 'LocalApiService.getWidgetVersions(id, { limit, cursor }) — paginated',
+        id: 'widget_history',
+        name: 'Widget History (Date-Based)',
+        path: 'src/components/Dashboard/WidgetHistory.jsx',
+        purpose: 'Browse submitted widgets grouped by request. Pick a date, see all submissions with their widgets. Load any widget to canvas for editing.',
+        props: ['onClose'],
+        state: ['date', 'requests', 'loading', 'previewId', 'expandedRequests'],
+        context: ['useWidgetContext()'],
+        dataSource: 'LocalApiService.getRequestsByDate(date) — date-filtered requests with requestWidgets',
         isNew: false,
-        children: ['TimelineEntry (React.memo)', 'SnapshotPreview'],
+        children: ['SnapshotPreview'],
+    },
+    {
+        id: 'state_manager',
+        name: 'State Manager Modal',
+        path: 'src/components/AdminPanel/StateManagerModal.jsx',
+        purpose: 'Manage states/cities for state-wise product mapping. Backend-persisted via Location model (Prisma). Shared across team.',
+        props: ['onClose'],
+        state: ['search', 'locations', 'loading', 'toggling', 'showCustomForm', 'customForm', 'creating'],
+        context: [],
+        dataSource: 'LocalApiService.getLocations() — Location model in Prisma DB',
+        isNew: false,
     },
     {
         id: 'deploy_status',
@@ -236,11 +247,17 @@ export const MODAL_CONFIG = {
         stateKey: 'showMapping',
         width: 'w-[720px]',
     },
-    version_history: {
+    widget_history: {
         slideFrom: 'right',
-        gradient: 'from-indigo-500 to-indigo-700',
-        stateKey: 'showVersionHistory',
-        width: 'w-[800px]',
+        gradient: 'from-indigo-600 to-violet-600',
+        stateKey: 'showHistory',
+        width: 'max-w-2xl',
+    },
+    state_manager: {
+        slideFrom: 'center',
+        gradient: null,
+        stateKey: 'showStateManager',
+        width: 'w-[600px]',
     },
     deploy_status: {
         slideFrom: 'right',
@@ -279,7 +296,8 @@ export const HEADER_CONTROLS = {
     ],
     right: [
         { id: 'mapping', component: 'IconButton', icon: 'Map', tooltip: 'Homepage Mappings', stateKey: 'showMapping', isNew: true },
-        { id: 'history', component: 'IconButton', icon: 'History', tooltip: 'Version History', stateKey: 'showVersionHistory', isNew: true },
+        { id: 'states', component: 'IconButton', icon: 'MapPin', tooltip: 'Manage States', stateKey: 'showStateManager' },
+        { id: 'history', component: 'IconButton', icon: 'History', tooltip: 'Widget History', stateKey: 'showHistory' },
         { id: 'queue', component: 'IconButton', icon: 'ClipboardList', tooltip: 'Request Queue', stateKey: 'showQueue' },
         { id: 'users', component: 'IconButton', icon: 'Users', tooltip: 'Manage Users', stateKey: 'showManageUsers', role: 'SUPER_ADMIN' },
         { id: 'workflow_actions', component: 'WorkflowActions' },
@@ -329,30 +347,34 @@ export const DEPLOY_STATUS_ICONS = {
     deploying: { icon: 'Loader', color: 'text-blue-500', bgColor: 'bg-blue-50', animate: 'animate-spin' },
 };
 
-// ── Version History ──
-export const VERSION_HISTORY_CONFIG = {
-    timeline: {
-        dotCurrent: 'bg-blue-600 border-blue-200',
-        dotPast: 'bg-slate-300 border-slate-200',
-        line: 'bg-slate-200',
-        dotSize: 'w-3 h-3',
+// ── Widget History (Date-Based) ──
+export const WIDGET_HISTORY_CONFIG = {
+    quickFilters: ['Today', 'Yesterday', 'This Week'],
+    defaultDate: 'today',
+    dataSource: 'GET /api/local/requests?date=YYYY-MM-DD',
+    groupBy: 'request',  // Widgets grouped by their submission request
+    requestCard: {
+        showTime: true,           // Time displayed prominently on right side
+        showSubmitter: true,      // Who submitted
+        showWidgetCount: true,    // "4 Widgets" badge
+        showStatus: true,         // APPROVED/PENDING/REJECTED badge
+        expandable: true,         // Collapse/expand widget list
+        autoExpand: true,         // All expanded by default
     },
-    diff: {
-        added: 'bg-green-50 text-green-700',
-        removed: 'bg-red-50 text-red-700',
-        unchanged: 'text-slate-600',
-        font: 'font-mono text-xs',
+    widgetCard: {
+        showSlug: true,
+        showType: true,
+        showTitle: true,
+        actions: ['Preview', 'Load to Canvas'],
     },
-    tabs: ['diff', 'preview'],     // Right panel tab switcher
-    preview: {
-        containerWidth: 360,       // Phone width for snapshot preview
-        scale: 0.85,               // Scale factor inside container
-        sideBySide: true,          // Previous vs selected comparison
-    },
-    pagination: {
-        defaultLimit: 20,
-        maxLimit: 100,
-        loadMoreLabel: 'Load older versions',
+    loadToCanvas: {
+        spreadsAllSnapshotFields: true,  // ...srcFields spread first — preserves stateProducts, background_media, etc.
+        spreadsConfig: true,             // ...config spread second — for DB-format widgets where config is a JSON blob
+        stripsTransientKeys: true,       // id, lastModified, lastModifiedBy stripped before spread (regenerated by addWidget)
+        setsFromDB: true,                // _fromDB: true — bypasses addWidget page status guard
+        setsFetched: true,               // _fetched: true
+        editable: true,                  // Widget can be edited after loading (in DRAFT/REJECTED mode)
+        submitApproveFlow: true,         // Standard maker-checker flow after editing
     },
 };
 
@@ -421,9 +443,10 @@ export const COMPONENT_INTERFACES = {
         props: ['onClose'],
         file: 'src/components/Dashboard/HomepageMappingDashboard.jsx',
     },
-    WidgetVersionHistory: {
-        props: ['widgetId', 'widgetSlug', 'onClose', 'onRestore'],
-        file: 'src/components/Dashboard/WidgetVersionHistory.jsx',
+    WidgetHistory: {
+        props: ['onClose'],
+        file: 'src/components/Dashboard/WidgetHistory.jsx',
+        description: 'Date-based widget history panel. Fetches requests by date, groups widgets by submission. Load to Canvas spreads ALL snapshot fields first (...srcFields), then ...config for DB-format fallback.',
     },
     SnapshotPreview: {
         props: ['snapshot: object', 'label: string'],
@@ -433,6 +456,11 @@ export const COMPONENT_INTERFACES = {
     DeploymentStatusPanel: {
         props: ['results', 'onClose', 'onRetry'],
         file: 'src/components/Dashboard/DeploymentStatusPanel.jsx',
+    },
+    MapToPageModal: {
+        props: ['slugs: { widget, slug, status }[]', 'onClose', 'onMapped'],
+        file: 'src/components/Dashboard/MapToPageModal.jsx',
+        description: 'Post-deploy Layer 2 mapping modal. Builds batch CSV and POSTs to update_layout_widget_mapping. Checker only.',
     },
 };
 
@@ -470,7 +498,9 @@ export const INTEGRATION_POINTS = {
     PhoneFrame: { context: ['useWidgetContext()'], service: 'DnD library' },
     RequestQueue: { context: ['useAuth()'], service: 'LocalApiService' },
     HomepageMappingDashboard: { context: [], service: 'LocalApiService.getWidgets() — env-scoped via X-Optimus-Env header' },
-    WidgetVersionHistory: { context: [], service: 'LocalApiService.getWidgetVersions() — paginated (limit + cursor)' },
+    WidgetHistory: { context: ['useWidgetContext()'], service: 'LocalApiService.getRequestsByDate() — date-filtered requests' },
+    StateManagerModal: { context: [], service: 'LocalApiService.getLocations/toggleLocation/createLocation/deleteLocation — Location model in Prisma' },
+    LocationService: { context: [], service: 'fetchEffectiveStateDefinitions() / getEffectiveStateDefinitionsSync() / invalidateLocationCache()' },
     DeploymentStatusPanel: { context: [], service: 'Mock data (future: BackendSyncService)' },
     FilterEditor: { context: [], service: 'Widget config (filters)' },
     AppConfigEditor: { context: [], service: 'Widget config (appConfigurations)' },

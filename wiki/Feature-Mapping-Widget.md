@@ -498,7 +498,50 @@ flowchart TD
 
 ---
 
-## 11. Related Documentation
+## 11. Map to Page — UI Feature (Post-Deploy)
+
+After deploying widgets via RequestQueue, the Checker can map them to a page layout directly from the UI.
+
+### Flow
+
+```
+Deploy succeeds → "Map to Page" button appears → MapToPageModal opens
+  → Enter page_layout_slug (e.g. GL-HP-global)
+  → Select widgets + set level/priority per widget
+  → Click "Map" → Layer 2 API call (batch CSV)
+```
+
+### Component: `MapToPageModal.jsx`
+
+**Location:** `src/components/Dashboard/MapToPageModal.jsx`
+
+**Props:**
+- `slugs`: Array of `{ widget, slug, status }` from deploy results
+- `onClose`: Close callback
+- `onMapped`: Success callback
+
+**Behavior:**
+- Filters slugs to only show `status === 'ok'` or `'updated'`
+- Each widget row: checkbox + Level dropdown + Value input + Priority
+- Level options from `LOCATION_HIERARCHY` (HomepageMappingConfig.js)
+- Builds single batch CSV → POST to `/api/app/update_layout_widget_mapping/`
+- Uses `getCsrfToken()` from `ApiClient.js` for auth
+
+### CSV Built by Modal
+
+```csv
+widget_slug_name,level_tag,level_property,priority,cohort
+rice_mela_spr_opt,global,global,1,
+thursday_bazaar_spr_opt,state,jharkhand,2,
+```
+
+### Visibility
+- Only visible to **Checker** (`!isMaker` guard in RequestQueue)
+- Button appears only when `deployResults[req.id]` has successful slugs
+
+---
+
+## 12. Related Documentation
 
 - [Feature-Creation-Widget.md](./Feature-Creation-Widget.md) — Widget creation steps and API payloads
 - [Feature-Maker-Checker.md](./Feature-Maker-Checker.md) — Submit → Approve → Deploy lifecycle

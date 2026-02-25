@@ -8,9 +8,17 @@ const router = Router();
 // List requests with optional status filter
 router.get('/', async (req, res, next) => {
   try {
-    const { status } = req.query;
+    const { status, date } = req.query;
     const where = { env: req.env };
     if (status) where.status = status;
+
+    // Date filter: ?date=2026-02-25 → requests created on that day
+    if (date) {
+      const start = new Date(date);
+      const end = new Date(date);
+      end.setDate(end.getDate() + 1);
+      where.createdAt = { gte: start, lt: end };
+    }
 
     const requests = await prisma.request.findMany({
       where,
@@ -73,6 +81,25 @@ router.post('/', async (req, res, next) => {
         for (let i = 0; i < inlineWidgets.length; i++) {
           const w = inlineWidgets[i];
           const slug = w.slug || w.slug_name || `widget-${Date.now()}-${i}`;
+
+          // Build config: store all non-standard canvas fields so they round-trip
+          // through DB correctly (e.g. carouselItems, background_media, etc.)
+          const STANDARD_KEYS = new Set([
+            'type', 'slug', 'slug_name', 'title', 'titleHi',
+            'pnc', 'config', 'products', 'sortOrder',
+            'id', 'lastModified', 'lastModifiedBy', 'status',
+            '_fetched', '_fromDB', '_dbId', '_rawData',
+          ]);
+          const extraConfig = {};
+          for (const [k, v] of Object.entries(w)) {
+            if (STANDARD_KEYS.has(k)) continue;
+            if (typeof v === 'function') continue;
+            // Skip File/Blob — can't be serialised (frontend strips them before submit anyway)
+            if (typeof File !== 'undefined' && v instanceof File) continue;
+            if (typeof Blob !== 'undefined' && v instanceof Blob) continue;
+            extraConfig[k] = v;
+          }
+
           const widget = await tx.widget.create({
             data: {
               type: w.type || 'unknown',
@@ -83,7 +110,7 @@ router.post('/', async (req, res, next) => {
               status: 'PENDING',
               sortOrder: i,
               pnc: JSON.stringify(w.pnc || {}),
-              config: JSON.stringify(w.config || {}),
+              config: JSON.stringify({ ...(w.config || {}), ...extraConfig }),
               products: JSON.stringify(w.products || []),
               createdBy: req.user.id,
             },

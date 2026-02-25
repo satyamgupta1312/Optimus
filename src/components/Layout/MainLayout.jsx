@@ -9,9 +9,10 @@ import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import RequestQueue from '../Dashboard/RequestQueue';
 import ManageApprovalUsers from '../AdminPanel/ManageApprovalUsers';
 import HomepageMappingDashboard from '../Dashboard/HomepageMappingDashboard';
-import WidgetVersionHistory from '../Dashboard/WidgetVersionHistory';
+import WidgetHistory from '../Dashboard/WidgetHistory';
 import DeploymentStatusPanel from '../Dashboard/DeploymentStatusPanel';
 import StateManagerModal from '../AdminPanel/StateManagerModal';
+import { invalidateLocationCache } from '../../services/LocationService';
 import { ACTIVE_ENV } from '../../config/apiConfig';
 import { LogOut, Save, CheckCircle, XCircle, Send, RotateCcw, Smartphone, ListTodo, History, Undo2, Redo2, X, Users, Map, Rocket, MapPin } from 'lucide-react';
 
@@ -31,7 +32,7 @@ const MainLayout = () => {
     const [queueFilter, setQueueFilter] = React.useState('PENDING');
     const [showManageUsers, setShowManageUsers] = React.useState(false);
     const [showMapping, setShowMapping] = React.useState(false);
-    const [showVersionHistory, setShowVersionHistory] = React.useState(false);
+    const [showHistory, setShowHistory] = React.useState(false);
     const [showDeploy, setShowDeploy] = React.useState(false);
     const [showStateManager, setShowStateManager] = React.useState(false);
 
@@ -183,14 +184,14 @@ const MainLayout = () => {
                         <span>Mapping</span>
                     </button>
 
-                    {/* Version History Button */}
+                    {/* Widget History Button */}
                     <button
-                        onClick={() => setShowVersionHistory(true)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs font-medium ${showVersionHistory
+                        onClick={() => setShowHistory(true)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs font-medium ${showHistory
                             ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
                             : 'border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700'
                             }`}
-                        title="Version History"
+                        title="Widget History"
                     >
                         <History size={14} />
                         <span>History</span>
@@ -362,8 +363,18 @@ const MainLayout = () => {
                                 <div className="flex items-center gap-3">
                                     <Users size={24} />
                                     <div>
-                                        <h2 className="text-xl font-bold">Manage Approval Users</h2>
-                                        <p className="text-sm text-amber-100 mt-1">Add or remove checkers</p>
+                                        <h2 className="text-xl font-bold flex items-center gap-2">
+                                            Manage Approval Users
+                                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${ACTIVE_ENV === 'UAT'
+                                                    ? 'bg-yellow-300 text-yellow-900'
+                                                    : 'bg-green-300 text-green-900'
+                                                }`}>
+                                                {ACTIVE_ENV}
+                                            </span>
+                                        </h2>
+                                        <p className="text-sm text-amber-100 mt-1">
+                                            Checkers for <strong>{ACTIVE_ENV}</strong> environment only
+                                        </p>
                                     </div>
                                 </div>
                                 <button
@@ -395,12 +406,9 @@ const MainLayout = () => {
                 <HomepageMappingDashboard onClose={() => setShowMapping(false)} />
             )}
 
-            {/* Widget Version History Modal */}
-            {showVersionHistory && (
-                <WidgetVersionHistory
-                    widgetSlug="rice_mela_spr_opt"
-                    onClose={() => setShowVersionHistory(false)}
-                />
+            {/* Widget History Panel */}
+            {showHistory && (
+                <WidgetHistory onClose={() => setShowHistory(false)} />
             )}
 
             {/* Deployment Status Panel Modal */}
@@ -593,6 +601,7 @@ const MainLayout = () => {
                 <StateManagerModal
                     onClose={() => {
                         setShowStateManager(false);
+                        invalidateLocationCache();
                         // Notify all StateProductEditor instances to refresh
                         window.dispatchEvent(new Event('optimus_states_changed'));
                     }}

@@ -163,6 +163,27 @@ model Product {
   @@index([name])
 }
 
+// ── Location ──
+// Persisted state/city definitions for state-wise product mapping
+model Location {
+  id            String   @id @default(uuid())
+  key           String   // Short code: "jh", "cg", "mumbai"
+  env           String   @default("PROD")
+  levelTag      String   // "state" | "city" | "global"
+  levelProperty String   // "jharkhand", "mumbai", "166"
+  slugSuffix    String   // "_jh", "_mum"
+  label         String   // Display: "Jharkhand", "Mumbai"
+  type          String   // "state" | "city"
+  isDefault     Boolean  @default(false)
+  isEnabled     Boolean  @default(true)
+  isCustom      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([key, env])
+  @@index([env])
+}
+
 // ── CheckerList ──
 // Users authorized as Checkers (approval role), per environment
 model CheckerList {

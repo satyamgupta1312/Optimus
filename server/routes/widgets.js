@@ -3,15 +3,31 @@ import { prisma } from '../prisma/client.js';
 
 const router = Router();
 
+// Keys that are stored as dedicated Widget columns (not part of config)
+const WIDGET_STANDARD_KEYS = new Set([
+  'type', 'slug', 'slug_name', 'title', 'titleHi',
+  'pnc', 'config', 'products', 'sortOrder',
+  'id', 'lastModified', 'lastModifiedBy', 'status',
+  '_fetched', '_fromDB', '_dbId', '_rawData',
+]);
+
 // ── GET /widgets ──
 // List all widgets, ordered by sortOrder
 router.get('/', async (req, res, next) => {
   try {
-    const { status, type, slug } = req.query;
+    const { status, type, slug, date } = req.query;
     const where = { env: req.env };
     if (status) where.status = status;
     if (type) where.type = type;
     if (slug) where.slug = slug;
+
+    // Date filter: ?date=2026-02-25 → widgets created on that day
+    if (date) {
+      const start = new Date(date);
+      const end = new Date(date);
+      end.setDate(end.getDate() + 1);
+      where.createdAt = { gte: start, lt: end };
+    }
 
     const widgets = await prisma.widget.findMany({
       where,
@@ -26,6 +42,37 @@ router.get('/', async (req, res, next) => {
       config: JSON.parse(w.config),
       products: JSON.parse(w.products),
     }));
+
+    // Backfill: for widgets with empty config, merge data from the latest
+    // request snapshot so that older records (saved before the config
+    // round-trip fix) still return full widget data.
+    const emptyConfigIds = parsed
+      .filter(w => Object.keys(w.config).length === 0)
+      .map(w => w.id);
+
+    if (emptyConfigIds.length > 0) {
+      const snapshots = await prisma.requestWidget.findMany({
+        where: { widgetId: { in: emptyConfigIds } },
+        orderBy: { id: 'desc' },
+        distinct: ['widgetId'],
+      });
+
+      const snapMap = new Map();
+      for (const rw of snapshots) {
+        const snap = JSON.parse(rw.snapshot);
+        const extra = {};
+        for (const [k, v] of Object.entries(snap)) {
+          if (!WIDGET_STANDARD_KEYS.has(k)) extra[k] = v;
+        }
+        snapMap.set(rw.widgetId, extra);
+      }
+
+      for (const w of parsed) {
+        if (snapMap.has(w.id)) {
+          w.config = snapMap.get(w.id);
+        }
+      }
+    }
 
     res.json(parsed);
   } catch (err) { next(err); }

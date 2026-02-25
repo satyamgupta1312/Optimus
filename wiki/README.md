@@ -22,6 +22,7 @@
     *   [Fetch & Edit Widgets](./FEATURE-Fetch-Widget.md)
     *   [Widget Mapping](./Feature-Mapping-Widget.md)
     *   [Widget Drag & Drop (Emulator Reorder)](./FEATURE-WIDGET-drag-and-drop.md)
+    *   [Help Guide (Interactive SOP)](./FEATURE-Help-Guide.md)
 5.  **Widget Deep-Dives**
     *   [Collection Banner](./WIDGET-Collection-Banner.md) — Carousel (Scroll) and Category Grid (Stick) modes
     *   [Masthead (Primary & Secondary)](./WIDGET-Masthead.md)
@@ -45,6 +46,7 @@
 | Date | Change |
 | :--- | :--- |
 | Feb 2026 | `STEP-Create-Widget.md` — **new wiki**: complete user selection journey for all 3 widget types, decision trees, field tables, nesting depth |
+| Feb 2026 | `FEATURE-Help-Guide.md` — new wiki: Help Guide config overhaul, 6 categories, config-driven architecture |
 | Feb 2026 | `FEATURE-WIDGET-drag-and-drop.md` — new wiki: widget drag & drop reorder, priority logic, GL-HP-global mapping |
 | Feb 2026 | `PLP-PAGE-widget-support.md` — rewritten with Expand Page toggle logic, API endpoints, removed Category Grid |
 | Feb 2026 | `WIDGET-Collection-Banner.md` — Carousel & Category Grid merged into single "Collection Banner" doc |

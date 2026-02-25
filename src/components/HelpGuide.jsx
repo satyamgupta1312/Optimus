@@ -1,248 +1,35 @@
 import React, { useState } from 'react';
-import { HelpCircle, X, ChevronRight, BookOpen, Zap, Lightbulb, CheckCircle, Wrench, Sparkles, Package } from 'lucide-react';
+import {
+    HelpCircle, X, ChevronRight, BookOpen, Zap, Lightbulb,
+    CheckCircle, Wrench, Sparkles, Package, LayoutDashboard, Rocket,
+} from 'lucide-react';
+import { GUIDE_CATEGORIES, GUIDE_COLORS } from '../config/Feature/HelpGuideConfig';
+
+// Map string icon names (from config) to lucide-react components
+const ICON_MAP = {
+    Wrench,
+    Sparkles,
+    Zap,
+    Lightbulb,
+    LayoutDashboard,
+    Rocket,
+    Package,
+    BookOpen,
+    HelpCircle,
+    CheckCircle,
+};
 
 /**
  * Floating Help Button with Step-by-Step Guide
  * Shows widget creation SOP and workflows
+ *
+ * Guide data is defined in src/config/Feature/HelpGuideConfig.js
+ * This component handles only UI, state, and navigation logic.
  */
 const HelpGuide = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [activeGuide, setActiveGuide] = useState(null);
     const [currentStep, setCurrentStep] = useState(0);
-
-    // Guide categories
-    const guides = [
-        {
-            id: 'widget-sops',
-            title: 'Widget SOPs (Step-by-Step)',
-            icon: Wrench,
-            color: 'indigo',
-            steps: [
-                {
-                    title: 'Select a Widget Type',
-                    description: 'Choose which widget you want to configure from the list below to see its Standard Operating Procedure (SOP).',
-                    tip: 'Click "Next" to cycle through all widget guides'
-                }
-            ],
-            subGuides: [
-                {
-                    title: 'Primary Masthead (Header)',
-                    steps: [
-                        {
-                            title: '1. Open Header Configuration',
-                            description: '• Go to the left sidebar\n• Click on "Header Configuration"\n• Expand "Primary Masthead" section',
-                            tip: 'Primary Masthead is always enabled - no toggle needed'
-                        },
-                        {
-                            title: '2. Enter Basic Settings',
-                            description: '• **Slug Name**: Unique identifier (e.g., "diwali_2024_header")\n• **Master Key**: Campaign link slug for redirects\n• **End Time**: When this header should expire',
-                            tip: 'The slug name will be used to auto-generate the background multimedia slug'
-                        },
-                        {
-                            title: '3. Configure Background Multimedia',
-                            description: '• Click "🎨 Configure Background Multimedia" to expand\n• The multimedia slug is **auto-generated** from your slug name + "_bg"\n• Select **Type**: Image, Video, or Lottie\n• Set **Aspect Ratio**: Default is 1 (square)',
-                            tip: 'No need to manually enter multimedia slug - it\'s created automatically!'
-                        },
-                        {
-                            title: '4. Set Color Configuration',
-                            description: '• **Transition Color**: Background transition color\n• **Accent Color**: Accent/highlight color\n• **Text Color**: Color for text overlays\n• **Icon BG Color**: Background for icons\n• Check **Is Multimedia Dark** if using dark theme',
-                            tip: 'Use ColorPicker for easy color selection with hex preview'
-                        },
-                        {
-                            title: '5. Upload Media File',
-                            description: '• For Image/Video: **Drag & drop** or click the upload zone\n• Accepted formats: JPG, PNG, WEBP, GIF (images) or MP4, WEBM, MOV (videos)\n• File automatically uploads to **Google Drive**\n• Wait for "✅ Saved to Drive" confirmation',
-                            tip: 'For Lottie animations, no file upload needed - just configure colors'
-                        },
-                        {
-                            title: '6. Submit Your Request',
-                            description: '• Review all fields are filled correctly\n• Click "💾 Save Request" in toolbar (top-right)\n• Wait for success notification\n• Your request will appear in the Queue',
-                            tip: 'The background multimedia will be auto-created when a Checker approves your request!'
-                        }
-                    ]
-                },
-                {
-                    title: 'Secondary Masthead',
-                    steps: [
-                        {
-                            title: '1. Access Configuration',
-                            description: 'Go to sidebar > "Header Configuration" > "Secondary Masthead".',
-                            tip: 'Top section of the page below the header'
-                        },
-                        {
-                            title: '2. Timing & Display',
-                            description: '• Aspect Ratio: Choose 4 (Standard), 3, 2, or 1 (Square)\n• Start/End Time: Schedule when this widget appears',
-                            tip: 'Standard (4) is best for most banners'
-                        },
-                        {
-                            title: '3. Add Carousel Items',
-                            description: '• Click "+ Add" to create a new slide\n• Enter Text (English/Hindi)\n• Upload Image or paste URL\n• Enter Redirect Link Slug',
-                            tip: 'You can drag items to reorder them'
-                        }
-                    ]
-                },
-                {
-                    title: 'Banner With Product Listing (PLP)',
-                    steps: [
-                        {
-                            title: '1. Add & Select',
-                            description: 'Add "Banner With Product Listing" from the library and click it to edit.',
-                            tip: 'Useful for category highlights'
-                        },
-                        {
-                            title: '2. Upload Banner',
-                            description: '• Click "Upload Image" in Property Editor\n• Drag & drop your banner image\n• Preview updates instantly',
-                            tip: 'Use high-quality images (max 5MB)'
-                        },
-                        {
-                            title: '3. Link Products',
-                            description: '• Option A: Enter comma-separated Product IDs\n• Option B: Paste a CSV URL\n• Option C: Type ID and press Enter to search catalog',
-                            tip: 'Products will display in a grid below the banner'
-                        }
-                    ]
-                },
-                {
-                    title: 'Single Product Row (SPR)',
-                    steps: [
-                        {
-                            title: '1. Add Widget',
-                            description: 'Select "Single Product Row" from the library.',
-                            tip: 'Best for specific product collections'
-                        },
-                        {
-                            title: '2. Configure Title',
-                            description: 'Enter a catchy title (e.g., "Best Sellers", "New Arrivals").',
-                            tip: 'Keep it short and descriptive'
-                        },
-                        {
-                            title: '3. Add Products',
-                            description: 'Enter Product IDs (comma-separated). The widget will auto-fetch details like image, price, and name.',
-                            tip: 'Verify product details in the preview'
-                        }
-                    ]
-                },
-                {
-                    title: 'SPR Optimize (Quick Actions)',
-                    steps: [
-                        {
-                            title: '1. What is it?',
-                            description: 'A compact version of SPR that includes "Add to Cart" buttons directly on the card.',
-                            tip: 'High conversion for essential items'
-                        },
-                        {
-                            title: '2. Configuration',
-                            description: 'Same as Standard SPR:\n• Title\n• Product IDs\n• Background Color',
-                            tip: 'Ensure products are in stock'
-                        }
-                    ]
-                },
-                {
-                    title: 'Category Grid',
-                    steps: [
-                        {
-                            title: '1. Add Widget',
-                            description: 'Select "Category Grid" from the library.',
-                            tip: 'Used for main navigation links'
-                        },
-                        {
-                            title: '2. Define Grid',
-                            description: '• Add items using the definition list\n• Format: id, text, image_url\n• Example: { "id": "1", "text": "Fruits", "image": "..." }',
-                            tip: 'Supports 2-4 columns automatically'
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            id: 'widget-creation',
-            title: 'General Creation Flow',
-            icon: Sparkles,
-            color: 'blue',
-            steps: [
-                {
-                    title: 'Step 1: Select Widget Type',
-                    description: 'Click on any widget from the sidebar library (CLP, Banner, Product Row, etc.)',
-                    tip: 'Widget appears in the phone preview instantly'
-                },
-                {
-                    title: 'Step 2: Configure Properties',
-                    description: 'Fill in the required fields in the Property Editor:\n• Title (required)\n• Product IDs or CSV URL\n• Images (use drag & drop)\n• Aspect ratio, colors, etc.',
-                    tip: 'Changes reflect in real-time in the preview'
-                },
-                {
-                    title: 'Step 3: Add Products',
-                    description: 'For PLP/Banner widgets:\n• Enter product codes (comma-separated)\n• OR paste a CSV URL\n• OR use the catalog search (Enter key)',
-                    tip: 'Products auto-populate from catalog'
-                },
-                {
-                    title: 'Step 4: Preview & Reorder',
-                    description: '• Use drag handles to reorder widgets\n• Click phone preview to test interactions\n• Check all pages work correctly',
-                    tip: 'Drag widgets to change position'
-                },
-                {
-                    title: 'Step 5: Submit for Review',
-                    description: 'Click "Submit for Review" button in header when ready',
-                    tip: 'Page status changes to PENDING'
-                }
-            ]
-        },
-        {
-            id: 'workflow',
-            title: 'Approval Workflow',
-            icon: Zap,
-            color: 'purple',
-            steps: [
-                {
-                    title: 'Maker: Create & Submit',
-                    description: '1. Create/edit widgets in DRAFT mode\n2. Click "Submit for Review"\n3. Wait for Checker approval',
-                    tip: 'Cannot edit while in PENDING status'
-                },
-                {
-                    title: 'Checker: Review',
-                    description: '1. Review submitted widgets\n2. Click "Approve" or "Reject"\n3. If rejected, returns to maker',
-                    tip: 'Approval triggers automation'
-                },
-                {
-                    title: 'Automation: Google Sheets',
-                    description: '1. Approved page → Google Sheets\n2. Automation script creates widgets\n3. Publishes to live application',
-                    tip: 'Check Google Sheet for status'
-                },
-                {
-                    title: 'Success!',
-                    description: 'Widgets are now live on the application!',
-                    tip: 'Use undo if you need to revert'
-                }
-            ]
-        },
-        {
-            id: 'tips-tricks',
-            title: 'Tips & Tricks',
-            icon: Lightbulb,
-            color: 'green',
-            steps: [
-                {
-                    title: 'Keyboard Shortcuts',
-                    description: '• Cmd/Ctrl + Z: Undo\n• Cmd/Ctrl + Shift + Z: Redo\n• Cmd/Ctrl + S: Save (Coming soon)\n• Drag & Drop: Reorder widgets',
-                    tip: 'Be a power user!'
-                },
-                {
-                    title: 'Image Upload',
-                    description: '• Drag & drop images directly\n• Paste from clipboard (Cmd+V)\n• Or click to browse files\n• Supports PNG, JPG, GIF, WebP',
-                    tip: 'Max 5MB per image'
-                },
-                {
-                    title: 'Product Search',
-                    description: '• Type product code in field\n• Press Enter to search catalog\n• Products auto-fill with details\n• Live preview updates instantly',
-                    tip: 'Works for all PLP widgets'
-                },
-                {
-                    title: 'Duplicate Widgets',
-                    description: '• Select any widget\n• Click duplicate icon (copy)\n• Edit the copy\n• Saves time!',
-                    tip: 'Appears right below original'
-                }
-            ]
-        }
-    ];
-
     const [parentGuide, setParentGuide] = useState(null);
 
     const handleOpenGuide = (guide) => {
@@ -324,20 +111,14 @@ const HelpGuide = () => {
 
                     {/* Guide List */}
                     <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
-                        {guides.map((guide) => {
-                            const Icon = guide.icon;
-                            const colorClasses = {
-                                blue: 'from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700',
-                                purple: 'from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700',
-                                green: 'from-green-500 to-green-600 hover:from-green-600 hover:to-green-700',
-                                indigo: 'from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700',
-                            };
+                        {GUIDE_CATEGORIES.map((guide) => {
+                            const Icon = ICON_MAP[guide.icon] || Package;
 
                             return (
                                 <button
                                     key={guide.id}
                                     onClick={() => handleOpenGuide(guide)}
-                                    className={`w-full p-4 rounded-xl bg-gradient-to-br ${colorClasses[guide.color] || colorClasses.blue} text-white shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 flex items-center justify-between group`}
+                                    className={`w-full p-4 rounded-xl bg-gradient-to-br ${GUIDE_COLORS[guide.color] || GUIDE_COLORS.blue} text-white shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 flex items-center justify-between group`}
                                 >
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
@@ -359,7 +140,7 @@ const HelpGuide = () => {
                     {/* Footer */}
                     <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
                         <p className="text-sm text-slate-600 text-center font-medium">
-                            💡 Need more help? Contact your admin
+                            Need more help? Contact your admin
                         </p>
                     </div>
                 </div>
@@ -384,7 +165,14 @@ const HelpGuide = () => {
                             <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-t-2xl sticky top-0 z-10">
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 className="font-bold text-xl flex items-center gap-2">
-                                        {activeGuide.icon ? React.createElement(activeGuide.icon, { size: 24 }) : <Package size={24} />}
+                                        {(() => {
+                                            const IconComp = typeof activeGuide.icon === 'string'
+                                                ? ICON_MAP[activeGuide.icon]
+                                                : activeGuide.icon;
+                                            return IconComp
+                                                ? <IconComp size={24} />
+                                                : <Package size={24} />;
+                                        })()}
                                         {activeGuide.title}
                                     </h3>
                                     <button
@@ -482,7 +270,7 @@ const HelpGuide = () => {
                                         <CheckCircle size={24} className="text-green-600" />
                                         <div>
                                             <h5 className="font-semibold text-green-900">All Done!</h5>
-                                            <p className="text-sm text-green-800">You're all set to create widgets like a pro! 🎉</p>
+                                            <p className="text-sm text-green-800">You've completed this guide!</p>
                                         </div>
                                     </div>
                                 )}

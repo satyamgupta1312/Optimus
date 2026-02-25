@@ -402,11 +402,111 @@ export class SPRBuilder {
             this.log(`[ProductRail] Step 4 — Mapping failed: ${e.message}`);
         }
 
-        // Step 5: Map PLP Widget → Page Layout
+        // Step 4.5: Expand Page — Create additional PLP widgets (if expandPage ON)
+        const expandPageData = this.widget.expand_page || {};
+        const expandWidgetSlugs = [];
+
+        if (expandPageData.expandPage && Array.isArray(expandPageData.plpWidgets)) {
+            this.log(`[ProductRail] Step 4.5 — Creating ${expandPageData.plpWidgets.length} expand page widgets`);
+
+            for (let k = 0; k < expandPageData.plpWidgets.length; k++) {
+                const epw = expandPageData.plpWidgets[k];
+                const epwSlug = this.slugGen.get(`_ep_${k + 1}`);
+
+                try {
+                    // Create expand widget
+                    this.log(`[ProductRail] EP Widget ${k + 1}: ${epwSlug} (${epw.type})`);
+                    await callApi(ENDPOINTS.widget, {
+                        slug_name: epwSlug,
+                        widget_type: epw.type,
+                        description: '',
+                        heading: epw.title || '',
+                        master_key: '',
+                        heading_en: epw.title || '',
+                        heading_hi: '',
+                        heading_bg: '',
+                        start_time: this.dates.start,
+                        end_time: this.dates.end,
+                        clear_bg_media: '',
+                        media_aspect_ratio: '1',
+                        view_all_action_name: '',
+                        background_multimedia: '',
+                        filter_dict: '{}',
+                        app_configurations: '{}',
+                        configurations: '{}',
+                        deactivated_flag: 'no',
+                    }, { multipart: true });
+
+                    // Create sub-cat items for expand widget (per state)
+                    const epwStates = StateMapper.getActiveStates(epw.stateProducts || { global: '' });
+                    const epwSubCatRows = [];
+
+                    for (const state of epwStates) {
+                        const epwScSlug = `${this.widget.slug}_ep_${k + 1}_sc_wi_${state.key}`;
+                        try {
+                            await callApi(ENDPOINTS.widgetItem, {
+                                widget_item_id: 'undefined',
+                                deactivated_flag: 'no',
+                                item_click_action: 'deal-detail-redirect',
+                                slug_name: epwScSlug,
+                                slave_key: '',
+                                item_type: 'sub_category',
+                                media: '',
+                                text_en: epw.title || '',
+                                text_hi: '',
+                                media_hi: '',
+                                text_bg: '',
+                                media_bg: '',
+                                product_list: state.codes,
+                                filters: '[]',
+                                filter_lst: StateMapper.buildInStockFilter(state.codes),
+                                property_lst: '[]',
+                                pl_edit: 'PL',
+                                is_clickable: 'yes',
+                                update_product_list: 'no',
+                                start_time: this.dates.start,
+                                end_time: this.dates.end,
+                            }, { multipart: true });
+                            epwSubCatRows.push(`${epwScSlug},${state.def?.levelTag || 'global'},${state.def?.levelProperty || 'global'},${epwSubCatRows.length + 1},`);
+                        } catch (e2) {
+                            this.log(`[ProductRail] EP ${k + 1} sub-cat [${state.key}] failed: ${e2.message}`);
+                        }
+                    }
+
+                    // Map sub-cats → expand widget
+                    if (epwSubCatRows.length > 0) {
+                        const epwCsv = new Blob([
+                            'widget_item_slug_name,level_tag,level_property,priority,cohort\n' + epwSubCatRows.join('\n') + '\n',
+                        ], { type: 'text/csv' });
+                        const epwMap = new FormData();
+                        const epwCsrf = getCsrfToken();
+                        if (epwCsrf) epwMap.append('csrfmiddlewaretoken', epwCsrf);
+                        epwMap.append('widget_slug', epwSlug);
+                        epwMap.append('mapping_file', epwCsv, 'mapping.csv');
+                        await fetch(`${API_BASE}${ENDPOINTS.mapWidgetItems}`, {
+                            method: 'POST', body: epwMap, credentials: 'include',
+                            headers: { 'X-CSRFToken': epwCsrf || '' },
+                        });
+                    }
+
+                    expandWidgetSlugs.push(epwSlug);
+                    results.push({ step: `expand_widget_${k + 1}`, slug: epwSlug, status: 'ok' });
+                } catch (e) {
+                    this.log(`[ProductRail] EP Widget ${k + 1} failed: ${e.message}`);
+                    results.push({ step: `expand_widget_${k + 1}`, slug: epwSlug, status: 'failed', error: e.message });
+                }
+            }
+        }
+
+        // Step 5: Map PLP Widget + Expand Widgets → Page Layout
         try {
-            this.log('[ProductRail] Step 5 — Map PLP → Page');
+            this.log('[ProductRail] Step 5 — Map PLP (+ expand) → Page');
+            const allWidgetRows = [
+                `${slugs.plpWidget},global,global,1,`,
+                ...expandWidgetSlugs.map((s, idx) => `${s},global,global,${idx + 2},`),
+            ];
             const plpCsv = new Blob([
-                `widget_slug_name,level_tag,level_property,priority,cohort\n${slugs.plpWidget},global,global,1,`,
+                'widget_slug_name,level_tag,level_property,priority,cohort\n' + allWidgetRows.join('\n') + '\n',
             ], { type: 'text/csv' });
             const plpMap = new FormData();
             const csrfToken5 = getCsrfToken();

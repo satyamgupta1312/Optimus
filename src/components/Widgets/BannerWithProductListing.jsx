@@ -48,6 +48,7 @@ const BannerWithProductListing = ({ widget }) => {
             navigateTo('listing', {
                 title: item.pageHeading || item.title || 'Product Listing',
                 products,
+                plpWidgets: item.expandPage ? (item.plpWidgets || []) : [],
             });
         } else {
             navigateTo('category', {

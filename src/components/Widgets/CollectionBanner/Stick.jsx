@@ -74,6 +74,7 @@ const Stick = ({ widget }) => {
             navigateTo('listing', {
                 title: item.text || 'Product Listing',
                 products,
+                plpWidgets: item.expandPage ? (item.plpWidgets || []) : [],
             });
         } else {
             // Category page → navigate to category view with sub-categories

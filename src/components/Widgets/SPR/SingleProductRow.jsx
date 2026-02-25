@@ -137,6 +137,7 @@ const SingleProductRow = ({ widget }) => {
                 title: widget.title || 'Products',
                 products,
                 resolvedType,
+                plpWidgets: widget.expand_page?.expandPage ? (widget.expand_page.plpWidgets || []) : [],
             });
         }
     };

@@ -138,9 +138,9 @@ export const SPRConfig = {
             component: 'StateProductEditor',
             label: 'Products (State-wise)',
             helperText: 'Global is required. Add states for location-specific products.',
-            condition: (_pnc, widget) => widget?.pageType !== 'category_page',
+            condition: (_pnc, widget) => widget?.pageType !== 'category_page' && !widget?.expand_page?.expandPage,
             validation: {
-                required: (_pnc, widget) => widget?.pageType !== 'category_page',
+                required: (_pnc, widget) => widget?.pageType !== 'category_page' && !widget?.expand_page?.expandPage,
             },
             errorMessage: 'Global product codes are required',
         },

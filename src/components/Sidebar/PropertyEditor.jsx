@@ -343,13 +343,16 @@ const PropertyEditor = ({ widget, onSubmit }) => {
 
                             // Expand Page toggle — appears after pageType when product_listing_page selected
                             if (field.name === 'pageType' && widget.pageType === 'product_listing_page') {
+                                const epData = widget.expand_page || { expandPage: false, plpWidgets: [] };
                                 rendered.push(
                                     <ExpandPageSection
                                         key="expand_page"
-                                        expandPage={widget.expandPage || false}
-                                        plpWidgets={widget.plpWidgets || []}
+                                        expandPage={epData.expandPage || false}
+                                        plpWidgets={epData.plpWidgets || []}
                                         onChange={({ expandPage, plpWidgets }) => {
-                                            updateWidget(widget.id, { expandPage, plpWidgets });
+                                            updateWidget(widget.id, {
+                                                expand_page: { expandPage, plpWidgets },
+                                            });
                                         }}
                                     />
                                 );

@@ -155,7 +155,18 @@ export const EXPAND_PAGE_CONFIG = {
         { component: 'PropertyEditor.jsx', scope: 'per_widget', description: 'SPR/DPR — appears after pageType field' },
         { component: 'ScrollItemEditor.jsx', scope: 'per_item', description: 'Carousel items — appears after pageType pill' },
         { component: 'CarouselItemEditor.jsx', scope: 'per_item', description: 'Secondary Masthead items — appears after pageType pill' },
+        { component: 'CategoryItemEditor.jsx', scope: 'per_item', description: 'Category Grid (Stick) items — appears when PLP selected' },
     ],
+    builderIntegration: [
+        { builder: 'SPRBuilder.js', step: '4.5', scope: 'per_widget', slugPattern: '{base}_ep_{n}' },
+        { builder: 'CollectionBannerBuilder.js', step: '4.5', scope: 'per_item', slugPattern: '{base}_item_{n}_ep_{k}' },
+        { builder: 'SecondaryMastheadBuilder.js', step: 'Phase 1.5', scope: 'per_item + view_all', slugPattern: '{base}_item_{n}_ep_{k}' },
+    ],
+    emulatorPreview: {
+        component: 'ProductListingPage.jsx',
+        description: 'Renders widget-type-specific pulse-animated skeletons below product grid',
+        skeletonTypes: ['CarouselSkeleton', 'SPRSkeleton', 'DPRSkeleton', 'MultimediaSPRSkeleton', 'MultimediaDPRSkeleton', 'SMSkeleton'],
+    },
 };
 
 // ── Universal PLP 3-Layer Ecosystem ──

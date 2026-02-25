@@ -125,6 +125,7 @@ const PhoneFrame = () => {
                     widgetId={viewData?.widgetId}
                     itemId={viewData?.itemId}
                     products={viewData?.products}
+                    plpWidgets={viewData?.plpWidgets || []}
                 />
             ) : currentView === 'category' ? (
                 <CategoryPage categoryData={viewData} />

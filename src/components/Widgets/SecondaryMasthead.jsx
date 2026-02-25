@@ -50,9 +50,11 @@ const SecondaryMasthead = ({ widget }) => {
         if (viewAllPageType === 'product_listing_page') {
             const globalCodes = widget.view_all_state_products?.global || '';
             const codes = globalCodes.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+            const viewAllExpand = widget.view_all_expand || {};
             navigateTo('listing', {
                 title: widget.view_all_heading || 'View All',
                 products: codes.map(code => ({ id: code, itemCode: code, name: `Product ${code}`, price: '₹0', image: '' })),
+                plpWidgets: viewAllExpand.expandPage ? (viewAllExpand.plpWidgets || []) : [],
             });
         } else {
             navigateTo('category', {
@@ -118,6 +120,7 @@ const SecondaryMasthead = ({ widget }) => {
                                             navigateTo('listing', {
                                                 title: item.pageHeading || 'Product Listing',
                                                 products,
+                                                plpWidgets: item.expandPage ? (item.plpWidgets || []) : [],
                                             });
                                         } else {
                                             navigateTo('category', {

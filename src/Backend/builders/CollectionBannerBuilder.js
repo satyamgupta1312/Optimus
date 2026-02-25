@@ -298,10 +298,92 @@ export class CollectionBannerBuilder {
                 this.log(`[CBScroll]   Step 4 Mapping FAILED: ${e.message}`);
             }
 
-            // ── Step 5: Map PLP Widget → Page Layout ──
+            // ── Step 4.5: Expand Page Widgets (if item has expandPage ON) ──
+            const expandWidgetSlugs = [];
+            if (item.expandPage && Array.isArray(item.plpWidgets) && item.plpWidgets.length > 0) {
+                this.log(`[CBScroll]   Step 4.5 — Creating ${item.plpWidgets.length} expand page widgets`);
+
+                for (let k = 0; k < item.plpWidgets.length; k++) {
+                    const epw = item.plpWidgets[k];
+                    const epwSlug = `${this.widget.slug}_item_${n}_ep_${k + 1}`;
+
+                    try {
+                        await callApi(ENDPOINTS.widget, {
+                            slug_name: epwSlug,
+                            widget_type: epw.type,
+                            description: '',
+                            heading: epw.title || '',
+                            master_key: '',
+                            heading_en: epw.title || '',
+                            heading_hi: '',
+                            heading_bg: '',
+                            start_time: this.dates.start,
+                            end_time: this.dates.end,
+                            clear_bg_media: '',
+                            media_aspect_ratio: '1',
+                            view_all_action_name: '',
+                            background_multimedia: '',
+                            filter_dict: '{}',
+                            app_configurations: '{}',
+                            configurations: '{}',
+                            deactivated_flag: 'no',
+                        }, { multipart: true });
+
+                        // Sub-cat items for expand widget
+                        const epwStates = StateMapper.getActiveStates(epw.stateProducts || { global: '' });
+                        const epwScRows = [];
+                        for (const state of epwStates) {
+                            const epwScSlug = `${this.widget.slug}_item_${n}_ep_${k + 1}_sc_wi_${state.key}`;
+                            try {
+                                await callApi(ENDPOINTS.widgetItem, {
+                                    widget_item_id: 'undefined',
+                                    deactivated_flag: 'no',
+                                    item_click_action: 'deal-detail-redirect',
+                                    slug_name: epwScSlug,
+                                    slave_key: '',
+                                    item_type: 'sub_category',
+                                    media: '',
+                                    text_en: epw.title || '',
+                                    text_hi: '',
+                                    media_hi: '',
+                                    text_bg: '',
+                                    media_bg: '',
+                                    product_list: state.codes,
+                                    filters: '[]',
+                                    filter_lst: StateMapper.buildInStockFilter(state.codes),
+                                    property_lst: '[]',
+                                    pl_edit: 'PL',
+                                    is_clickable: 'yes',
+                                    update_product_list: 'no',
+                                    start_time: this.dates.start,
+                                    end_time: this.dates.end,
+                                }, { multipart: true });
+                                epwScRows.push(`${epwScSlug},${state.def?.levelTag || 'global'},${state.def?.levelProperty || 'global'},${epwScRows.length + 1},`);
+                            } catch (e2) { this.log(`[CBScroll] EP ${k + 1} sub-cat [${state.key}] failed: ${e2.message}`); }
+                        }
+
+                        // Map sub-cats → expand widget
+                        if (epwScRows.length > 0) {
+                            const epwCsv = 'widget_item_slug_name,level_tag,level_property,priority,cohort\n' + epwScRows.join('\n') + '\n';
+                            await this._postMapping(ENDPOINTS.mapWidgetItems, { widget_slug: epwSlug }, new Blob([epwCsv], { type: 'text/csv' }));
+                        }
+
+                        expandWidgetSlugs.push(epwSlug);
+                        results.push({ step: `item_${n}_ep_${k + 1}`, slug: epwSlug, status: 'ok' });
+                    } catch (e) {
+                        this.log(`[CBScroll] EP Widget ${k + 1} failed: ${e.message}`);
+                    }
+                }
+            }
+
+            // ── Step 5: Map PLP Widget + Expand Widgets → Page Layout ──
             try {
-                this.log(`[CBScroll]   Step 5 — Map PLP → Page`);
-                const csv = `widget_slug_name,level_tag,level_property,priority,cohort\n${itemSlugs.plp},global,global,1,\n`;
+                this.log(`[CBScroll]   Step 5 — Map PLP (+ ${expandWidgetSlugs.length} expand) → Page`);
+                const allWidgetRows = [
+                    `${itemSlugs.plp},global,global,1,`,
+                    ...expandWidgetSlugs.map((s, idx) => `${s},global,global,${idx + 2},`),
+                ];
+                const csv = 'widget_slug_name,level_tag,level_property,priority,cohort\n' + allWidgetRows.join('\n') + '\n';
                 await this._postMapping(ENDPOINTS.mapLayoutWidget, { page_layout_slug: itemSlugs.page }, new Blob([csv], { type: 'text/csv' }));
                 results.push({ step: `item_${n}_map_plp_page`, status: 'ok' });
             } catch (e) {

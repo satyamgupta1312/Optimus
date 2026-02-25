@@ -186,6 +186,81 @@ flowchart BT
 
 ---
 
+## 4.5 Expand Page — Backend Builder Deployment
+
+**Status: IMPLEMENTED**
+
+Each builder creates expand widgets in **Step 4.5** between sub-cat mapping and PLP→Page mapping.
+
+### Per-Widget Expand Page (SPR / DPR)
+
+| Object | Slug Pattern | Example |
+| :--- | :--- | :--- |
+| Expand Widget | `{base}_ep_{n}` | `rice_mela_ep_1` |
+| EP Sub-Cat (Global) | `{base}_ep_{n}_sc_wi_global` | `rice_mela_ep_1_sc_wi_global` |
+| EP Sub-Cat (State) | `{base}_ep_{n}_sc_wi_{state}` | `rice_mela_ep_1_sc_wi_jh` |
+
+**Builder:** `SPRBuilder.js` → Step 4.5
+
+### Per-Item Expand Page (Collection Banner)
+
+| Object | Slug Pattern | Example |
+| :--- | :--- | :--- |
+| Expand Widget | `{base}_item_{n}_ep_{k}` | `summer_sale_item_1_ep_1` |
+| EP Sub-Cat (Global) | `{base}_item_{n}_ep_{k}_sc_wi_global` | `summer_sale_item_1_ep_1_sc_wi_global` |
+
+**Builder:** `CollectionBannerBuilder.js` → Step 4.5
+
+### Per-Item Expand Page (Secondary Masthead)
+
+| Object | Slug Pattern | Example |
+| :--- | :--- | :--- |
+| Expand Widget | `{base}_item_{n}_ep_{k}` | `sm_diwali_item_1_ep_1` |
+| EP Sub-Cat (Global) | `{base}_item_{n}_ep_{k}_sc_wi_global` | `sm_diwali_item_1_ep_1_sc_wi_global` |
+
+**Builder:** `SecondaryMastheadBuilder.js` → Phase 1.5
+
+### View All Expand Page (Secondary Masthead)
+
+| Object | Slug Pattern |
+| :--- | :--- |
+| VA Expand Widget | `{base}_va_ep_{k}` |
+| VA EP Sub-Cat | `{base}_va_ep_{k}_sc_wi_{state}` |
+
+**Builder:** `SecondaryMastheadBuilder.js` → Phase 1.5
+
+### Layout→Widget Priority Mapping
+
+All widgets (PLP + expand) are mapped to the **same Page Layout** with incremental priority:
+
+```csv
+widget_slug_name,level_tag,level_property,priority,cohort
+rice_mela_plp_w,global,global,1,
+rice_mela_ep_1,global,global,2,
+rice_mela_ep_2,global,global,3,
+```
+
+---
+
+## 4.6 Expand Page — Emulator Preview
+
+**Component:** `src/components/Pages/ProductListingPage.jsx`
+
+When `plpWidgets` are present, the ProductListingPage renders **widget-type-specific skeletons** below the product grid:
+
+| Widget Type | Skeleton Style |
+| :--- | :--- |
+| `carousel` | Horizontal scroll of image cards |
+| `single_product_row` / `_v2` | Horizontal product rail |
+| `double_product_row` / `_v2` | 2×2 product grid |
+| `multimedia_*_single_*` | Banner + product rail |
+| `multimedia_*_double_*` | Banner + 2-wide grid |
+| `masthead_secondary_*` | Banner + pill nav |
+
+**Navigation Flow:** All widget emulator components pass `plpWidgets` via `navigateTo('listing', { ..., plpWidgets })`.
+
+---
+
 ## 5. API Endpoints
 
 ### Entity Creation

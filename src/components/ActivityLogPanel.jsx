@@ -1,17 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Clock, User, Plus, Trash2, Edit, ChevronDown, Download, RefreshCw } from 'lucide-react';
 import { useActivityLog } from '../context/ActivityLogContext';
 import { LocalApiService } from '../services/LocalApiService';
 
 /**
  * Activity Log Panel
- * Displays recent activity history
+ * Displays recent activity history — auto-loads from backend on mount.
  */
 const ActivityLogPanel = ({ className = '' }) => {
     const { activities, getRecentActivities, clearActivities, exportActivities, logActivity } = useActivityLog();
     const [showAll, setShowAll] = useState(false);
     const [filter, setFilter] = useState('all'); // 'all', 'widget', 'status', 'user'
     const [loadingSheet, setLoadingSheet] = useState(false);
+    const [initialLoaded, setInitialLoaded] = useState(false);
+
+    // Auto-load from backend on mount
+    useEffect(() => {
+        if (initialLoaded) return;
+        const loadLiveData = async () => {
+            setLoadingSheet(true);
+            try {
+                const result = await LocalApiService.getActivity();
+                const logs = result.logs || result.data || [];
+                if (logs.length > 0) {
+                    // Deduplicate: only add logs not already in memory
+                    const existingIds = new Set(activities.map(a => a.id));
+                    logs.forEach(entry => {
+                        const id = entry.id || `${entry.action}_${entry.timestamp}`;
+                        if (!existingIds.has(id)) {
+                            logActivity(entry.action, entry.details || {}, entry.user?.email || entry.user || 'System');
+                        }
+                    });
+                }
+            } catch (e) {
+                // Backend might not be running — silently fail
+                console.warn('[ActivityLogPanel] Auto-load failed:', e.message);
+            } finally {
+                setLoadingSheet(false);
+                setInitialLoaded(true);
+            }
+        };
+        loadLiveData();
+    }, []);
 
     const displayActivities = showAll ? activities : getRecentActivities(20);
 

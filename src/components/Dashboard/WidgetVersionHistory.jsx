@@ -13,6 +13,10 @@ import SnapshotPreview from './SnapshotPreview';
  * - onClose: () => void
  * - onRestore: (snapshot) => void (optional)
  */
+// Module-level cache: { [widgetId]: { data, cursor, hasMore, ts } }
+const versionCache = {};
+const CACHE_TTL = 30_000; // 30 seconds
+
 const WidgetVersionHistory = ({ widgetId, widgetSlug = '', onClose, onRestore }) => {
     const [versions, setVersions] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -24,10 +28,46 @@ const WidgetVersionHistory = ({ widgetId, widgetSlug = '', onClose, onRestore })
 
     useEffect(() => {
         if (!widgetId) return;
+
+        const cached = versionCache[widgetId];
+        const cacheValid = cached && (Date.now() - cached.ts < CACHE_TTL);
+
+        // If we have a valid cache: render immediately, no spinner
+        if (cacheValid) {
+            setVersions(cached.data);
+            setHasMore(cached.hasMore);
+            setNextCursor(cached.cursor);
+            if (cached.data.length > 0) setSelectedVersion(cached.data[0].version);
+            setLoading(false);
+            return;
+        }
+
+        // If stale cache exists: show it instantly, then revalidate silently
+        if (cached) {
+            setVersions(cached.data);
+            setHasMore(cached.hasMore);
+            setNextCursor(cached.cursor);
+            if (cached.data.length > 0) setSelectedVersion(cached.data[0].version);
+            setLoading(false);
+            // Revalidate in background
+            LocalApiService.getWidgetVersions(widgetId)
+                .then((res) => {
+                    const data = res.versions || res;
+                    versionCache[widgetId] = { data, hasMore: res.hasMore || false, cursor: res.nextCursor || null, ts: Date.now() };
+                    setVersions(data);
+                    setHasMore(res.hasMore || false);
+                    setNextCursor(res.nextCursor || null);
+                })
+                .catch(() => { /* silently ignore bg revalidation errors */ });
+            return;
+        }
+
+        // No cache: full fetch with loading spinner
         setLoading(true);
         LocalApiService.getWidgetVersions(widgetId)
             .then((res) => {
-                const data = res.versions || res; // support both paginated and legacy response
+                const data = res.versions || res;
+                versionCache[widgetId] = { data, hasMore: res.hasMore || false, cursor: res.nextCursor || null, ts: Date.now() };
                 setVersions(data);
                 setHasMore(res.hasMore || false);
                 setNextCursor(res.nextCursor || null);
@@ -198,22 +238,20 @@ const WidgetVersionHistory = ({ widgetId, widgetSlug = '', onClose, onRestore })
                                     <div className="flex gap-1 px-6 pt-3 pb-2">
                                         <button
                                             onClick={() => setRightTab('diff')}
-                                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                                                rightTab === 'diff'
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${rightTab === 'diff'
                                                     ? 'bg-slate-800 text-white'
                                                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                            }`}
+                                                }`}
                                         >
                                             <Code2 size={12} />
                                             Diff
                                         </button>
                                         <button
                                             onClick={() => setRightTab('preview')}
-                                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                                                rightTab === 'preview'
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${rightTab === 'preview'
                                                     ? 'bg-slate-800 text-white'
                                                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                            }`}
+                                                }`}
                                         >
                                             <Eye size={12} />
                                             Preview
@@ -278,21 +316,19 @@ const TimelineEntry = React.memo(({ entry, isFirst, isLast, isSelected, onSelect
     return (
         <button
             onClick={() => onSelect(entry.version)}
-            className={`w-full text-left mb-1 last:mb-0 relative pl-6 py-3 rounded-lg transition-all ${
-                isSelected
+            className={`w-full text-left mb-1 last:mb-0 relative pl-6 py-3 rounded-lg transition-all ${isSelected
                     ? 'bg-indigo-50 border border-indigo-200'
                     : 'hover:bg-white border border-transparent'
-            }`}
+                }`}
         >
             {/* Timeline dot and line */}
             <div className="absolute left-2 top-0 bottom-0 flex flex-col items-center">
-                <div className={`w-3 h-3 rounded-full border-2 mt-4 shrink-0 ${
-                    isSelected
+                <div className={`w-3 h-3 rounded-full border-2 mt-4 shrink-0 ${isSelected
                         ? 'bg-indigo-600 border-indigo-600'
                         : isFirst
                             ? 'bg-white border-indigo-400'
                             : 'bg-white border-slate-300'
-                }`} />
+                    }`} />
                 {!isLast && (
                     <div className="w-0.5 flex-1 bg-slate-200 mt-1" />
                 )}
@@ -301,9 +337,8 @@ const TimelineEntry = React.memo(({ entry, isFirst, isLast, isSelected, onSelect
             {/* Content */}
             <div className="ml-2">
                 <div className="flex items-center gap-2">
-                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                        isFirst ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
-                    }`}>
+                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${isFirst ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
+                        }`}>
                         v{entry.version}
                     </span>
                     {isFirst && (

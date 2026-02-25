@@ -173,6 +173,9 @@ router.put('/:id', async (req, res, next) => {
       },
     });
 
+    // Bust versions cache for this widget
+    Object.keys(versionsCache).forEach(k => { if (k.startsWith(req.params.id + ':')) delete versionsCache[k]; });
+
     res.json({
       ...widget,
       pnc: JSON.parse(widget.pnc),
@@ -273,10 +276,21 @@ router.post('/:id/duplicate', async (req, res, next) => {
 
 // ── GET /widgets/:id/versions ──
 // Supports pagination: ?limit=20&cursor=5 (cursor = version number to start before)
+// In-memory cache: { [key]: { data, ts } } — 10 s TTL
+const versionsCache = {};
+const VERSIONS_CACHE_TTL = 10_000;
+
 router.get('/:id/versions', async (req, res, next) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
     const cursor = parseInt(req.query.cursor) || null;
+    const cacheKey = `${req.params.id}:${limit}:${cursor}`;
+
+    // Serve from cache if fresh
+    const cached = versionsCache[cacheKey];
+    if (cached && Date.now() - cached.ts < VERSIONS_CACHE_TTL) {
+      return res.json(cached.data);
+    }
 
     const where = { widgetId: req.params.id };
     if (cursor) where.version = { lt: cursor };
@@ -290,14 +304,17 @@ router.get('/:id/versions', async (req, res, next) => {
     const hasMore = versions.length === limit;
     const nextCursor = hasMore ? versions[versions.length - 1].version : null;
 
-    res.json({
+    const payload = {
       versions: versions.map(v => ({
         ...v,
         snapshot: JSON.parse(v.snapshot),
       })),
       nextCursor,
       hasMore,
-    });
+    };
+
+    versionsCache[cacheKey] = { data: payload, ts: Date.now() };
+    res.json(payload);
   } catch (err) { next(err); }
 });
 

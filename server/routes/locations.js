@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../prisma/client.js';
+import * as KineticSync from '../services/KineticSyncService.js';
 
 const router = Router();
 
@@ -46,6 +47,9 @@ router.post('/', async (req, res, next) => {
       },
     });
 
+    // Fire-and-forget sync to ClickHouse
+    KineticSync.syncLocationUpsert(location).catch(() => {});
+
     res.status(201).json(location);
   } catch (err) {
     if (err.code === 'P2002') {
@@ -76,6 +80,9 @@ router.patch('/:key/toggle', async (req, res, next) => {
       data: { isEnabled: !location.isEnabled },
     });
 
+    // Fire-and-forget sync to ClickHouse
+    KineticSync.syncLocationUpsert(updated).catch(() => {});
+
     res.json(updated);
   } catch (err) { next(err); }
 });
@@ -97,7 +104,21 @@ router.delete('/:key', async (req, res, next) => {
     }
 
     await prisma.location.delete({ where: { id: location.id } });
+
+    // Fire-and-forget sync to ClickHouse (soft-delete)
+    KineticSync.syncLocationDelete(location.key, location.env).catch(() => {});
+
     res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+// ── POST /sync-all ──
+// One-time bulk sync all locations from Prisma to ClickHouse
+router.post('/sync-all', async (req, res, next) => {
+  try {
+    const locations = await prisma.location.findMany();
+    await KineticSync.syncLocationsBulk(locations);
+    res.json({ synced: locations.length });
   } catch (err) { next(err); }
 });
 

@@ -13,8 +13,8 @@ const PillSelector = ({
     disabled,
 }) => {
     return (
-        <div className="mb-3">
-            <label className="block text-xs font-medium text-slate-500 mb-2">
+        <div className="mb-2">
+            <label className="block text-[11px] font-medium text-slate-500 mb-1.5">
                 {label}
             </label>
             <div className="flex gap-2">
@@ -29,7 +29,7 @@ const PillSelector = ({
                             type="button"
                             disabled={disabled}
                             onClick={() => onChange(optionValue)}
-                            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all
+                            className={`px-3 py-1 rounded-full text-xs font-medium transition-all
                                 ${isSelected
                                     ? 'bg-blue-600 text-white ring-2 ring-blue-500/30'
                                     : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-blue-300 hover:bg-blue-50'

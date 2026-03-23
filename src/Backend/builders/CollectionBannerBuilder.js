@@ -299,73 +299,123 @@ export class CollectionBannerBuilder {
             }
 
             // ── Step 4.5: Expand Page Widgets (if item has expandPage ON) ──
+            // Handles spr group (stateProducts), carousel group (scrollItems),
+            // and masthead group (carouselItems) correctly with Create/Update logic.
             const expandWidgetSlugs = [];
             if (item.expandPage && Array.isArray(item.plpWidgets) && item.plpWidgets.length > 0) {
                 this.log(`[CBScroll]   Step 4.5 — Creating ${item.plpWidgets.length} expand page widgets`);
+                const blank = CollectionBannerBuilder.getBlankImageBlob();
 
                 for (let k = 0; k < item.plpWidgets.length; k++) {
                     const epw = item.plpWidgets[k];
                     const epwSlug = `${this.widget.slug}_item_${n}_ep_${k + 1}`;
+                    const isSprType = !['carousel', 'masthead_secondary_category_hp'].includes(epw.type);
 
                     try {
-                        await callApi(ENDPOINTS.widget, {
-                            slug_name: epwSlug,
-                            widget_type: epw.type,
-                            description: '',
-                            heading: epw.title || '',
-                            master_key: '',
-                            heading_en: epw.title || '',
-                            heading_hi: '',
-                            heading_bg: '',
-                            start_time: this.dates.start,
-                            end_time: this.dates.end,
-                            clear_bg_media: '',
-                            media_aspect_ratio: '1',
-                            view_all_action_name: '',
-                            background_multimedia: '',
-                            filter_dict: '{}',
-                            app_configurations: '{}',
-                            configurations: '{}',
-                            deactivated_flag: 'no',
-                        }, { multipart: true });
+                        // Create/Update: check if expand widget exists
+                        const existingEpwId = await getWidgetItemId(epwSlug).catch(() => null);
 
-                        // Sub-cat items for expand widget
-                        const epwStates = StateMapper.getActiveStates(epw.stateProducts || { global: '' });
-                        const epwScRows = [];
-                        for (const state of epwStates) {
-                            const epwScSlug = `${this.widget.slug}_item_${n}_ep_${k + 1}_sc_wi_${state.key}`;
-                            try {
-                                await callApi(ENDPOINTS.widgetItem, {
-                                    widget_item_id: 'undefined',
-                                    deactivated_flag: 'no',
-                                    item_click_action: 'deal-detail-redirect',
-                                    slug_name: epwScSlug,
-                                    slave_key: '',
-                                    item_type: 'sub_category',
-                                    media: '',
-                                    text_en: epw.title || '',
-                                    text_hi: '',
-                                    media_hi: '',
-                                    text_bg: '',
-                                    media_bg: '',
-                                    product_list: state.codes,
-                                    filters: '[]',
-                                    filter_lst: StateMapper.buildInStockFilter(state.codes),
-                                    property_lst: '[]',
-                                    pl_edit: 'PL',
-                                    is_clickable: 'yes',
-                                    update_product_list: 'no',
-                                    start_time: this.dates.start,
-                                    end_time: this.dates.end,
-                                }, { multipart: true });
-                                epwScRows.push(`${epwScSlug},${state.def?.levelTag || 'global'},${state.def?.levelProperty || 'global'},${epwScRows.length + 1},`);
-                            } catch (e2) { this.log(`[CBScroll] EP ${k + 1} sub-cat [${state.key}] failed: ${e2.message}`); }
+                        if (existingEpwId) {
+                            this.log(`[CBScroll] EP ${k + 1} exists, Updating: ${epwSlug}`);
+                            await updateApi(`/api/app/widget/${existingEpwId}/`, {
+                                slug_name: epwSlug, widget_type: epw.type,
+                                heading: epw.title || '', heading_en: epw.title || '',
+                                start_time: this.dates.start, end_time: this.dates.end,
+                            });
+                        } else {
+                            await callApi(ENDPOINTS.widget, {
+                                slug_name: epwSlug, widget_type: epw.type,
+                                description: '', heading: epw.title || '', master_key: '',
+                                heading_en: epw.title || '', heading_hi: '', heading_bg: '',
+                                start_time: this.dates.start, end_time: this.dates.end,
+                                clear_bg_media: '',
+                                media_aspect_ratio: epw.type === 'carousel' ? String(epw.media_number || '3.5') : epw.type === 'masthead_secondary_category_hp' ? String(epw.media_number || '2.5') : '1',
+                                view_all_action_name: '', background_multimedia: '',
+                                filter_dict: '{}', app_configurations: '{}',
+                                configurations: '{}', deactivated_flag: 'no',
+                            }, { multipart: true });
                         }
 
-                        // Map sub-cats → expand widget
-                        if (epwScRows.length > 0) {
-                            const epwCsv = 'widget_item_slug_name,level_tag,level_property,priority,cohort\n' + epwScRows.join('\n') + '\n';
-                            await this._postMapping(ENDPOINTS.mapWidgetItems, { widget_slug: epwSlug }, new Blob([epwCsv], { type: 'text/csv' }));
+                        // SPR/DPR group: sub-cat items with stateProducts
+                        if (isSprType) {
+                            const epwStates = StateMapper.getActiveStates(epw.stateProducts || { global: '' });
+                            const epwScRows = [];
+                            for (const state of epwStates) {
+                                const epwScSlug = `${this.widget.slug}_item_${n}_ep_${k + 1}_sc_wi_${state.key}`;
+                                try {
+                                    const existingScId = await getWidgetItemId(epwScSlug);
+                                    if (existingScId) {
+                                        await updateApi(`/api/app/widget_item/${existingScId}/`, {
+                                            slug_name: epwScSlug, item_type: 'sub_category',
+                                            text_en: epw.title || '', product_list: state.codes,
+                                            filter_lst: StateMapper.buildInStockFilter(state.codes),
+                                            start_time: this.dates.start, end_time: this.dates.end,
+                                        });
+                                    } else {
+                                        await callApi(ENDPOINTS.widgetItem, {
+                                            widget_item_id: 'undefined', deactivated_flag: 'no',
+                                            item_click_action: 'deal-detail-redirect',
+                                            slug_name: epwScSlug, slave_key: '', item_type: 'sub_category',
+                                            media_en: blank, text_en: epw.title || '', text_hi: '',
+                                            media_hi: '', text_bg: '', media_bg: '',
+                                            product_list: state.codes, filters: '[]',
+                                            filter_lst: StateMapper.buildInStockFilter(state.codes),
+                                            property_lst: '[]', pl_edit: 'PL', is_clickable: 'yes',
+                                            update_product_list: 'no',
+                                            start_time: this.dates.start, end_time: this.dates.end,
+                                        }, { multipart: true });
+                                    }
+                                    epwScRows.push(`${epwScSlug},${state.def?.levelTag || 'global'},${state.def?.levelProperty || 'global'},${epwScRows.length + 1},`);
+                                } catch (e2) { this.log(`[CBScroll] EP ${k + 1} sub-cat [${state.key}] failed: ${e2.message}`); }
+                            }
+                            if (epwScRows.length > 0) {
+                                const epwCsv = 'widget_item_slug_name,level_tag,level_property,priority,cohort\n' + epwScRows.join('\n') + '\n';
+                                await this._postMapping(ENDPOINTS.mapWidgetItems, { widget_slug: epwSlug }, new Blob([epwCsv], { type: 'text/csv' }));
+                            }
+                        }
+
+                        // Carousel group: carousel items from scrollItems
+                        if (epw.type === 'carousel' && Array.isArray(epw.scrollItems)) {
+                            const ciSlugs = [];
+                            for (let ci = 0; ci < epw.scrollItems.length; ci++) {
+                                const si = epw.scrollItems[ci];
+                                const ciPlp = `${epwSlug}_item_${ci + 1}_plp`;
+                                const ciPage = `${epwSlug}_item_${ci + 1}_plp_page`;
+                                const ciItem = `${epwSlug}_item_${ci + 1}_cl_wi`;
+                                try {
+                                    // Sub-cats
+                                    const siStates = StateMapper.getActiveStates(si.stateProducts || { global: si.productIds || '' });
+                                    const siScRows = [];
+                                    for (const state of siStates) {
+                                        const siScSlug = `${epwSlug}_item_${ci + 1}_sc_wi_${state.key}`;
+                                        const exId = await getWidgetItemId(siScSlug).catch(() => null);
+                                        if (exId) {
+                                            await updateApi(`/api/app/widget_item/${exId}/`, { slug_name: siScSlug, item_type: 'sub_category', text_en: si.pageHeading || '', product_list: state.codes, filter_lst: StateMapper.buildInStockFilter(state.codes), start_time: this.dates.start, end_time: this.dates.end });
+                                        } else {
+                                            const p = { widget_item_id: 'undefined', deactivated_flag: 'no', item_click_action: 'deal-detail-redirect', slug_name: siScSlug, item_type: 'sub_category', text_en: si.pageHeading || '', text_hi: '', media_hi: '', text_bg: '', media_bg: '', product_list: state.codes, filters: '[]', filter_lst: StateMapper.buildInStockFilter(state.codes), property_lst: '[]', pl_edit: 'PL', is_clickable: 'yes', update_product_list: 'no', start_time: this.dates.start, end_time: this.dates.end };
+                                            p.media_en = await this._resolveImage(si.image, `ep_${k}_ci_${ci}`);
+                                            await callApi(ENDPOINTS.widgetItem, p, { multipart: true });
+                                        }
+                                        siScRows.push(`${siScSlug},${state.def?.levelTag || 'global'},${state.def?.levelProperty || 'global'},${siScRows.length + 1},`);
+                                    }
+                                    // PLP + Page + Mappings
+                                    await callApi(ENDPOINTS.widget, { slug_name: ciPlp, widget_type: 'product_listing', description: '', heading: '', master_key: '', heading_en: '', heading_hi: '', heading_bg: '', start_time: this.dates.start, end_time: this.dates.end, clear_bg_media: '', media_aspect_ratio: '1', view_all_action_name: '', background_multimedia: '', filter_dict: '{}', app_configurations: '{}', configurations: '{}', deactivated_flag: 'no' }, { multipart: true });
+                                    await callApi(ENDPOINTS.pageLayout, { slug_name: ciPage, page_type: 'product_listing_page', page_heading: si.pageHeading || '', page_layout_type: '2' });
+                                    if (siScRows.length > 0) await this._postMapping(ENDPOINTS.mapWidgetItems, { widget_slug: ciPlp }, new Blob(['widget_item_slug_name,level_tag,level_property,priority,cohort\n' + siScRows.join('\n') + '\n'], { type: 'text/csv' }));
+                                    await this._postMapping(ENDPOINTS.mapLayoutWidget, { page_layout_slug: ciPage }, new Blob([`widget_slug_name,level_tag,level_property,priority,cohort\n${ciPlp},global,global,1,\n`], { type: 'text/csv' }));
+                                    await this._postMapping(ENDPOINTS.mapPageLayout, { page_layout_slug: ciPage, page_type: '' }, new Blob(['level_tag,level_property\nglobal,global\n'], { type: 'text/csv' }));
+                                    // Carousel item
+                                    const cp = JSON.stringify({ page_type: 'product_listing_page', page_layout_slug_name: ciPage });
+                                    const exCi = await getWidgetItemId(ciItem).catch(() => null);
+                                    if (exCi) { await updateApi(`/api/app/widget_item/${exCi}/`, { slug_name: ciItem, item_type: 'carousel', click_action_params: cp, start_time: this.dates.start, end_time: this.dates.end }); }
+                                    else { const p = { widget_item_id: 'undefined', deactivated_flag: 'no', item_click_action: 'redirect-to-page', slug_name: ciItem, item_type: 'carousel', text_en: '', text_hi: '', media_hi: '', text_bg: '', media_bg: '', product_list: '', filters: '[]', filter_lst: '[]', property_lst: '[]', pl_edit: 'PL', is_clickable: 'yes', update_product_list: 'no', start_time: this.dates.start, end_time: this.dates.end, background_multimedia: '', image_multimedia: '', secondary_image_multimedia: '', progress_bar: '', offer_id: '', click_action_params: cp }; p.media_en = await this._resolveImage(si.image, `ep_${k}_cl_${ci}`); await callApi(ENDPOINTS.widgetItem, p, { multipart: true }); }
+                                    ciSlugs.push(ciItem);
+                                } catch (e3) { this.log(`[CBScroll] EP ${k + 1} carousel item ${ci + 1} failed: ${e3.message}`); }
+                            }
+                            if (ciSlugs.length > 0) {
+                                const rows = ciSlugs.map((s, idx) => `${s},global,global,${idx + 1},`);
+                                await this._postMapping(ENDPOINTS.mapWidgetItems, { widget_slug: epwSlug }, new Blob(['widget_item_slug_name,level_tag,level_property,priority,cohort\n' + rows.join('\n') + '\n'], { type: 'text/csv' }));
+                            }
                         }
 
                         expandWidgetSlugs.push(epwSlug);
@@ -481,7 +531,7 @@ export class CollectionBannerBuilder {
                 start_time: this.dates.start,
                 end_time: this.dates.end,
                 clear_bg_media: '',
-                media_aspect_ratio: String(this.widget.media_number || '2.2'),
+                media_aspect_ratio: String(this.widget.media_number || '3.5'),
                 view_all_action_name: '',
                 background_multimedia: '',
                 filter_dict: '{}',

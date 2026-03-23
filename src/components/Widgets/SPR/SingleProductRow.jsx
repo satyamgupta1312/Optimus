@@ -131,13 +131,16 @@ const SingleProductRow = ({ widget }) => {
                 subCategories: widget.subCategories || []
             });
         } else {
+            const isExpandPage = !!(widget.expand_page?.expandPage);
             navigateTo('listing', {
                 widgetId: widget.id,
                 itemId: widget.itemId,
                 title: widget.title || 'Products',
-                products,
+                // When expandPage is ON: pass null (no products) to PLP page
+                // (home row codes are for item_rows on homepage, not for PLP)
+                products: isExpandPage ? null : products,
                 resolvedType,
-                plpWidgets: widget.expand_page?.expandPage ? (widget.expand_page.plpWidgets || []) : [],
+                plpWidgets: isExpandPage ? (widget.expand_page.plpWidgets || []) : [],
             });
         }
     };
@@ -286,7 +289,7 @@ const StandardCard = ({ product: p, onAdd }) => (
         </button>
 
         <div className="text-xs text-gray-500 mb-1">1 Unit</div>
-        <div className="font-medium text-sm text-gray-900 line-clamp-2 min-h-[2.5rem]">{p.name}</div>
+        <div className="font-normal text-sm text-gray-900 line-clamp-2 min-h-[2.5rem]">{p.name}</div>
         <div className="flex items-center gap-2 mt-1">
             <span className="text-gray-900 font-bold text-lg">{p.price}</span>
             {p.mrp && <span className="text-gray-400 text-sm line-through">{p.mrp}</span>}
@@ -312,7 +315,7 @@ const CompactCard = ({ product: p, onAdd }) => (
             )}
         </div>
 
-        <div className="font-medium text-[11px] text-slate-800 line-clamp-2 h-8 leading-tight mb-1">{p.name}</div>
+        <div className="font-normal text-[11px] text-slate-800 line-clamp-2 h-8 leading-tight mb-1">{p.name}</div>
 
         <div className="flex items-center gap-1 mb-2 mt-auto">
             <span className="text-slate-900 font-bold text-sm">{p.price}</span>

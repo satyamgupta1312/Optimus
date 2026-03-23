@@ -6,6 +6,7 @@ import { searchProduct, searchProductsBatch } from '../../services/CatalogServic
 import ColorPickerInput from '../ColorPickerInput';
 import DateTimeInput from '../Inputs/DateTimeInput';
 import toast from 'react-hot-toast';
+import { safeUUID } from '../../utils/uuid';
 
 // Product Code Preview - shows product names below item code input
 const ProductCodePreview = ({ codesString }) => {
@@ -59,8 +60,8 @@ const ProductCodePreview = ({ codesString }) => {
                 <span
                     key={i}
                     className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-medium ${p.found
-                            ? 'bg-green-50 text-green-700 border border-green-200'
-                            : 'bg-orange-50 text-orange-600 border border-orange-200'
+                        ? 'bg-green-50 text-green-700 border border-green-200'
+                        : 'bg-orange-50 text-orange-600 border border-orange-200'
                         }`}
                     title={p.found ? p.name : `Code ${p.code} not found in catalog`}
                 >
@@ -719,7 +720,7 @@ const HeaderConfiguration = ({ headerWidgets, onUpdate }) => {
                                             onClick={() => {
                                                 const newItems = [...(widget.items || [])];
                                                 newItems.push({
-                                                    id: crypto.randomUUID(),
+                                                    id: safeUUID(),
                                                     text: '',
                                                     textHi: '',
                                                     image: '',
@@ -844,7 +845,7 @@ const HeaderConfiguration = ({ headerWidgets, onUpdate }) => {
                                                                 const newItems = [...widget.items];
                                                                 const subCategories = [...(newItems[idx].subCategories || [])];
                                                                 subCategories.push({
-                                                                    id: crypto.randomUUID(),
+                                                                    id: safeUUID(),
                                                                     name: '',
                                                                     nameHi: '',
                                                                     image: '',

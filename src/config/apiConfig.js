@@ -56,7 +56,7 @@ export const ENDPOINTS = {
     mapWidgetItems: '/api/app/update_widget_widget_item_mapping/',
     mapLayoutWidget: '/api/app/update_layout_widget_mapping/',
     mapPageLayout: '/api/app/update_page_page_layout_mapping/',
-    fetchWidget: '/api/app/widget/',
+    fetchWidget: '/api/app/get_widget/',
     fetchWidgetItem: '/api/app/widget_item/',
 };
 

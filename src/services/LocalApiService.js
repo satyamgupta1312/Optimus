@@ -90,8 +90,11 @@ export const LocalApiService = {
     request('/users/checkers', { method: 'DELETE', body: JSON.stringify({ email }) }),
 
   // ── Catalog ──
-  searchCatalog: (q, limit = 20) => request(`/catalog/search?q=${encodeURIComponent(q)}&limit=${limit}`),
-  batchCatalog: (codes) => request(`/catalog/batch?codes=${codes.join(',')}`),
+  getCatalog: () => request('/kinetic/catalog'),
+  getCatalogBatch: (codes) => request(`/kinetic/catalog/batch?codes=${codes.join(',')}`),
+
+  // ── Widget Search (from Mirror/ClickHouse) ──
+  searchWidgets: (q) => request(`/kinetic/search-widgets?q=${encodeURIComponent(q)}`),
 
   // ── Activity ──
   getActivity: (params = {}) => {
@@ -146,4 +149,20 @@ export const LocalApiService = {
   getHeaderWidgets: () => request('/header-widgets'),
   updateHeaderWidgets: (data) =>
     request('/header-widgets', { method: 'PUT', body: JSON.stringify(data) }),
+
+  // ── Kinetic (ClickHouse/BigQuery) ──
+  getKineticHealth: () => request('/kinetic/health'),
+  getKineticHistory: (params) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/kinetic/history${qs ? '?' + qs : ''}`);
+  },
+  getKineticAnalytics: (params) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/kinetic/analytics${qs ? '?' + qs : ''}`);
+  },
+  syncDeployToKinetic: (widgets) =>
+    request('/kinetic/deploy-sync', {
+      method: 'POST',
+      body: JSON.stringify({ widgets }),
+    }),
 };

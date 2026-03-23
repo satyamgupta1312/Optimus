@@ -1,11 +1,24 @@
 import { searchProduct } from './CatalogService';
 
+// crypto.randomUUID() sirf localhost/HTTPS pe kaam karta hai.
+// IP address se open karne pe fallback use hoga.
+const safeUUID = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    // Fallback: RFC-4122 compliant UUID using Math.random
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+};
+
 export const mapApiToWidgets = (apiResponse) => {
     if (!apiResponse || !apiResponse.widgets) return [];
 
     return apiResponse.widgets.map(apiWidget => {
         const base = {
-            id: apiWidget.id?.toString() || crypto.randomUUID(),
+            id: apiWidget.id?.toString() || safeUUID(),
             title: apiWidget.heading || '',
             slug: apiWidget.slug_name || '',
             slug_name: apiWidget.slug_name || '',
@@ -23,7 +36,7 @@ export const mapApiToWidgets = (apiResponse) => {
                 const heroProducts = specialIds.map(id => {
                     const real = searchProduct(id);
                     return real ? {
-                        id: crypto.randomUUID(),
+                        id: safeUUID(),
                         name: real.name,
                         price: real.price,
                         image: real.image
@@ -51,7 +64,7 @@ export const mapApiToWidgets = (apiResponse) => {
                     const real = searchProduct(id);
                     if (real) {
                         return {
-                            id: crypto.randomUUID(),
+                            id: safeUUID(),
                             name: real.name,
                             price: real.price,
                             image: real.image
@@ -67,14 +80,14 @@ export const mapApiToWidgets = (apiResponse) => {
                     ? apiWidget.items.flatMap(item => {
                         if (item.products && item.products.length > 0) return item.products;
                         return [1, 2, 3, 4].map(i => ({
-                            id: crypto.randomUUID(),
+                            id: safeUUID(),
                             name: `Product ${i}`,
                             price: '₹000',
                             image: ''
                         }));
                     })
                     : [1, 2, 3].map(i => ({
-                        id: crypto.randomUUID(),
+                        id: safeUUID(),
                         name: 'Loading Product...',
                         price: '...',
                         image: ''
@@ -96,7 +109,7 @@ export const mapApiToWidgets = (apiResponse) => {
                 ...base,
                 type: 'Category Grid',
                 items: apiWidget.items ? apiWidget.items.map(item => ({
-                    id: item.item_id || crypto.randomUUID(),
+                    id: item.item_id || safeUUID(),
                     text: item.text,
                     image: item.url
                 })) : []

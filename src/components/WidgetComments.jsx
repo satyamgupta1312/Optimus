@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MessageSquare, X, Send, Trash2 } from 'lucide-react';
 import showToast from '../utils/toast';
+import { safeUUID } from '../utils/uuid';
 
 /**
  * Widget Comments Component
@@ -15,7 +16,7 @@ const WidgetComments = ({ widgetId, comments = [], onAddComment, onDeleteComment
         if (!newComment.trim()) return;
 
         const comment = {
-            id: crypto.randomUUID(),
+            id: safeUUID(),
             widgetId,
             text: newComment,
             user: 'Current User', // Replace with actual user

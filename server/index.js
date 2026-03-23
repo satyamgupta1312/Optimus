@@ -13,6 +13,7 @@ import commentsRouter from './routes/comments.js';
 import headerWidgetsRouter from './routes/headerWidgets.js';
 import mediaRouter from './routes/media.js';
 import locationsRouter from './routes/locations.js';
+import kineticRouter from './routes/kinetic.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -39,6 +40,7 @@ app.use('/api/local/activity', activityRouter);
 app.use('/api/local/comments', commentsRouter);
 app.use('/api/local/header-widgets', headerWidgetsRouter);
 app.use('/api/local/locations', locationsRouter);
+app.use('/api/local/kinetic', kineticRouter);
 
 // ── Error Handler ──
 app.use(errorHandler);

@@ -107,9 +107,9 @@ const MapToPageModal = ({ slugs, onClose, onMapped }) => {
             <div className="fixed inset-0 bg-black/40 z-[200]" onClick={onClose} />
 
             {/* Modal */}
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] max-h-[80vh] bg-white rounded-xl shadow-2xl z-[201] flex flex-col overflow-hidden">
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] max-h-[80vh] bg-white rounded-lg shadow-md border border-slate-200 z-[201] flex flex-col overflow-hidden">
                 {/* Header */}
-                <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+                <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between shrink-0">
                     <h4 className="font-bold text-slate-800 flex items-center gap-2">
                         <MapPin size={16} className="text-blue-600" />
                         Map Widgets to Page
@@ -120,7 +120,7 @@ const MapToPageModal = ({ slugs, onClose, onMapped }) => {
                 </div>
 
                 {/* Body */}
-                <div className="px-5 py-4 overflow-y-auto flex-1 space-y-4">
+                <div className="px-4 py-3 overflow-y-auto flex-1 space-y-3">
                     {/* Page Layout Slug */}
                     <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">Page Layout Slug</label>
@@ -129,7 +129,7 @@ const MapToPageModal = ({ slugs, onClose, onMapped }) => {
                             value={pageSlug}
                             onChange={e => setPageSlug(e.target.value)}
                             placeholder="GL-HP-global"
-                            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200"
+                            className="w-full text-[13px] border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200"
                         />
                     </div>
 
@@ -143,11 +143,11 @@ const MapToPageModal = ({ slugs, onClose, onMapped }) => {
                             <p className="text-xs text-slate-400 italic">No successfully deployed widgets to map.</p>
                         )}
 
-                        <div className="space-y-3">
+                        <div className="space-y-2.5">
                             {rows.map((row, idx) => (
                                 <div
                                     key={row.slug}
-                                    className={`border rounded-lg p-3 transition-all ${
+                                    className={`border rounded-lg p-2.5 transition-all ${
                                         row.checked
                                             ? 'border-blue-200 bg-blue-50/50'
                                             : 'border-slate-100 bg-slate-50/50 opacity-60'
@@ -161,7 +161,7 @@ const MapToPageModal = ({ slugs, onClose, onMapped }) => {
                                             onChange={e => updateRow(idx, { checked: e.target.checked })}
                                             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                         />
-                                        <span className="text-sm font-medium text-slate-800 truncate">{row.slug}</span>
+                                        <span className="text-[13px] font-medium text-slate-800 truncate">{row.slug}</span>
                                     </label>
                                     {row.widget !== row.slug && (
                                         <p className="text-xs text-slate-400 ml-6 truncate">{row.widget}</p>
@@ -245,7 +245,7 @@ const MapToPageModal = ({ slugs, onClose, onMapped }) => {
                 </div>
 
                 {/* Footer */}
-                <div className="px-5 py-3 border-t border-slate-200 flex gap-2 shrink-0">
+                <div className="px-4 py-2.5 border-t border-slate-200 flex gap-2 shrink-0">
                     <button
                         onClick={onClose}
                         className="flex-1 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"

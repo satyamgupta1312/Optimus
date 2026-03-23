@@ -136,13 +136,13 @@ export const SPRConfig = {
         {
             name: 'stateProducts',
             component: 'StateProductEditor',
-            label: 'Products (State-wise)',
-            helperText: 'Global is required. Add states for location-specific products.',
-            condition: (_pnc, widget) => widget?.pageType !== 'category_page' && !widget?.expand_page?.expandPage,
+            label: 'Home Row Product Codes (item_rows)',
+            helperText: 'Products shown on the home page row. Global is required. These go into the item_rows widget item (_pr_wi).',
+            condition: (_pnc, widget) => widget?.pageType !== 'category_page',
             validation: {
-                required: (_pnc, widget) => widget?.pageType !== 'category_page' && !widget?.expand_page?.expandPage,
+                required: (_pnc, widget) => widget?.pageType !== 'category_page',
             },
-            errorMessage: 'Global product codes are required',
+            errorMessage: 'Global product codes are required for home row',
         },
         {
             name: 'subCategories',

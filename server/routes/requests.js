@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../prisma/client.js';
 import { validateWidget } from '../middleware/validate.js';
+import * as KineticSync from '../services/KineticSyncService.js';
 
 const router = Router();
 
@@ -151,6 +152,10 @@ router.post('/', async (req, res, next) => {
 
         return req_;
       });
+
+      // Fire-and-forget: sync to Kinetic (non-blocking)
+      KineticSync.syncSubmission(request, inlineWidgets, req.user, req.env)
+        .catch(err => console.warn('[Kinetic] Submit sync failed:', err.message));
 
       return res.status(201).json({
         ...request,
@@ -307,6 +312,10 @@ router.post('/:id/approve', async (req, res, next) => {
       },
     });
 
+    // Fire-and-forget: sync status to Kinetic
+    KineticSync.syncStatusChange(req.params.id, 'APPROVED', req.user)
+      .catch(err => console.warn('[Kinetic] Approve sync failed:', err.message));
+
     res.json(updated);
   } catch (err) { next(err); }
 });
@@ -350,6 +359,10 @@ router.post('/:id/reject', async (req, res, next) => {
         details: JSON.stringify({ reason, widgetCount: widgetIds.length }),
       },
     });
+
+    // Fire-and-forget: sync status to Kinetic
+    KineticSync.syncStatusChange(req.params.id, 'REJECTED', req.user)
+      .catch(err => console.warn('[Kinetic] Reject sync failed:', err.message));
 
     res.json(updated);
   } catch (err) { next(err); }

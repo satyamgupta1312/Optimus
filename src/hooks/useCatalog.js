@@ -1,166 +1,145 @@
-import { useState, useEffect, useRef } from 'react';
-import { CATALOG_CSV_URL, CATALOG_COLUMNS, CATALOG_CACHE } from '../config/Feature/ProductCatalogConfig';
+import { useState, useEffect, useCallback } from 'react';
+import { LocalApiService } from '../services/LocalApiService';
+import { CATALOG_CACHE } from '../config/Feature/ProductCatalogConfig';
 
 /**
- * useCatalog — fetches and caches the product catalog from Google Sheets CSV.
+ * useCatalog — lazy batch-fetching product catalog hook.
  *
- * Returns:
- *   catalog   — Map<itemCode (string), Product>
- *   loading   — boolean
- *   error     — string | null
- *   getProduct(code) — returns product or null
+ * Instead of downloading all 55k products upfront, this hook:
+ * 1. Returns getProduct(code) — sync lookup from a shared Map
+ * 2. Queues unknown codes for a debounced batch fetch (GET /kinetic/catalog/batch)
+ * 3. After fetch completes, triggers re-render so getProduct returns the product
  *
  * Product shape:
  *   { id, itemCode, displayName, brand, imageUrl, mrp, price }
  *
- * Cache: sessionStorage with 30-min TTL.
- * On cache hit — returns immediately without network.
- * On miss — fetches CSV, parses, stores in sessionStorage.
+ * Cache: sessionStorage stores previously fetched products (TTL 30 min).
  */
 
-function parseCSV(text) {
-    const lines = text.split(/\r?\n/).filter(Boolean);
-    // Skip header row (row 0)
-    const catalog = new Map();
-
-    for (let i = 1; i < lines.length; i++) {
-        const cols = splitCSVLine(lines[i]);
-        if (cols.length < 5) continue;
-
-        const itemCode = cols[CATALOG_COLUMNS.itemCode]?.trim();
-        if (!itemCode) continue;
-
-        catalog.set(itemCode, {
-            id: cols[CATALOG_COLUMNS.id]?.trim() ?? '',
-            itemCode,
-            displayName: cols[CATALOG_COLUMNS.displayName]?.trim() ?? '',
-            brand: cols[CATALOG_COLUMNS.brand]?.trim() ?? '',
-            imageUrl: cols[CATALOG_COLUMNS.imageUrl]?.trim() ?? '',
-            mrp: parseFloat(cols[CATALOG_COLUMNS.mrp]) || 0,
-            price: parseFloat(cols[CATALOG_COLUMNS.price]) || 0,
-        });
-    }
-
-    return catalog;
+/** Map a server row to the product shape used by all consumers */
+function mapRow(row) {
+    return {
+        id: String(row.id ?? ''),
+        itemCode: String(row.item_code ?? ''),
+        displayName: row.display_name ?? '',
+        brand: row.brand ?? '',
+        imageUrl: row.product_image ?? '',
+        mrp: parseFloat(row.mrp) || 0,
+        price: parseFloat(row.selling_price) || 0,
+    };
 }
 
-/** Basic CSV line splitter that handles quoted fields */
-function splitCSVLine(line) {
-    const result = [];
-    let current = '';
-    let inQuotes = false;
+// ── Module-level shared state (singleton across all hook instances) ──
 
-    for (let i = 0; i < line.length; i++) {
-        const ch = line[i];
-        if (ch === '"') {
-            inQuotes = !inQuotes;
-        } else if (ch === ',' && !inQuotes) {
-            result.push(current);
-            current = '';
-        } else {
-            current += ch;
+const _products = new Map();   // code → Product | null (null = "not found")
+const _pending = new Set();    // codes queued for next batch fetch
+const _subscribers = new Set(); // setState functions to trigger re-renders
+let _fetchTimer = null;
+let _loading = false;
+
+// Load from sessionStorage on module init
+try {
+    const raw = sessionStorage.getItem(CATALOG_CACHE.storageKey);
+    if (raw) {
+        const { timestamp, data } = JSON.parse(raw);
+        if (Date.now() - timestamp < CATALOG_CACHE.ttlMs) {
+            for (const [k, v] of data) _products.set(k, v);
         }
     }
-    result.push(current);
-    return result;
-}
+} catch { /* ignore */ }
 
-function loadFromCache() {
+function _saveToCache() {
     try {
-        const raw = sessionStorage.getItem(CATALOG_CACHE.storageKey);
-        if (!raw) return null;
-        const { timestamp, data } = JSON.parse(raw);
-        if (Date.now() - timestamp > CATALOG_CACHE.ttlMs) return null;
-        // Re-build Map from stored array
-        return new Map(data);
-    } catch {
-        return null;
-    }
-}
-
-function saveToCache(catalog) {
-    try {
+        const entries = [..._products.entries()].filter(([, v]) => v !== null);
         sessionStorage.setItem(CATALOG_CACHE.storageKey, JSON.stringify({
             timestamp: Date.now(),
-            data: [...catalog.entries()],
+            data: entries,
         }));
-    } catch {
-        // sessionStorage full or unavailable — ignore
+    } catch { /* sessionStorage full — ignore */ }
+}
+
+function _notify() {
+    for (const fn of _subscribers) fn(t => t + 1);
+}
+
+async function _flushPending() {
+    if (_pending.size === 0) return;
+
+    const codes = [..._pending];
+    _pending.clear();
+
+    // Filter to codes not already resolved
+    const needed = codes.filter(c => !_products.has(c));
+    if (needed.length === 0) return;
+
+    _loading = true;
+    _notify();
+
+    try {
+        const res = await LocalApiService.getCatalogBatch(needed);
+        const products = res.products || {};
+
+        for (const [code, row] of Object.entries(products)) {
+            _products.set(String(code), mapRow(row));
+        }
+
+        // Mark unfound codes as null so we don't re-fetch them
+        for (const code of needed) {
+            if (!_products.has(code)) _products.set(code, null);
+        }
+
+        _saveToCache();
+    } catch (err) {
+        console.error('[useCatalog] batch fetch failed:', err);
+    }
+
+    _loading = false;
+    _notify();
+}
+
+function _requestCodes(codes) {
+    let hasNew = false;
+    for (const c of codes) {
+        if (!_products.has(c) && !_pending.has(c)) {
+            _pending.add(c);
+            hasNew = true;
+        }
+    }
+    if (hasNew) {
+        clearTimeout(_fetchTimer);
+        _fetchTimer = setTimeout(_flushPending, 30); // batch within ~1 frame
     }
 }
 
-// Module-level singleton so all hook instances share the same fetch
-let _sharedCatalog = null;
-let _fetchPromise = null;
+/**
+ * Imperatively pre-fetch product codes into the shared cache.
+ * Call this when you know which codes will be needed (e.g. after loading a widget).
+ */
+export function prefetchProducts(codes) {
+    _requestCodes(codes.map(String));
+}
 
 export function useCatalog() {
-    const [catalog, setCatalog] = useState(() => {
-        // Try cache on first render
-        const cached = loadFromCache();
-        if (cached) { _sharedCatalog = cached; return cached; }
-        return _sharedCatalog ?? new Map();
-    });
-    const [loading, setLoading] = useState(!catalog.size);
-    const [error, setError] = useState(null);
-    const mounted = useRef(true);
+    const [, setTick] = useState(0);
 
     useEffect(() => {
-        mounted.current = true;
-
-        // Already loaded
-        if (_sharedCatalog?.size) {
-            setCatalog(_sharedCatalog);
-            setLoading(false);
-            return;
-        }
-
-        // Already fetching — wait for the shared promise
-        if (_fetchPromise) {
-            _fetchPromise.then((map) => {
-                if (mounted.current) {
-                    setCatalog(map);
-                    setLoading(false);
-                }
-            }).catch((err) => {
-                if (mounted.current) setError(err.message);
-                setLoading(false);
-            });
-            return;
-        }
-
-        // Start fetch
-        setLoading(true);
-        _fetchPromise = fetch(CATALOG_CSV_URL)
-            .then((res) => {
-                if (!res.ok) throw new Error(`Catalog fetch failed: ${res.status}`);
-                return res.text();
-            })
-            .then((text) => {
-                const map = parseCSV(text);
-                _sharedCatalog = map;
-                saveToCache(map);
-                return map;
-            });
-
-        _fetchPromise
-            .then((map) => {
-                if (mounted.current) {
-                    setCatalog(map);
-                    setLoading(false);
-                }
-            })
-            .catch((err) => {
-                console.error('[useCatalog]', err);
-                if (mounted.current) {
-                    setError(err.message);
-                    setLoading(false);
-                }
-            });
-
-        return () => { mounted.current = false; };
+        _subscribers.add(setTick);
+        return () => _subscribers.delete(setTick);
     }, []);
 
-    const getProduct = (code) => catalog.get(String(code)) ?? null;
+    const getProduct = useCallback((code) => {
+        const c = String(code);
+        const existing = _products.get(c);
+        if (existing !== undefined) return existing; // Product or null (not found)
+        // Not yet requested — queue batch fetch
+        _requestCodes([c]);
+        return null;
+    }, []);
 
-    return { catalog, loading, error, getProduct };
+    return {
+        catalog: _products,
+        loading: _loading || _pending.size > 0,
+        error: null,
+        getProduct,
+    };
 }

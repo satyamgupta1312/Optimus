@@ -97,34 +97,34 @@ const HomepageMappingDashboard = ({ onClose }) => {
             <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
 
             {/* Panel */}
-            <div className="fixed inset-y-0 right-0 w-full max-w-5xl bg-white shadow-2xl z-50 flex flex-col">
+            <div className="fixed inset-y-0 right-0 w-full max-w-5xl bg-white shadow-sm border-l border-slate-200 z-50 flex flex-col">
                 {/* Header */}
-                <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-6 shrink-0">
+                <div className="bg-white border-b border-slate-200 px-5 py-4 shrink-0">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <Map size={24} />
+                        <div className="flex items-center gap-2.5">
+                            <Map size={18} className="text-slate-500" />
                             <div>
                                 <div className="flex items-center gap-2">
-                                    <h2 className="text-xl font-bold">Homepage Mappings</h2>
-                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    <h2 className="text-sm font-bold text-slate-800">Homepage Mappings</h2>
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                                         ACTIVE_ENV === 'UAT'
-                                            ? 'bg-amber-400/20 text-amber-100'
-                                            : 'bg-emerald-400/20 text-emerald-100'
+                                            ? 'bg-amber-100 text-amber-700'
+                                            : 'bg-emerald-100 text-emerald-700'
                                     }`}>
                                         {ACTIVE_ENV === 'UAT' ? 'UAT' : 'PROD'}
                                     </span>
                                 </div>
-                                <p className="text-sm text-emerald-100 mt-1">Prisma widget database</p>
+                                <p className="text-[11px] text-slate-400 mt-0.5">Prisma widget database</p>
                             </div>
                         </div>
-                        <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
-                            <X size={20} />
+                        <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-slate-600">
+                            <X size={18} />
                         </button>
                     </div>
                 </div>
 
                 {/* Toolbar */}
-                <div className="border-b border-slate-200 px-6 py-3 flex items-center gap-3 flex-wrap bg-slate-50">
+                <div className="border-b border-slate-200 px-5 py-2.5 flex items-center gap-3 flex-wrap bg-slate-50">
                     {/* Search */}
                     <div className="relative flex-1 max-w-xs">
                         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -160,10 +160,10 @@ const HomepageMappingDashboard = ({ onClose }) => {
                             <span className="text-sm">Loading widgets...</span>
                         </div>
                     ) : (
-                        <table className="w-full text-sm">
-                            <thead className="bg-slate-50 sticky top-0">
+                        <table className="w-full text-[13px]">
+                            <thead className="sticky top-0 bg-white border-b border-slate-200">
                                 <tr>
-                                    <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 w-10">#</th>
+                                    <th className="px-3 py-1.5 text-left text-[11px] font-medium text-slate-400 w-10">#</th>
                                     <SortableHeader label="Slug" sortKey="slug" currentSort={sortKey} sortDir={sortDir} onSort={toggleSort} />
                                     <SortableHeader label="Type" sortKey="type" currentSort={sortKey} sortDir={sortDir} onSort={toggleSort} />
                                     <SortableHeader label="Title" sortKey="title" currentSort={sortKey} sortDir={sortDir} onSort={toggleSort} />
@@ -180,27 +180,27 @@ const HomepageMappingDashboard = ({ onClose }) => {
                                         key={row.id}
                                         className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
                                     >
-                                        <td className="px-4 py-2.5 text-xs text-slate-400">{(currentPage - 1) * pageSize + i + 1}</td>
-                                        <td className="px-4 py-2.5">
-                                            <span className="text-xs font-mono text-slate-700 truncate max-w-[200px] block" title={row.slug}>
+                                        <td className="px-3 py-1.5 text-[11px] text-slate-400">{(currentPage - 1) * pageSize + i + 1}</td>
+                                        <td className="px-3 py-1.5">
+                                            <span className="text-[12px] font-mono text-slate-700 truncate max-w-[200px] block" title={row.slug}>
                                                 {row.slug || '--'}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-2.5">
+                                        <td className="px-3 py-1.5">
                                             <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700">
                                                 {row.type || '--'}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-2.5 text-xs text-slate-600 truncate max-w-[160px]">{row.title || '--'}</td>
-                                        <td className="px-4 py-2.5">
-                                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${statusBadge(row.status)}`}>
+                                        <td className="px-3 py-1.5 text-[12px] text-slate-600 truncate max-w-[160px]">{row.title || '--'}</td>
+                                        <td className="px-3 py-1.5">
+                                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold lowercase ${statusBadge(row.status)}`}>
                                                 {row.status || '--'}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-2.5 text-xs text-slate-600 font-mono">{row.sortOrder ?? '--'}</td>
-                                        <td className="px-4 py-2.5 text-xs text-slate-500">{row.creator?.email?.split('@')[0] || '--'}</td>
-                                        <td className="px-4 py-2.5 text-xs text-slate-500">{formatTime(row.createdAt)}</td>
-                                        <td className="px-4 py-2.5 text-xs text-slate-500">{formatTime(row.updatedAt)}</td>
+                                        <td className="px-3 py-1.5 text-[12px] text-slate-600 font-mono">{row.sortOrder ?? '--'}</td>
+                                        <td className="px-3 py-1.5 text-[12px] text-slate-500">{row.creator?.email?.split('@')[0] || '--'}</td>
+                                        <td className="px-3 py-1.5 text-[12px] text-slate-500">{formatTime(row.createdAt)}</td>
+                                        <td className="px-3 py-1.5 text-[12px] text-slate-500">{formatTime(row.updatedAt)}</td>
                                     </tr>
                                 ))}
                                 {paginatedData.length === 0 && (
@@ -217,7 +217,7 @@ const HomepageMappingDashboard = ({ onClose }) => {
 
                 {/* Pagination footer */}
                 {totalPages > 1 && (
-                    <div className="border-t border-slate-200 px-6 py-3 flex items-center justify-between bg-white shrink-0">
+                    <div className="border-t border-slate-200 px-5 py-2.5 flex items-center justify-between bg-white shrink-0">
                         <span className="text-xs text-slate-500">
                             Page {currentPage} of {totalPages}
                         </span>
@@ -261,7 +261,7 @@ const HomepageMappingDashboard = ({ onClose }) => {
 const SortableHeader = React.memo(({ label, sortKey, currentSort, sortDir, onSort }) => (
     <th
         onClick={() => onSort(sortKey)}
-        className="px-4 py-2 text-left text-xs font-semibold text-slate-500 cursor-pointer hover:text-slate-700 select-none"
+        className="px-3 py-1.5 text-left text-[11px] font-medium text-slate-400 cursor-pointer hover:text-slate-700 select-none"
     >
         <div className="flex items-center gap-1">
             {label}

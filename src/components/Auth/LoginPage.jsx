@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Lock, User, ArrowRight } from 'lucide-react';
+import { Lock, User, ArrowRight, Loader2 } from 'lucide-react';
 
 const ENV_OPTIONS = [
-    { key: 'PROD', label: 'PROD', color: 'bg-emerald-600', ring: 'ring-emerald-300', desc: 'samaan.apnamart.in' },
-    { key: 'UAT', label: 'UAT', color: 'bg-amber-500', ring: 'ring-amber-300', desc: 'smapi-cu.apnamart.in' },
+    { key: 'PROD', label: 'PROD', desc: 'samaan.apnamart.in' },
+    { key: 'UAT', label: 'UAT', desc: 'smapi-cu.apnamart.in' },
 ];
 
 const LoginPage = () => {
@@ -42,93 +42,104 @@ const LoginPage = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-            <div className="bg-white border border-slate-200 shadow-xl rounded-xl w-full max-w-md overflow-hidden">
-                <div className="bg-blue-600 p-8 text-center">
-                    <div className="flex items-center justify-center mb-4">
-                        <img
-                            src="/assets/optimus-logo.png"
-                            alt="Optimus Logo"
-                            className="h-24 w-auto"
-                        />
-                    </div>
-                    <p className="text-blue-100 mt-2 text-sm">Widget Management Portal</p>
-
-                    {/* Environment Badge */}
-                    <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-white text-xs font-medium">
-                        <span className={`w-2 h-2 rounded-full ${activeEnvConfig.color}`} />
-                        {activeEnvConfig.desc}
-                    </div>
-                </div>
-
-                <div className="p-8">
-                    {/* Environment Selector */}
-                    <div className="mb-6">
-                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Environment</label>
-                        <div className="flex gap-2">
-                            {ENV_OPTIONS.map((opt) => (
-                                <button
-                                    key={opt.key}
-                                    type="button"
-                                    onClick={() => handleEnvChange(opt.key)}
-                                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-all border-2 ${
-                                        selectedEnv === opt.key
-                                            ? `${opt.color} text-white border-transparent ring-2 ${opt.ring}`
-                                            : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
-                                    }`}
-                                >
-                                    {opt.label}
-                                </button>
-                            ))}
+            <div className="w-full max-w-sm">
+                {/* Card */}
+                <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-8">
+                    {/* Header */}
+                    <div className="text-center mb-6">
+                        <h1 className="text-lg font-bold text-slate-800">Widget Management Portal</h1>
+                        <div className="flex items-center justify-center gap-1.5 mt-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            <span className="text-[12px] text-slate-400">{activeEnvConfig.desc}</span>
                         </div>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+                    {/* Environment Toggle */}
+                    <div className="flex bg-slate-100 p-0.5 rounded-lg mb-6">
+                        {ENV_OPTIONS.map((opt) => (
+                            <button
+                                key={opt.key}
+                                type="button"
+                                onClick={() => handleEnvChange(opt.key)}
+                                className={`flex-1 py-1.5 text-[12px] font-semibold rounded-md transition-all ${
+                                    selectedEnv === opt.key
+                                        ? 'bg-white text-slate-800 shadow-sm'
+                                        : 'text-slate-400 hover:text-slate-600'
+                                }`}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                         {error && (
-                            <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm border border-red-100">
+                            <div className="bg-red-50 text-red-600 px-3 py-2 rounded-lg text-[12px] border border-red-100">
                                 {error}
                             </div>
                         )}
 
+                        {/* Username */}
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1.5">Username</label>
+                            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                                Username
+                            </label>
                             <div className="relative">
-                                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={15} />
                                 <input
                                     type="text"
                                     required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[13px] text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-slate-300 focus:ring-1 focus:ring-slate-300 transition-all"
                                     placeholder="Enter your username"
                                 />
                             </div>
                         </div>
 
+                        {/* Password */}
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
+                            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                                Password
+                            </label>
                             <div className="relative">
-                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={15} />
                                 <input
                                     type="password"
                                     required
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[13px] text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-slate-300 focus:ring-1 focus:ring-slate-300 transition-all"
                                     placeholder="Enter your password"
                                 />
                             </div>
                         </div>
 
+                        {/* Submit */}
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="mt-2 bg-blue-600 text-white font-medium py-2.5 rounded-lg hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-70"
+                            className="mt-1 bg-slate-800 text-white font-medium py-2 rounded-lg hover:bg-slate-900 transition-colors flex items-center justify-center gap-2 text-[13px] disabled:opacity-60"
                         >
-                            {isSubmitting ? 'Signing in...' : 'Sign In'}
-                            {!isSubmitting && <ArrowRight size={18} />}
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 size={14} className="animate-spin" />
+                                    Signing in...
+                                </>
+                            ) : (
+                                <>
+                                    Sign In
+                                    <ArrowRight size={14} />
+                                </>
+                            )}
                         </button>
                     </form>
                 </div>
+
+                {/* Footer */}
+                <p className="text-center text-[11px] text-slate-400 mt-4">
+                    Optimus — Homepage Widget Management
+                </p>
             </div>
         </div>
     );

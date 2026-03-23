@@ -116,8 +116,10 @@ export const DeploymentService = {
                     const result = await builder.deploy();
                     results.push({
                         widget: widgetName,
+                        widgetId: widget.id || widget._dbId || '',
                         status: 'ok',
                         slug: result.slugs.widget || Object.values(result.slugs)[0],
+                        slugs: result.slugs,
                     });
                 } catch (err) {
                     log(`Error on "${widgetName}": ${err.message}`);

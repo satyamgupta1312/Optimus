@@ -29,13 +29,13 @@ const AppConfigPanel = ({ config, widget, handleChange }) => {
     if (!hasAdvanced && !hasFilters && !hasAppConfig) return null;
 
     return (
-        <div className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
+        <div className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-hidden">
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full flex items-center gap-2 px-4 py-3 hover:bg-slate-50 transition-colors text-left"
+                className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-slate-50 transition-colors text-left"
             >
-                <Settings2 size={15} className="text-slate-500" />
-                <span className="font-semibold text-sm text-slate-900 flex-1">App Config</span>
+                <Settings2 size={14} className="text-slate-500" />
+                <span className="font-semibold text-xs text-slate-900 flex-1">App Config</span>
                 {isOpen
                     ? <ChevronDown size={16} className="text-slate-400" />
                     : <ChevronRight size={16} className="text-slate-400" />
@@ -43,7 +43,7 @@ const AppConfigPanel = ({ config, widget, handleChange }) => {
             </button>
 
             {isOpen && (
-                <div className="px-4 pb-4 flex flex-col gap-4">
+                <div className="px-3 pb-3 flex flex-col gap-3">
                     {/* Advanced Settings */}
                     {hasAdvanced && (
                         <div>
@@ -179,7 +179,7 @@ const PropertyEditor = ({ widget, onSubmit }) => {
     }
 
     return (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4">
             {/* ─── Section 1: Variant Properties (PNC) ─── */}
             {config.properties && (
                 <div className="flex flex-col gap-4">
@@ -195,7 +195,7 @@ const PropertyEditor = ({ widget, onSubmit }) => {
 
                             if (prop.ui === 'pills') {
                                 return (
-                                    <div key={key} className="border border-slate-200 rounded-xl p-4 bg-white shadow-sm">
+                                    <div key={key} className="border border-slate-200 rounded-lg p-3 bg-white shadow-sm">
                                         <PillSelector
                                             label={prop.label}
                                             options={prop.options}
@@ -212,13 +212,13 @@ const PropertyEditor = ({ widget, onSubmit }) => {
                                     return (
                                         <div
                                             key={key}
-                                            className="border border-slate-200 rounded-xl p-4 bg-slate-50 opacity-60 cursor-not-allowed"
+                                            className="border border-slate-200 rounded-lg p-3 bg-slate-50 opacity-60 cursor-not-allowed"
                                         >
                                             <div className="flex items-start gap-3">
-                                                <div className="mt-0.5 w-5 h-5 rounded-full border border-slate-300 flex items-center justify-center shrink-0" />
+                                                <div className="mt-0.5 w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center shrink-0" />
                                                 <div className="flex-1">
                                                     <div className="flex items-center gap-2">
-                                                        <div className="text-sm font-semibold text-slate-400">
+                                                        <div className="text-[13px] font-semibold text-slate-400">
                                                             {prop.label}
                                                         </div>
                                                         <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">
@@ -240,18 +240,18 @@ const PropertyEditor = ({ widget, onSubmit }) => {
                                     <div
                                         key={key}
                                         onClick={() => handlePncChange(key, !currentValue)}
-                                        className={`border rounded-xl p-4 cursor-pointer transition-all ${currentValue
+                                        className={`border rounded-lg p-3 cursor-pointer transition-all ${currentValue
                                             ? 'border-blue-500 bg-blue-50/50 ring-1 ring-blue-200'
                                             : 'border-slate-200 bg-white hover:border-slate-300'
                                             }`}
                                     >
                                         <div className="flex items-start gap-3">
-                                            <div className={`mt-0.5 w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${currentValue ? 'border-blue-600 bg-blue-600' : 'border-slate-300'
+                                            <div className={`mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${currentValue ? 'border-blue-600 bg-blue-600' : 'border-slate-300'
                                                 }`}>
                                                 {currentValue && <div className="w-2 h-2 bg-white rounded-full" />}
                                             </div>
                                             <div>
-                                                <div className={`text-sm font-semibold ${currentValue ? 'text-blue-900' : 'text-slate-700'}`}>
+                                                <div className={`text-[13px] font-semibold ${currentValue ? 'text-blue-900' : 'text-slate-700'}`}>
                                                     {prop.label}
                                                 </div>
                                                 {prop.description && (
@@ -267,7 +267,7 @@ const PropertyEditor = ({ widget, onSubmit }) => {
 
                             // Fallback
                             return (
-                                <div key={key} className="border border-slate-200 rounded-xl p-3 bg-white">
+                                <div key={key} className="border border-slate-200 rounded-lg p-3 bg-white">
                                     <ToggleInput
                                         label={prop.label}
                                         description={prop.description}
@@ -281,8 +281,8 @@ const PropertyEditor = ({ widget, onSubmit }) => {
             )}
 
             {/* ─── Section 2: Config-Driven Fields ─── */}
-            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-sm">
-                <h3 className="font-semibold text-sm text-slate-900 mb-3">Content Settings</h3>
+            <div className="border border-slate-200 rounded-lg p-3 bg-white shadow-sm">
+                <h3 className="font-semibold text-xs text-slate-900 mb-3">Content Settings</h3>
                 <div className="flex flex-col gap-1">
                     {(() => {
                         // Group start_time + end_time into one DateRangePicker
@@ -341,8 +341,8 @@ const PropertyEditor = ({ widget, onSubmit }) => {
                                 </div>
                             );
 
-                            // Expand Page toggle — appears after pageType when product_listing_page selected
-                            if (field.name === 'pageType' && widget.pageType === 'product_listing_page') {
+                            // Expand Page toggle — appears after stateProducts when product_listing_page selected
+                            if (field.name === 'stateProducts' && widget.pageType === 'product_listing_page') {
                                 const epData = widget.expand_page || { expandPage: false, plpWidgets: [] };
                                 rendered.push(
                                     <ExpandPageSection
@@ -390,7 +390,7 @@ const PropertyEditor = ({ widget, onSubmit }) => {
                         setSelectedWidgetId(null);
                         if (onSubmit) onSubmit(widget);
                     }}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm hover:shadow transition-all"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-semibold rounded-lg shadow-sm hover:shadow transition-all"
                 >
                     <CheckCircle size={16} />
                     Save Widget

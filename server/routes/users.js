@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../prisma/client.js';
+import * as KineticSync from '../services/KineticSyncService.js';
 
 const router = Router();
 
@@ -81,6 +82,13 @@ router.post('/checkers', async (req, res, next) => {
       create: { userId: user.id, env },
     });
 
+    // Fire-and-forget Kinetic sync
+    KineticSync.syncUserRoleAdd(
+      { email: user.email, name: user.name, role: 'CHECKER' },
+      env,
+      req.user,
+    ).catch(() => {});
+
     res.status(201).json({ success: true, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err) { next(err); }
 });
@@ -116,6 +124,9 @@ router.delete('/checkers', async (req, res, next) => {
       // No checker entries left — reset role to MAKER
       await prisma.user.update({ where: { id: user.id }, data: { role: 'MAKER' } });
     }
+
+    // Fire-and-forget Kinetic sync (soft-delete: is_active = 0)
+    KineticSync.syncUserRoleRemove(lowerEmail, env).catch(() => {});
 
     res.json({ success: true });
   } catch (err) { next(err); }

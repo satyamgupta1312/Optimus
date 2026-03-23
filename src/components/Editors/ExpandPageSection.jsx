@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, ChevronDown, ChevronRight, LayoutGrid, Layers, GripVertical } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronRight, LayoutGrid, Layers, GripVertical, ImagePlus, Loader2 } from 'lucide-react';
 import TextInput from '../Inputs/TextInput';
 import StateProductEditor from '../Inputs/StateProductEditor';
+import ScrollItemEditor from './ScrollItemEditor';
+import CarouselItemEditor from './CarouselItemEditor';
+import { LocalApiService } from '../../services/LocalApiService';
+import { safeUUID } from '../../utils/uuid';
 
 /**
  * Supported widget types that can be added to a PLP page via Expand Page.
@@ -9,35 +13,50 @@ import StateProductEditor from '../Inputs/StateProductEditor';
  * multimedia_double_product_row is on hold (NOT AVAILABLE).
  */
 const PLP_WIDGET_TYPES = [
-    { type: 'carousel', label: 'Carousel' },
-    { type: 'masthead_secondary_category_hp', label: 'Secondary Masthead' },
-    { type: 'single_product_row', label: 'SPR Standard' },
-    { type: 'single_product_row_v2', label: 'SPR Optimized' },
-    { type: 'multimedia_single_product_row', label: 'Multimedia SPR' },
-    { type: 'multimedia_single_product_row_v2', label: 'Multimedia SPR V2' },
-    { type: 'double_product_row', label: 'Double Row' },
-    { type: 'double_product_row_v2', label: 'Double Row V2' },
-    { type: 'multimedia_double_product_row_v2', label: 'MM Double Row V2' },
+    { type: 'carousel', label: 'Carousel', group: 'carousel' },
+    { type: 'masthead_secondary_category_hp', label: 'Secondary Masthead', group: 'masthead' },
+    { type: 'single_product_row', label: 'SPR Standard', group: 'spr' },
+    { type: 'single_product_row_v2', label: 'SPR Optimized', group: 'spr' },
+    { type: 'multimedia_single_product_row', label: 'Multimedia SPR', group: 'spr' },
+    { type: 'multimedia_single_product_row_v2', label: 'Multimedia SPR V2', group: 'spr' },
+    { type: 'double_product_row', label: 'Double Row', group: 'spr' },
+    { type: 'double_product_row_v2', label: 'Double Row V2', group: 'spr' },
+    { type: 'multimedia_double_product_row_v2', label: 'MM Double Row V2', group: 'spr' },
 ];
+
+/** Build initial data per widget type */
+const getInitialWidgetData = (widgetType) => {
+    const typeDef = PLP_WIDGET_TYPES.find(t => t.type === widgetType);
+    const base = {
+        id: safeUUID(),
+        type: widgetType,
+        label: typeDef?.label || widgetType,
+    };
+
+    if (typeDef?.group === 'carousel') {
+        // Carousel: same structure as Collection Banner scroll mode
+        return { ...base, title: '', scrollItems: [], media_number: '3.5' };
+    }
+    if (typeDef?.group === 'masthead') {
+        // Secondary Masthead: same structure as Masthead secondary variant
+        return { ...base, background_media: null, carouselItems: [], media_number: '2.5' };
+    }
+    // SPR / DPR variants: Title + State-wise product codes
+    return { ...base, title: '', stateProducts: { global: '' } };
+};
 
 /**
  * ExpandPageSection — Reusable toggle + widget list for PLP page expansion.
  *
  * When the user selects `product_listing_page` as page type, this section appears
  * allowing them to toggle "Expand Page" ON/OFF. When ON, they can add multiple
- * widgets to the PLP page — each widget gets its own title and state-wise products.
- *
- * All added widgets will be mapped to the same Page Layout during deployment
- * via layout_widget mapping with incremental priority.
+ * widgets to the PLP page — each widget type shows its OWN editor (same as homepage).
  *
  * Props:
  * - expandPage: boolean — current toggle state
  * - plpWidgets: array — list of PLP page widgets
  * - onChange({ expandPage, plpWidgets }) — callback when data changes
  * - disabled: boolean — disable editing
- *
- * Wiki: wiki/PLP-PAGE-widget-support.md §3-4
- * Config: src/config/widgets/PLP-PAGE-widget-support.js → EXPAND_PAGE_CONFIG
  */
 const ExpandPageSection = ({ value, expandPage: expandPageProp, plpWidgets: plpWidgetsProp = [], onChange, disabled }) => {
     // Support both: value={expandPage, plpWidgets} (from PropertyEditor) AND direct props
@@ -46,6 +65,7 @@ const ExpandPageSection = ({ value, expandPage: expandPageProp, plpWidgets: plpW
 
     const [showPicker, setShowPicker] = useState(false);
     const [expandedWidgetId, setExpandedWidgetId] = useState(null);
+    const [uploadingBgMedia, setUploadingBgMedia] = useState(null);
 
     const toggleExpand = () => {
         const next = !expandPage;
@@ -53,14 +73,7 @@ const ExpandPageSection = ({ value, expandPage: expandPageProp, plpWidgets: plpW
     };
 
     const addPlpWidget = (widgetType) => {
-        const typeDef = PLP_WIDGET_TYPES.find(t => t.type === widgetType);
-        const newWidget = {
-            id: crypto.randomUUID(),
-            type: widgetType,
-            label: typeDef?.label || widgetType,
-            title: '',
-            stateProducts: { global: '' },
-        };
+        const newWidget = getInitialWidgetData(widgetType);
         onChange({
             expandPage: true,
             plpWidgets: [...plpWidgets, newWidget],
@@ -77,13 +90,19 @@ const ExpandPageSection = ({ value, expandPage: expandPageProp, plpWidgets: plpW
         if (expandedWidgetId === id) setExpandedWidgetId(null);
     };
 
-    const updatePlpWidget = (id, field, value) => {
+    const updatePlpWidget = (id, field, val) => {
         onChange({
             expandPage,
             plpWidgets: plpWidgets.map(w =>
-                w.id === id ? { ...w, [field]: value } : w
+                w.id === id ? { ...w, [field]: val } : w
             ),
         });
+    };
+
+    /** Resolve group from PLP_WIDGET_TYPES for a given widget */
+    const getWidgetGroup = (w) => {
+        const typeDef = PLP_WIDGET_TYPES.find(t => t.type === w.type);
+        return typeDef?.group || 'spr';
     };
 
     return (
@@ -118,66 +137,169 @@ const ExpandPageSection = ({ value, expandPage: expandPageProp, plpWidgets: plpW
                     </div>
 
                     {/* Widget list */}
-                    {plpWidgets.map((w, index) => (
-                        <div
-                            key={w.id}
-                            className="border border-slate-200 rounded-lg mb-2 bg-white overflow-hidden"
-                        >
-                            {/* Widget header */}
-                            <button
-                                onClick={() =>
-                                    setExpandedWidgetId(expandedWidgetId === w.id ? null : w.id)
-                                }
-                                className="w-full flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
-                            >
-                                {expandedWidgetId === w.id ? (
-                                    <ChevronDown size={12} className="text-slate-400" />
-                                ) : (
-                                    <ChevronRight size={12} className="text-slate-400" />
-                                )}
-                                <LayoutGrid size={12} className="text-violet-500" />
-                                <span className="text-xs font-medium text-slate-700 flex-1 truncate">
-                                    {w.title || `Widget ${index + 1}`}
-                                </span>
-                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-600 border border-violet-200">
-                                    {w.label}
-                                </span>
-                                {!disabled && (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            removePlpWidget(w.id);
-                                        }}
-                                        className="p-0.5 text-slate-300 hover:text-red-500 transition-colors"
-                                    >
-                                        <Trash2 size={11} />
-                                    </button>
-                                )}
-                            </button>
+                    {plpWidgets.map((w, index) => {
+                        const group = getWidgetGroup(w);
 
-                            {/* Widget mini-editor */}
-                            {expandedWidgetId === w.id && (
-                                <div className="p-3 space-y-1">
-                                    <TextInput
-                                        label="Title"
-                                        value={w.title || ''}
-                                        onChange={(val) => updatePlpWidget(w.id, 'title', val)}
-                                        required
-                                        disabled={disabled}
-                                    />
-                                    <StateProductEditor
-                                        label="Products (State-wise)"
-                                        value={w.stateProducts || { global: '' }}
-                                        onChange={(val) =>
-                                            updatePlpWidget(w.id, 'stateProducts', val)
-                                        }
-                                        helperText="Global required. Add states for location-specific."
-                                        disabled={disabled}
-                                    />
+                        return (
+                            <div
+                                key={w.id}
+                                className="border border-slate-200 rounded-lg mb-2 bg-white overflow-hidden"
+                            >
+                                {/* Widget header */}
+                                <div
+                                    onClick={() =>
+                                        setExpandedWidgetId(expandedWidgetId === w.id ? null : w.id)
+                                    }
+                                    role="button"
+                                    className="w-full flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-slate-100 transition-colors text-left cursor-pointer"
+                                >
+                                    {expandedWidgetId === w.id ? (
+                                        <ChevronDown size={12} className="text-slate-400" />
+                                    ) : (
+                                        <ChevronRight size={12} className="text-slate-400" />
+                                    )}
+                                    <LayoutGrid size={12} className="text-violet-500" />
+                                    <span className="text-xs font-medium text-slate-700 flex-1 truncate">
+                                        {w.title || (group === 'carousel' ? `Carousel ${index + 1}` : group === 'masthead' ? `Masthead ${index + 1}` : `Widget ${index + 1}`)}
+                                    </span>
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-600 border border-violet-200">
+                                        {w.label}
+                                    </span>
+                                    {!disabled && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                removePlpWidget(w.id);
+                                            }}
+                                            className="p-0.5 text-slate-300 hover:text-red-500 transition-colors"
+                                        >
+                                            <Trash2 size={11} />
+                                        </button>
+                                    )}
                                 </div>
-                            )}
-                        </div>
-                    ))}
+
+                                {/* Widget mini-editor — type-specific inputs */}
+                                {expandedWidgetId === w.id && (
+                                    <div className="p-3 space-y-1">
+                                        {/* ── Carousel type → ScrollItemEditor (same as homepage Collection Banner scroll) ── */}
+                                        {group === 'carousel' && (
+                                            <>
+                                                <TextInput
+                                                    label="Title"
+                                                    value={w.title || ''}
+                                                    onChange={(val) => updatePlpWidget(w.id, 'title', val)}
+                                                    required
+                                                    disabled={disabled}
+                                                />
+                                                <TextInput
+                                                    label="Media Number"
+                                                    value={w.media_number || '3.5'}
+                                                    onChange={(val) => updatePlpWidget(w.id, 'media_number', val)}
+                                                    placeholder="e.g. 3.5"
+                                                    helperText="Items visible at once (e.g. 3.5 = 3 full + half peek)"
+                                                    disabled={disabled}
+                                                />
+                                                <ScrollItemEditor
+                                                    label="Carousel Items"
+                                                    value={w.scrollItems || []}
+                                                    onChange={(val) => updatePlpWidget(w.id, 'scrollItems', val)}
+                                                    helperText="Add banner items with images and product lists"
+                                                    required
+                                                    disabled={disabled}
+                                                />
+                                            </>
+                                        )}
+
+                                        {/* ── Secondary Masthead type → CarouselItemEditor (same as homepage Masthead secondary) ── */}
+                                        {group === 'masthead' && (
+                                            <>
+                                                {/* Background Media Upload */}
+                                                <div className="mb-2">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Background Media</label>
+                                                    <label className="cursor-pointer group block w-fit">
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*,video/*"
+                                                            className="hidden"
+                                                            onChange={async (e) => {
+                                                                if (e.target.files && e.target.files[0]) {
+                                                                    const file = e.target.files[0];
+                                                                    updatePlpWidget(w.id, 'background_media', file);
+                                                                    try {
+                                                                        setUploadingBgMedia(w.id);
+                                                                        const result = await LocalApiService.uploadMedia(file);
+                                                                        if (result.viewUrl) updatePlpWidget(w.id, 'background_media', result.viewUrl);
+                                                                    } catch (err) {
+                                                                        console.error('[ExpandPage] Background media upload failed:', err);
+                                                                    } finally {
+                                                                        setUploadingBgMedia(null);
+                                                                    }
+                                                                }
+                                                            }}
+                                                            disabled={disabled}
+                                                        />
+                                                        {uploadingBgMedia === w.id ? (
+                                                            <div className="w-20 h-12 rounded-lg border border-blue-300 flex items-center justify-center bg-blue-50">
+                                                                <Loader2 size={16} className="animate-spin text-blue-500" />
+                                                            </div>
+                                                        ) : w.background_media && (typeof w.background_media === 'string' && w.background_media.length > 0) ? (
+                                                            <div className="w-20 h-12 rounded-lg border border-slate-200 overflow-hidden group-hover:ring-2 group-hover:ring-violet-500/30 transition-all">
+                                                                <img src={w.background_media} alt="" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="w-20 h-12 rounded-lg border border-dashed border-slate-300 flex flex-col items-center justify-center bg-slate-50 group-hover:border-violet-400 group-hover:bg-violet-50 transition-all">
+                                                                <ImagePlus size={16} className="text-slate-400 group-hover:text-violet-500 mb-0.5" />
+                                                                <span className="text-[9px] text-slate-400 group-hover:text-violet-500">Upload</span>
+                                                            </div>
+                                                        )}
+                                                    </label>
+                                                    <p className="mt-1 text-[10px] text-slate-400">Upload image/video for multimedia background</p>
+                                                </div>
+                                                <TextInput
+                                                    label="Media Number"
+                                                    value={w.media_number || '2.5'}
+                                                    onChange={(val) => updatePlpWidget(w.id, 'media_number', val)}
+                                                    placeholder="e.g. 2.5"
+                                                    helperText="Items visible at once (e.g. 2.5 = 2 full + half peek)"
+                                                    disabled={disabled}
+                                                />
+                                                <CarouselItemEditor
+                                                    label="Carousel Items"
+                                                    value={w.carouselItems || []}
+                                                    onChange={(val) => updatePlpWidget(w.id, 'carouselItems', val)}
+                                                    helperText="Add banner items with category pages and sub-categories"
+                                                    required
+                                                    disabled={disabled}
+                                                />
+                                            </>
+                                        )}
+
+                                        {/* ── SPR / DPR / Multimedia variants → Title + StateProductEditor ── */}
+                                        {group === 'spr' && (
+                                            <>
+                                                <TextInput
+                                                    label="Title"
+                                                    value={w.title || ''}
+                                                    onChange={(val) => updatePlpWidget(w.id, 'title', val)}
+                                                    required
+                                                    disabled={disabled}
+                                                />
+                                                <StateProductEditor
+                                                    label="Products (State-wise)"
+                                                    value={w.stateProducts || { global: '' }}
+                                                    onChange={(val) =>
+                                                        updatePlpWidget(w.id, 'stateProducts', val)
+                                                    }
+                                                    helperText="Global required. Add states for location-specific."
+                                                    disabled={disabled}
+                                                />
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
 
                     {/* Add widget button / Picker */}
                     {!showPicker ? (

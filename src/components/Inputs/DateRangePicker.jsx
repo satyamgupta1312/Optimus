@@ -393,8 +393,8 @@ const DateRangePicker = ({
     );
 
     return (
-        <div className="mb-3">
-            <label className="block text-xs font-medium text-slate-500 mb-1">
+        <div className="mb-2">
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">
                 {label}
                 {required && <span className="text-red-400 ml-1">*</span>}
             </label>
@@ -404,7 +404,7 @@ const DateRangePicker = ({
                 type="button"
                 onClick={openPopup}
                 disabled={disabled}
-                className={`w-full px-3 py-2 rounded-lg text-left flex items-center justify-between gap-2 transition-all
+                className={`w-full px-2.5 py-1.5 rounded-lg text-left flex items-center justify-between gap-2 transition-all
                     ${error
                         ? 'bg-red-50 border border-red-300'
                         : isOpen

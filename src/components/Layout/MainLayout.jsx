@@ -251,30 +251,6 @@ const MainLayout = () => {
                         </div>
                     )}
 
-                    {/* Request Queue Popover */}
-                    {showQueue && isChecker && (
-                        <RequestQueue
-                            onClose={() => setShowQueue(false)}
-                            onApprove={(id) => {
-                                // Don't call approvePage() here - it sends ALL widgets unfiltered.
-                                // The approval automation is already handled by handleApprove in RequestQueue.jsx
-                                // which only sends the selected widgets.
-                                setPageStatus('APPROVED');
-                                setShowQueue(false);
-                            }}
-                            onReject={(id) => {
-                                setPageStatus('REJECTED');
-                                setShowQueue(false);
-                            }}
-                        />
-                    )}
-
-                    {/* Maker Queue view with filter */}
-                    {showQueue && user?.role === 'MAKER' && (
-                        <RequestQueue onClose={() => setShowQueue(false)} currentFilter={queueFilter} />
-                    )}
-
-
                     {/* Workflow Actions */}
                     {user?.role === 'MAKER' && (pageStatus === 'DRAFT' || pageStatus === 'REJECTED') && (
                         <button
@@ -399,6 +375,24 @@ const MainLayout = () => {
                         </div>
                     </div>
                 </>
+            )}
+
+            {/* Request Queue Panel */}
+            {showQueue && isChecker && (
+                <RequestQueue
+                    onClose={() => setShowQueue(false)}
+                    onApprove={(id) => {
+                        setPageStatus('APPROVED');
+                        setShowQueue(false);
+                    }}
+                    onReject={(id) => {
+                        setPageStatus('REJECTED');
+                        setShowQueue(false);
+                    }}
+                />
+            )}
+            {showQueue && user?.role === 'MAKER' && (
+                <RequestQueue onClose={() => setShowQueue(false)} currentFilter={queueFilter} />
             )}
 
             {/* Homepage Mapping Dashboard Modal */}

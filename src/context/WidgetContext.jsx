@@ -7,6 +7,7 @@ import { useActivityLog } from './ActivityLogContext';
 import { useAuth } from './AuthContext';
 import { validateAndCheckSlugs } from '../services/ValidationService';
 import { LocalApiService } from '../services/LocalApiService';
+import { safeUUID } from '../utils/uuid';
 
 export const WidgetContext = createContext();
 
@@ -170,7 +171,7 @@ export const WidgetProvider = ({ children }) => {
         }
         const newWidget = {
             ...widget,
-            id: crypto.randomUUID(),
+            id: safeUUID(),
             lastModified: new Date().toISOString(),
             lastModifiedBy: 'Current User'
         };
@@ -233,7 +234,7 @@ export const WidgetProvider = ({ children }) => {
         if (widget) {
             const duplicate = {
                 ...widget,
-                id: crypto.randomUUID(),
+                id: safeUUID(),
                 title: widget.title + ' (Copy)',
                 lastModified: new Date().toISOString(),
                 lastModifiedBy: 'Current User'

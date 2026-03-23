@@ -61,7 +61,10 @@ These widgets can be **added to a PLP page** when Expand Page is ON:
 
 **Data stored on widget/item:**
 - `expandPage` (boolean, default: `false`)
-- `plpWidgets` (array of `{ id, type, label, title, stateProducts }`)
+- `plpWidgets` (array of widget objects per group):
+  - **SPR/DPR group:** `{ id, type, label, title, stateProducts: { global: '', ... } }`
+  - **Carousel group:** `{ id, type, label, title, scrollItems: [], media_number: '3.5' }`
+  - **Masthead group:** `{ id, type, label, title, background_media, carouselItems: [], media_number: '2.5' }`
 
 **Config:** `src/config/widgets/PLP-PAGE-widget-support.js` → `EXPAND_PAGE_CONFIG`
 
@@ -183,6 +186,41 @@ flowchart BT
 5. All widgets mapped to Page Layout       POST /api/app/update_layout_widget_mapping/
 6. Page Layout mapped to Global Registry   POST /api/app/update_page_page_layout_mapping/
 ```
+
+---
+
+## 4.3 Expand Widget Inputs — Per Widget Group
+
+### Carousel Expand Widget
+
+| Field | Type | Default | Required | Description |
+| :--- | :--- | :--- | :---: | :--- |
+| `title` | string | `''` | ✅ | Widget heading shown above carousel |
+| `media_number` | string | `'3.5'` | ❌ | Items visible at once (e.g. 3.5 = 3 full + half peek). Maps to `media_aspect_ratio` in API. |
+| `scrollItems` | array | `[]` | ✅ | Carousel banner items (same as Collection Banner scroll mode) |
+
+Each `scrollItem` contains: `{ image, pageHeading, pageType, products/stateProducts }` — uses `ScrollItemEditor`.
+
+**Emulator:** Renders as horizontal scrollable banner images. Item width = `100% / media_number`.
+
+### Secondary Masthead Expand Widget
+
+| Field | Type | Default | Required | Description |
+| :--- | :--- | :--- | :---: | :--- |
+| `background_media` | string/File | `null` | ❌ | Background image/video URL |
+| `media_number` | string | `'2.5'` | ❌ | Items visible at once. Maps to `media_aspect_ratio`. |
+| `carouselItems` | array | `[]` | ✅ | Carousel items with category pages — uses `CarouselItemEditor` |
+
+**Emulator:** Renders background media + carousel items as slides.
+
+### SPR/DPR Expand Widget (all 8 variants)
+
+| Field | Type | Default | Required | Description |
+| :--- | :--- | :--- | :---: | :--- |
+| `title` | string | `''` | ✅ | Widget heading (shown with "View All") |
+| `stateProducts` | object | `{ global: '' }` | ✅ | State-wise product codes |
+
+**Emulator:** Renders product cards from catalog lookup with Add button and View All.
 
 ---
 

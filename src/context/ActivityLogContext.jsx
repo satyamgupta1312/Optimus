@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { LocalApiService } from '../services/LocalApiService';
+import { safeUUID } from '../utils/uuid';
 
 const ActivityLogContext = createContext();
 
@@ -26,7 +27,7 @@ export const ActivityLogProvider = ({ children }) => {
      */
     const logActivity = useCallback((action, details = {}, user = 'Current User') => {
         const activity = {
-            id: crypto.randomUUID(),
+            id: safeUUID(),
             action, // 'widget_added', 'widget_deleted', 'page_submitted', etc.
             details,
             user,

@@ -7,6 +7,7 @@ import { searchProduct } from '../../services/CatalogService';
 import ImageUpload from '../ImageUpload';
 import SlugBuilder from '../Inputs/SlugBuilder';
 import DateTimeInput from '../Inputs/DateTimeInput';
+import { safeUUID } from '../../utils/uuid';
 
 /**
  * LegacyPropertyEditor
@@ -219,9 +220,8 @@ const LegacyPropertyEditor = ({ widget }) => {
                                             // Fetch from local catalog
                                             let fetchedProducts = [];
                                             try {
-                                                const batchResult = await LocalApiService.batchCatalog(ids);
-                                                // batchResult is a map { code: product }, convert to array
-                                                fetchedProducts = Object.values(batchResult || {});
+                                                const batchResult = await LocalApiService.getCatalogBatch(ids);
+                                                fetchedProducts = Object.values(batchResult?.products || {});
                                             } catch (err) { console.warn("Catalog fetch failed", err); }
 
                                             const newProducts = ids.map(id => {
@@ -229,7 +229,7 @@ const LegacyPropertyEditor = ({ widget }) => {
                                                 const p = fetchedProducts.find(x => x.itemCode == id || x.item_code == id) || searchProduct(id);
                                                 if (p) {
                                                     return {
-                                                        id: crypto.randomUUID(),
+                                                        id: safeUUID(),
                                                         itemCode: id,
                                                         name: p.name || p.display_name || `Product ${id}`,
                                                         price: p.price || 0,
@@ -238,7 +238,7 @@ const LegacyPropertyEditor = ({ widget }) => {
                                                     };
                                                 }
                                                 return {
-                                                    id: crypto.randomUUID(),
+                                                    id: safeUUID(),
                                                     itemCode: id,
                                                     name: `Product ${id} (Preview)`,
                                                     price: 0,
@@ -275,7 +275,7 @@ const LegacyPropertyEditor = ({ widget }) => {
                             onClick={() => {
                                 console.log('[TEST] Adding hardcoded product');
                                 const testProduct = {
-                                    id: crypto.randomUUID(),
+                                    id: safeUUID(),
                                     itemCode: '4586',
                                     name: 'Parrot Jeera Powder 50g',
                                     price: '₹38',
@@ -307,8 +307,8 @@ const LegacyPropertyEditor = ({ widget }) => {
                                     // Fetch from local catalog
                                     try {
                                         console.log('[PropertyEditor] Fetching from local catalog...');
-                                        const batchResult = await LocalApiService.batchCatalog(ids);
-                                        fetchedProducts = Object.values(batchResult || {});
+                                        const batchResult = await LocalApiService.getCatalogBatch(ids);
+                                        fetchedProducts = Object.values(batchResult?.products || {});
                                         console.log('[PropertyEditor] Local catalog returned:', fetchedProducts.length, 'products');
                                     } catch (error) {
                                         console.warn('[PropertyEditor] Catalog fetch failed:', error.message);
@@ -335,7 +335,7 @@ const LegacyPropertyEditor = ({ widget }) => {
 
                                         if (p) {
                                             newProducts.push({
-                                                id: crypto.randomUUID(),
+                                                id: safeUUID(),
                                                 itemCode: p.itemCode || p.item_code || id,
                                                 name: p.name || p.display_name || `Item ${id}`,
                                                 price: p.price ? (p.price.startsWith('₹') ? p.price : `₹${p.price}`) : '₹-',
@@ -346,7 +346,7 @@ const LegacyPropertyEditor = ({ widget }) => {
                                             notFound.push(id);
                                             // Still add placeholder
                                             newProducts.push({
-                                                id: crypto.randomUUID(),
+                                                id: safeUUID(),
                                                 itemCode: id,
                                                 name: `Item ${id} (Not Found)`,
                                                 price: '₹-',
@@ -394,7 +394,7 @@ const LegacyPropertyEditor = ({ widget }) => {
                             onClick={() => {
                                 const newItems = [...(widget.items || [])];
                                 newItems.push({
-                                    id: crypto.randomUUID(),
+                                    id: safeUUID(),
                                     text: 'New Item',
                                     textHi: '',
                                     image: '',

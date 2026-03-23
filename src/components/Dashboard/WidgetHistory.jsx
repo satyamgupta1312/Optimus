@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, Calendar, Clock, User, Loader2, Eye, Download, History, Package, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Calendar, Clock, User, Loader2, Eye, Download, History, Package, ChevronDown, ChevronUp, Database } from 'lucide-react';
 import { LocalApiService } from '../../services/LocalApiService';
 import { useWidgetContext } from '../../context/WidgetContext';
 import showToast from '../../utils/toast';
@@ -67,10 +67,51 @@ const WidgetHistory = ({ onClose }) => {
     const fetchData = useCallback(async (d) => {
         setLoading(true);
         try {
-            const data = await LocalApiService.getRequestsByDate(d);
-            setRequests(data);
-            // Auto-expand all
-            setExpandedRequests(new Set(data.map(r => r.id)));
+            // Fetch from both Prisma and Kinetic in parallel
+            const [prismaResult, kineticResult] = await Promise.allSettled([
+                LocalApiService.getRequestsByDate(d),
+                LocalApiService.getKineticHistory({ startDate: d, endDate: d }),
+            ]);
+
+            const prismaRequests = prismaResult.status === 'fulfilled' ? prismaResult.value : [];
+
+            // Merge Kinetic rows as supplementary data (Prisma is authoritative)
+            const kineticRows = kineticResult.status === 'fulfilled' ? (kineticResult.value?.rows || []) : [];
+
+            // Group Kinetic rows by request_id to form pseudo-request objects
+            const prismaRequestIds = new Set(prismaRequests.map(r => r.id));
+            const kineticByRequest = {};
+            for (const row of kineticRows) {
+                if (prismaRequestIds.has(row.request_id)) continue; // already in Prisma
+                if (!kineticByRequest[row.request_id]) {
+                    kineticByRequest[row.request_id] = {
+                        id: row.request_id,
+                        status: row.status,
+                        createdAt: row.dt,
+                        submitter: { email: row.submitted_by, name: row.submitted_by?.split('@')[0] },
+                        type: 'Homepage Update',
+                        _source: 'kinetic',
+                        requestWidgets: [],
+                    };
+                }
+                kineticByRequest[row.request_id].requestWidgets.push({
+                    id: `${row.request_id}_${row.widget_id}`,
+                    widget: {
+                        id: row.widget_id,
+                        type: row.widget_type,
+                        slug: row.slug,
+                        title: row.title,
+                    },
+                    snapshot: row.snapshot ? (typeof row.snapshot === 'string' ? JSON.parse(row.snapshot) : row.snapshot) : {},
+                });
+            }
+
+            // Tag Prisma requests
+            const taggedPrisma = prismaRequests.map(r => ({ ...r, _source: 'prisma' }));
+            const mergedRequests = [...taggedPrisma, ...Object.values(kineticByRequest)];
+
+            setRequests(mergedRequests);
+            setExpandedRequests(new Set(mergedRequests.map(r => r.id)));
         } catch (err) {
             console.error('Failed to fetch history:', err);
             showToast.error('Failed to load history');
@@ -138,38 +179,38 @@ const WidgetHistory = ({ onClose }) => {
         <>
             <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
 
-            <div className="fixed inset-y-0 right-0 w-full max-w-2xl bg-white shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="fixed inset-y-0 right-0 w-full max-w-2xl bg-white shadow-sm border-l border-slate-200 z-50 flex flex-col animate-in slide-in-from-right duration-300">
                 {/* Header */}
-                <div className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white p-6 shrink-0">
+                <div className="bg-white border-b border-slate-200 px-5 py-4 shrink-0">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <Calendar size={24} />
+                        <div className="flex items-center gap-2.5">
+                            <Calendar size={18} className="text-slate-500" />
                             <div>
-                                <h2 className="text-xl font-bold">Widget History</h2>
-                                <p className="text-sm text-indigo-200 mt-1">Browse submitted widgets by date</p>
+                                <h2 className="text-sm font-bold text-slate-800">Widget History</h2>
+                                <p className="text-[11px] text-slate-400 mt-0.5">Browse submitted widgets by date</p>
                             </div>
                         </div>
-                        <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
-                            <X size={20} />
+                        <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-slate-600">
+                            <X size={18} />
                         </button>
                     </div>
                 </div>
 
                 {/* Date Controls */}
-                <div className="p-4 border-b border-slate-200 bg-slate-50 shrink-0">
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <label className="text-xs font-semibold text-slate-500">Date:</label>
+                <div className="p-3 border-b border-slate-200 bg-white shrink-0">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                        <label className="text-[11px] font-semibold text-slate-400">Date:</label>
                         <input
                             type="date"
                             value={date}
                             onChange={(e) => setDate(e.target.value)}
-                            className="px-3 py-1.5 text-sm rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                            className="px-2.5 py-1 text-[13px] rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:border-slate-300"
                         />
                         <div className="flex gap-1.5">
                             <button
                                 onClick={() => setQuickDate(0)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${date === formatDateForInput(new Date())
-                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                                className={`px-2.5 py-1 text-[11px] font-medium rounded-lg border transition-colors ${date === formatDateForInput(new Date())
+                                    ? 'bg-slate-800 border-slate-800 text-white'
                                     : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                                 }`}
                             >
@@ -177,13 +218,13 @@ const WidgetHistory = ({ onClose }) => {
                             </button>
                             <button
                                 onClick={() => setQuickDate(-1)}
-                                className="px-3 py-1.5 text-xs font-medium rounded-lg border bg-white border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                                className="px-2.5 py-1 text-[11px] font-medium rounded-lg border bg-white border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
                             >
                                 Yesterday
                             </button>
                             <button
                                 onClick={setThisWeek}
-                                className="px-3 py-1.5 text-xs font-medium rounded-lg border bg-white border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                                className="px-2.5 py-1 text-[11px] font-medium rounded-lg border bg-white border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
                             >
                                 This Week
                             </button>
@@ -210,31 +251,37 @@ const WidgetHistory = ({ onClose }) => {
                                 {requests.length} submission{requests.length !== 1 ? 's' : ''} &middot; {totalWidgets} widget{totalWidgets !== 1 ? 's' : ''} on {formatDisplayDate(date)}
                             </p>
 
-                            <div className="space-y-4">
+                            <div className="space-y-3">
                                 {requests.map(req => {
                                     const isExpanded = expandedRequests.has(req.id);
                                     const widgetCount = req.requestWidgets?.length || 0;
                                     const submitter = req.submitter?.name || req.submitter?.email?.split('@')[0] || 'unknown';
 
                                     return (
-                                        <div key={req.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden hover:border-indigo-200 transition-all">
+                                        <div key={req.id} className="bg-white border border-slate-200 rounded-lg overflow-hidden hover:border-indigo-200 transition-all">
                                             {/* Request Header — always visible */}
                                             <button
                                                 onClick={() => toggleExpand(req.id)}
-                                                className="w-full flex items-center gap-3 p-4 text-left hover:bg-slate-50 transition-colors"
+                                                className="w-full flex items-center gap-2.5 p-3 text-left hover:bg-slate-50 transition-colors"
                                             >
-                                                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 shrink-0">
-                                                    <Package size={18} />
+                                                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 shrink-0">
+                                                    <Package size={16} />
                                                 </div>
 
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-sm font-bold text-slate-800">
+                                                        <span className="text-[13px] font-bold text-slate-800">
                                                             {widgetCount} Widget{widgetCount !== 1 ? 's' : ''}
                                                         </span>
-                                                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${getStatusBadge(req.status)}`}>
+                                                        <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${getStatusBadge(req.status)}`}>
                                                             {req.status}
                                                         </span>
+                                                        {req._source === 'kinetic' && (
+                                                            <span className="px-1.5 py-0.5 text-[9px] font-medium rounded bg-cyan-50 text-cyan-600 flex items-center gap-0.5">
+                                                                <Database size={8} />
+                                                                Kinetic
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <div className="flex items-center gap-3 mt-0.5">
                                                         <span className="text-[11px] text-slate-400 flex items-center gap-1">
@@ -246,7 +293,7 @@ const WidgetHistory = ({ onClose }) => {
 
                                                 {/* Time — prominent on the right */}
                                                 <div className="text-right shrink-0">
-                                                    <div className="text-sm font-bold text-indigo-600 flex items-center gap-1">
+                                                    <div className="text-[13px] font-bold text-indigo-600 flex items-center gap-1">
                                                         <Clock size={12} />
                                                         {formatTime(req.createdAt)}
                                                     </div>
@@ -272,7 +319,7 @@ const WidgetHistory = ({ onClose }) => {
                                                         const isPreview = previewId === rw.id;
 
                                                         return (
-                                                            <div key={rw.id} className="px-4 py-3">
+                                                            <div key={rw.id} className="px-3 py-2.5">
                                                                 <div className="flex items-center gap-3">
                                                                     {/* Widget info */}
                                                                     <div className="flex-1 min-w-0">
@@ -339,13 +386,13 @@ const WidgetHistory = ({ onClose }) => {
                 </div>
 
                 {/* Footer */}
-                <div className="border-t border-slate-200 p-4 bg-white shrink-0 flex items-center justify-between">
+                <div className="border-t border-slate-200 p-3 bg-white shrink-0 flex items-center justify-between">
                     <p className="text-xs text-slate-500">
                         {requests.length} submission{requests.length !== 1 ? 's' : ''} &middot; {totalWidgets} widget{totalWidgets !== 1 ? 's' : ''}
                     </p>
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm"
+                        className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-[13px]"
                     >
                         Close
                     </button>

@@ -68,8 +68,8 @@ const StatusBadge = ({ status }) => {
     const Icon = cfg.icon;
 
     return (
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${cfg.bg} ${cfg.border} ${cfg.text} ${cfg.pulse ? 'animate-pulse' : ''}`}>
-            <Icon size={12} />
+        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${cfg.bg} ${cfg.text} ${cfg.pulse ? 'animate-pulse' : ''}`}>
+            <Icon size={10} />
             {cfg.label}
         </span>
     );
@@ -78,8 +78,8 @@ const StatusBadge = ({ status }) => {
 // Avatar Component
 const UserAvatar = ({ name, size = 'md' }) => {
     const sizeClasses = {
-        sm: 'w-8 h-8 text-xs',
-        md: 'w-10 h-10 text-sm'
+        sm: 'w-7 h-7 text-[10px]',
+        md: 'w-8 h-8 text-xs'
     };
     const initial = name?.charAt(0)?.toUpperCase() || '?';
     const colors = ['bg-blue-500', 'bg-purple-500', 'bg-teal-500', 'bg-orange-500', 'bg-pink-500'];
@@ -311,6 +311,19 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                 } catch (e) {
                     console.warn('[Deploy] Prisma status update failed (non-fatal):', e.message);
                 }
+                // Fire-and-forget: sync deploy slugs to Kinetic
+                if (result.results?.length) {
+                    const kineticWidgets = result.results
+                        .filter(r => r.status === 'ok' && r.slug)
+                        .map(r => ({
+                            widgetId: r.widgetId || '',
+                            slugs: r.slugs || { widget: r.slug },
+                        }));
+                    if (kineticWidgets.length) {
+                        LocalApiService.syncDeployToKinetic(kineticWidgets)
+                            .catch(e => console.warn('[Kinetic] Deploy sync failed:', e.message));
+                    }
+                }
             } else {
                 toast.error(`Deployment failed: ${result.error}`, { duration: 8000 });
                 // Log full deployment details for debugging
@@ -367,6 +380,19 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
             toast.dismiss(deployToast);
             if (result.success) {
                 toast.success(result.summary || 'Deployed successfully!', { icon: '🚀', duration: 4000 });
+                // Fire-and-forget: sync deploy slugs to Kinetic
+                if (result.results?.length) {
+                    const kineticWidgets = result.results
+                        .filter(r => r.status === 'ok' && r.slug)
+                        .map(r => ({
+                            widgetId: r.widgetId || '',
+                            slugs: r.slugs || { widget: r.slug },
+                        }));
+                    if (kineticWidgets.length) {
+                        LocalApiService.syncDeployToKinetic(kineticWidgets)
+                            .catch(e => console.warn('[Kinetic] Deploy sync failed:', e.message));
+                    }
+                }
             } else {
                 toast.error(`Deployment failed: ${result.error}`);
             }
@@ -387,12 +413,14 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
     };
 
     return (
-        <div className="fixed top-16 right-4 w-[420px] bg-white border border-slate-200 shadow-2xl rounded-xl z-[100] overflow-hidden flex flex-col max-h-[85vh]">
+        <>
+        <div className="fixed inset-0 bg-black/30 z-[99]" onClick={onClose} />
+        <div className="fixed top-16 right-4 w-[420px] bg-white border border-slate-200 shadow-md rounded-lg z-[100] overflow-hidden flex flex-col max-h-[85vh]">
             {/* ===== IMPROVED HEADER ===== */}
-            <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-5 py-4 border-b border-slate-200 shrink-0">
+            <div className="bg-white px-4 py-3 border-b border-slate-200 shrink-0">
                 <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                        <h3 className="font-bold text-slate-800 text-base">
+                    <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-slate-800 text-[13px]">
                             {!isMaker && viewMode === 'PENDING' ? '📋 Review Queue' : '📜 History'}
                         </h3>
                         <span className="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[24px] text-center">
@@ -409,75 +437,75 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg transition-all"
+                        className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
                         title="Close"
                     >
-                        <X size={18} />
+                        <X size={16} />
                     </button>
                 </div>
 
                 {/* Filter Tabs for Checker */}
                 {!isMaker && (
-                    <div className="flex bg-slate-200/80 p-1 rounded-lg mt-3">
+                    <div className="flex bg-slate-100 p-0.5 rounded-lg mt-2">
                         <button
                             onClick={() => setViewMode('PENDING')}
-                            className={`flex-1 text-xs font-semibold py-2 rounded-md transition-all ${viewMode === 'PENDING'
+                            className={`flex-1 text-[11px] font-semibold py-1.5 rounded-md transition-all ${viewMode === 'PENDING'
                                 ? 'bg-white text-slate-800 shadow-sm'
                                 : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
-                            ⏳ Pending
+                            Pending
                         </button>
                         <button
                             onClick={() => setViewMode('HISTORY')}
-                            className={`flex-1 text-xs font-semibold py-2 rounded-md transition-all ${viewMode === 'HISTORY'
+                            className={`flex-1 text-[11px] font-semibold py-1.5 rounded-md transition-all ${viewMode === 'HISTORY'
                                 ? 'bg-white text-slate-800 shadow-sm'
                                 : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
-                            📚 All History
+                            All History
                         </button>
                     </div>
                 )}
 
                 {/* Filter Tabs for Maker */}
                 {isMaker && (
-                    <div className="grid grid-cols-2 gap-1 bg-slate-200/80 p-1 rounded-lg mt-3">
+                    <div className="grid grid-cols-2 gap-0.5 bg-slate-100 p-0.5 rounded-lg mt-2">
                         <button
                             onClick={() => setViewMode('PENDING')}
-                            className={`text-xs font-semibold py-2 rounded-md transition-all ${viewMode === 'PENDING'
+                            className={`text-[11px] font-semibold py-1.5 rounded-md transition-all ${viewMode === 'PENDING'
                                 ? 'bg-white text-slate-800 shadow-sm'
                                 : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
-                            ⏳ Pending
+                            Pending
                         </button>
                         <button
                             onClick={() => setViewMode('APPROVED')}
-                            className={`text-xs font-semibold py-2 rounded-md transition-all ${viewMode === 'APPROVED'
+                            className={`text-[11px] font-semibold py-1.5 rounded-md transition-all ${viewMode === 'APPROVED'
                                 ? 'bg-white text-slate-800 shadow-sm'
                                 : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
-                            ✅ Complete
+                            Complete
                         </button>
                         <button
                             onClick={() => setViewMode('REJECTED')}
-                            className={`text-xs font-semibold py-2 rounded-md transition-all ${viewMode === 'REJECTED'
+                            className={`text-[11px] font-semibold py-1.5 rounded-md transition-all ${viewMode === 'REJECTED'
                                 ? 'bg-white text-slate-800 shadow-sm'
                                 : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
-                            ❌ Rejected
+                            Rejected
                         </button>
                         <button
                             onClick={() => setViewMode('ALL')}
-                            className={`text-xs font-semibold py-2 rounded-md transition-all ${viewMode === 'ALL'
+                            className={`text-[11px] font-semibold py-1.5 rounded-md transition-all ${viewMode === 'ALL'
                                 ? 'bg-white text-slate-800 shadow-sm'
                                 : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
-                            📚 All
+                            All
                         </button>
                     </div>
                 )}
@@ -529,9 +557,9 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                     const isActioning = actionLoading === req.id;
 
                     return (
-                        <div key={req.id} className="p-4 hover:bg-slate-50/50 transition-colors">
+                        <div key={req.id} className="p-3 hover:bg-slate-50/50 transition-colors">
                             {/* Card Header: Avatar + Info + Status */}
-                            <div className="flex items-start gap-3 mb-3">
+                            <div className="flex items-start gap-2.5 mb-2">
                                 <UserAvatar name={req.user} />
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between gap-2">
@@ -597,7 +625,7 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                                         </button>
 
                                         {expandedReqs.has(req.id) && (
-                                            <div className="bg-slate-50 rounded-lg p-3 space-y-2 border border-slate-200">
+                                            <div className="bg-slate-50 rounded-lg p-2.5 space-y-1.5 border border-slate-200">
                                                 {allWidgets.map((w, idx) => {
                                                     const isHeader = w._type === 'header';
                                                     const originalIdx = isHeader ? null : w._index;
@@ -654,7 +682,7 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                                 <button
                                     onClick={() => handleView(req)}
                                     disabled={isActioning}
-                                    className="flex-1 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 text-xs font-semibold py-2 px-3 rounded-lg shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                    className="flex-1 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 text-xs font-semibold py-2 px-3 rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
                                 >
                                     <Eye size={14} /> Preview
                                 </button>
@@ -664,7 +692,7 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                                         <button
                                             onClick={() => handleApprove(req)}
                                             disabled={isActioning}
-                                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-3 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-3 rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
                                         >
                                             {isActioning ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                                             Approve
@@ -672,7 +700,7 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                                         <button
                                             onClick={() => handleApproveAndDeploy(req)}
                                             disabled={isActioning}
-                                            className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white text-xs font-semibold py-2 px-3 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-3 rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
                                         >
                                             {isActioning ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />}
                                             Approve & Deploy
@@ -680,7 +708,7 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                                         <button
                                             onClick={() => handleRejectClick(req)}
                                             disabled={isActioning}
-                                            className="flex-1 bg-white hover:bg-red-50 text-red-600 border border-red-200 text-xs font-semibold py-2 px-3 rounded-lg shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                            className="flex-1 bg-white hover:bg-red-50 text-red-600 border border-red-200 text-xs font-semibold py-2 px-3 rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
                                         >
                                             {isActioning ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
                                             Reject
@@ -692,7 +720,7 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                                     <button
                                         onClick={() => handleDeploy(req)}
                                         disabled={isActioning}
-                                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-3 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-3 rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
                                     >
                                         {isActioning ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                                         Deploy
@@ -702,8 +730,8 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                                 {/* Map to Page — Checker only, visible when deploy results have successful slugs */}
                                 {!isMaker && deployResults[req.id]?.some(r => (r.status === 'ok' || r.status === 'updated') && r.slug) && (
                                     <button
-                                        onClick={() => setMapToPageDialog({ reqId: req.id, slugs: deployResults[req.id] })}
-                                        className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-semibold py-2 px-3 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1.5"
+                                        disabled
+                                        className="flex-1 bg-gray-300 text-gray-500 text-xs font-semibold py-2 px-3 rounded-lg cursor-not-allowed flex items-center justify-center gap-1.5"
                                     >
                                         <MapPin size={14} />
                                         Map to Page
@@ -763,7 +791,7 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                         className="fixed inset-0 bg-black/40 z-[200]"
                         onClick={() => setRejectDialog(null)}
                     />
-                    <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] bg-white rounded-xl shadow-2xl z-[201] p-5">
+                    <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] bg-white rounded-lg shadow-md border border-slate-200 z-[201] p-4">
                         <h4 className="font-bold text-slate-800 mb-1 flex items-center gap-2">
                             <XCircle size={16} className="text-red-500" />
                             Reject Request
@@ -777,7 +805,7 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                             placeholder="e.g. Product list is empty — please add at least 3 products."
                             rows={3}
                             autoFocus
-                            className="w-full text-sm border border-slate-200 rounded-lg p-2.5 resize-none focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-200"
+                            className="w-full text-[13px] border border-slate-200 rounded-lg p-2 resize-none focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-200"
                         />
                         <div className="flex gap-2 mt-3">
                             <button
@@ -797,6 +825,7 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                 </>
             )}
         </div>
+        </>
     );
 };
 

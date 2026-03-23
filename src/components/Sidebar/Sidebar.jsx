@@ -33,7 +33,7 @@ const Sidebar = () => {
     return (
         <div ref={sidebarRef} className="flex flex-col h-full bg-slate-50 overflow-y-auto custom-scrollbar">
             {/* Fetch Widget Section */}
-            <div className="p-4 border-b border-slate-200 bg-white">
+            <div className="p-3 border-b border-slate-200 bg-white">
                 <FetchWidget onWidgetFetched={(w) => {
                     // Auto-reset to DRAFT if page is in review — user is loading
                     // a saved widget, so they clearly intend to edit.
@@ -46,21 +46,21 @@ const Sidebar = () => {
             </div>
 
             {/* Widget Library Section */}
-            <div className="p-4 border-b border-slate-200 bg-white">
+            <div className="p-3 border-b border-slate-200 bg-white">
                 <WidgetLibrary />
             </div>
 
             {/* Property Editor Section */}
             {selectedWidgetId && selectedWidget && (
-                <div className="p-4 bg-white flex-1 min-h-0 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="p-3 bg-white flex-1 min-h-0 animate-in fade-in slide-in-from-bottom-4 duration-300">
                     {/* Breadcrumb with back button */}
-                    <div className="flex items-center gap-2 text-sm mb-4">
+                    <div className="flex items-center gap-2 text-xs mb-3">
                         <button
                             onClick={() => setSelectedWidgetId(null)}
                             className="flex items-center gap-1 text-slate-400 hover:text-blue-600 transition-colors"
                             title="Back to Widget Library"
                         >
-                            <ArrowLeft size={14} />
+                            <ArrowLeft size={12} />
                             <span>Widgets</span>
                         </button>
                         <ChevronRight size={14} className="text-slate-300" />

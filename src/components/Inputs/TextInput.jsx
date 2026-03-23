@@ -20,8 +20,8 @@ const TextInput = ({
     disabled,
 }) => {
     return (
-        <div className="mb-3">
-            <label className="block text-xs font-medium text-slate-500 mb-1">
+        <div className="mb-2">
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">
                 {label}
                 {required && <span className="text-red-400 ml-1">*</span>}
             </label>
@@ -31,7 +31,7 @@ const TextInput = ({
                 onChange={(e) => onChange(e.target.value)}
                 placeholder={placeholder}
                 disabled={disabled}
-                className={`w-full px-3 py-2 rounded-lg text-sm transition-all
+                className={`w-full px-2.5 py-1.5 rounded-lg text-[13px] transition-all
                     ${error
                         ? 'bg-red-50 border border-red-300 text-red-700 placeholder-red-300'
                         : 'bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:bg-white'

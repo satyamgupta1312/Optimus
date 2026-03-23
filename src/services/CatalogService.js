@@ -1,4 +1,5 @@
 import catalogData from '../data/catalog.csv?raw';
+import { LocalApiService } from './LocalApiService';
 
 // Helper to parse CSV line correctly handling quotes
 const parseCSVLine = (text) => {
@@ -21,7 +22,7 @@ const parseCSVLine = (text) => {
     return result;
 };
 
-// Parse the local CSV once
+// Parse the local CSV once (instant fallback for sync searchProduct)
 const rows = catalogData.split('\n').slice(1); // Skip header
 const items = rows.map(row => {
     if (!row.trim()) return null;
@@ -45,60 +46,21 @@ const items = rows.map(row => {
 // Cache for remotely fetched items
 const remoteCache = {};
 
-// Full catalog cache (fetched from Google Sheet)
-let fullCatalogItems = null;
-let fetchPromise = null;
-
-// Google Sheet published CSV URL (Catalog sheet)
-const CATALOG_SHEET_ID = '1h_y6sQ075NMeEWRxBCrF5H6ZHQLv5q1yy_6qrs-hBcw';
-const CATALOG_CSV_URL = `https://docs.google.com/spreadsheets/d/${CATALOG_SHEET_ID}/export?format=csv&gid=0`;
-
-/**
- * Fetch the full catalog from Google Sheet (cached)
- */
-const fetchFullCatalog = async () => {
-    if (fullCatalogItems) return fullCatalogItems;
-    if (fetchPromise) return fetchPromise;
-
-    fetchPromise = (async () => {
-        try {
-            console.log('[CatalogService] Fetching full catalog from Google Sheet...');
-            const response = await fetch(CATALOG_CSV_URL);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const csvText = await response.text();
-
-            const csvRows = csvText.split('\n').slice(1);
-            fullCatalogItems = csvRows.map(row => {
-                if (!row.trim()) return null;
-                const cols = parseCSVLine(row);
-                let itemCode = cols[1] ? cols[1].replace(/"/g, '').replace(/,/g, '').trim() : '';
-                if (!itemCode) return null;
-
-                return {
-                    itemCode: itemCode,
-                    name: cols[2] ? cols[2].replace(/"/g, '') : '',
-                    brand: cols[3] || '',
-                    image: cols[4] || '',
-                    mrp: parseFloat((cols[5] || '0').replace(/[^0-9.]/g, '')) || 0,
-                    price: parseFloat((cols[6] || cols[5] || '0').replace(/[^0-9.]/g, '')) || 0,
-                    priceDisplay: "₹" + (cols[6] || cols[5] || '0')
-                };
-            }).filter(Boolean);
-
-            console.log(`[CatalogService] Loaded ${fullCatalogItems.length} products from Google Sheet`);
-            return fullCatalogItems;
-        } catch (error) {
-            console.error('[CatalogService] Failed to fetch catalog:', error);
-            fullCatalogItems = [];
-            return [];
-        }
-    })();
-
-    return fetchPromise;
-};
+/** Map a server row to the CatalogService product shape */
+function mapRow(row) {
+    return {
+        itemCode: String(row.item_code ?? ''),
+        name: row.display_name ?? '',
+        brand: row.brand ?? '',
+        image: row.product_image ?? '',
+        mrp: parseFloat(row.mrp) || 0,
+        price: parseFloat(row.selling_price) || 0,
+        priceDisplay: '₹' + (row.selling_price || row.mrp || '0'),
+    };
+}
 
 /**
- * Sync search - looks in local CSV only (instant)
+ * Sync search - looks in local CSV + remote cache only (instant)
  */
 export const searchProduct = (code) => {
     const cleanCode = code.toString().trim().replace(/,/g, '');
@@ -110,7 +72,7 @@ export const searchProduct = (code) => {
 };
 
 /**
- * Async search - looks in local CSV first, then fetches from Google Sheet
+ * Async search - looks in local CSV first, then fetches from server batch endpoint
  */
 export const searchProductAsync = async (code) => {
     const cleanCode = code.toString().trim().replace(/,/g, '');
@@ -122,17 +84,24 @@ export const searchProductAsync = async (code) => {
     // Check remote cache
     if (remoteCache[cleanCode]) return remoteCache[cleanCode];
 
-    // Fetch full catalog and search
-    const catalog = await fetchFullCatalog();
-    const found = catalog.find(item => item.itemCode === cleanCode);
-    if (found) {
-        remoteCache[cleanCode] = found;
+    // Fetch from batch endpoint
+    try {
+        const res = await LocalApiService.getCatalogBatch([cleanCode]);
+        const products = res.products || {};
+        if (products[cleanCode]) {
+            const mapped = mapRow(products[cleanCode]);
+            remoteCache[cleanCode] = mapped;
+            return mapped;
+        }
+    } catch (err) {
+        console.error('[CatalogService] batch fetch failed:', err);
     }
-    return found || null;
+
+    return null;
 };
 
 /**
- * Batch search - efficiently search multiple codes at once
+ * Batch search - efficiently search multiple codes at once via server batch endpoint.
  * Returns a map of code -> product
  */
 export const searchProductsBatch = async (codes) => {
@@ -155,18 +124,20 @@ export const searchProductsBatch = async (codes) => {
     // If all found locally, return immediately
     if (missing.length === 0) return results;
 
-    // Fetch full catalog for missing items
-    const catalog = await fetchFullCatalog();
-    for (const code of missing) {
-        const found = catalog.find(item => item.itemCode === code);
-        if (found) {
-            remoteCache[code] = found;
-            results[code] = found;
+    // Fetch missing from batch endpoint
+    try {
+        const res = await LocalApiService.getCatalogBatch(missing);
+        const products = res.products || {};
+        for (const code of missing) {
+            if (products[code]) {
+                const mapped = mapRow(products[code]);
+                remoteCache[code] = mapped;
+                results[code] = mapped;
+            }
         }
+    } catch (err) {
+        console.error('[CatalogService] batch fetch failed:', err);
     }
 
     return results;
 };
-
-// Pre-fetch the catalog on module load (non-blocking)
-fetchFullCatalog().catch(() => { });

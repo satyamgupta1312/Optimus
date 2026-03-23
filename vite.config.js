@@ -74,6 +74,7 @@ export default defineConfig(({ mode }) => {
     envDir: './',
     envPrefix: 'VITE_',
     server: {
+      host: true,   // 👈 दूसरे devices से access के लिए
       port: 8888,
       proxy: {
         // Local Express API (unchanged)

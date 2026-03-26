@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import { prisma } from './prisma/client.js';
 import { authMiddleware } from './middleware/auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
@@ -9,7 +8,6 @@ import requestsRouter from './routes/requests.js';
 import usersRouter from './routes/users.js';
 import catalogRouter from './routes/catalog.js';
 import activityRouter from './routes/activity.js';
-import commentsRouter from './routes/comments.js';
 import headerWidgetsRouter from './routes/headerWidgets.js';
 import mediaRouter from './routes/media.js';
 import locationsRouter from './routes/locations.js';
@@ -37,7 +35,6 @@ app.use('/api/local/requests', requestsRouter);
 app.use('/api/local/users', usersRouter);
 app.use('/api/local/catalog', catalogRouter);
 app.use('/api/local/activity', activityRouter);
-app.use('/api/local/comments', commentsRouter);
 app.use('/api/local/header-widgets', headerWidgetsRouter);
 app.use('/api/local/locations', locationsRouter);
 app.use('/api/local/kinetic', kineticRouter);
@@ -45,13 +42,11 @@ app.use('/api/local/kinetic', kineticRouter);
 // ── Error Handler ──
 app.use(errorHandler);
 
-// ── Start ──
-app.listen(PORT, () => {
-  console.log(`[optimus-api] Running on http://localhost:${PORT}`);
-});
+// ── Start (skip on Vercel — serverless) ──
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`[optimus-api] Running on http://localhost:${PORT}`);
+  });
+}
 
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  await prisma.$disconnect();
-  process.exit(0);
-});
+export default app;

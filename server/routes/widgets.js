@@ -1,97 +1,49 @@
 import { Router } from 'express';
-import { prisma } from '../prisma/client.js';
+import * as WidgetData from '../services/WidgetDataService.js';
 import * as KineticSync from '../services/KineticSyncService.js';
 
 const router = Router();
 
 // ── GET /widgets ──
-// List all widgets, ordered by sortOrder
 router.get('/', async (req, res, next) => {
   try {
     const { status, type, slug, date } = req.query;
-    const where = { env: req.env };
-    if (status) where.status = status;
-    if (type) where.type = type;
-    if (slug) where.slug = slug;
-
-    // Date filter: ?date=2026-02-25 → widgets created on that day
-    if (date) {
-      const start = new Date(date);
-      const end = new Date(date);
-      end.setDate(end.getDate() + 1);
-      where.createdAt = { gte: start, lt: end };
-    }
-
-    const widgets = await prisma.widget.findMany({
-      where,
-      orderBy: { sortOrder: 'asc' },
-      include: { creator: { select: { email: true, name: true } } },
-    });
-
-    // Parse JSON fields
-    const parsed = widgets.map(w => ({
-      ...w,
-      pnc: JSON.parse(w.pnc),
-      config: JSON.parse(w.config),
-      products: JSON.parse(w.products),
-    }));
-
-    res.json(parsed);
+    const widgets = await WidgetData.listWidgets(req.env, { status, type, slug, date });
+    res.json(widgets);
   } catch (err) { next(err); }
 });
 
 // ── POST /widgets ──
-// Create a new widget
 router.post('/', async (req, res, next) => {
   try {
     const { type, slug, title, titleHi, pnc, config, products, sortOrder } = req.body;
 
-    const widget = await prisma.widget.create({
-      data: {
-        type,
-        slug,
-        env: req.env,
-        title: title || '',
-        titleHi: titleHi || '',
-        pnc: JSON.stringify(pnc || {}),
-        config: JSON.stringify(config || {}),
-        products: JSON.stringify(products || []),
-        sortOrder: sortOrder ?? 0,
-        createdBy: req.user.id,
-      },
+    const widget = await WidgetData.createWidget({
+      type, slug, env: req.env,
+      title: title || '', titleHi: titleHi || '',
+      pnc: pnc || {}, config: config || {}, products: products || [],
+      sortOrder: sortOrder ?? 0,
+      createdBy: req.user.email,
     });
 
     // Create initial version
-    await prisma.widgetVersion.create({
-      data: {
-        widgetId: widget.id,
-        version: 1,
-        snapshot: JSON.stringify({ ...req.body }),
-        changedBy: req.user.email,
-        changeLog: 'Created',
-      },
+    await WidgetData.createVersion({
+      widgetId: widget.id, widgetSlug: slug, env: req.env,
+      version: 1, snapshot: req.body,
+      changedBy: req.user.email, changeLog: 'Created',
     });
 
     KineticSync.logActivitySafe({
-      action: 'create',
-      user: req.user,
-      targetId: widget.id,
-      targetType: 'widget',
-      details: { type, slug },
-      env: req.env,
+      action: 'create', user: req.user,
+      targetId: widget.id, targetType: 'widget',
+      details: { type, slug }, env: req.env,
     });
 
-    res.status(201).json({
-      ...widget,
-      pnc: JSON.parse(widget.pnc),
-      config: JSON.parse(widget.config),
-      products: JSON.parse(widget.products),
-    });
+    res.status(201).json(widget);
   } catch (err) { next(err); }
 });
 
 // ── PATCH /widgets (bulk reorder) ──
-// Body: { order: [{ id, sortOrder }] }
 router.patch('/', async (req, res, next) => {
   try {
     const { order } = req.body;
@@ -99,12 +51,7 @@ router.patch('/', async (req, res, next) => {
       return res.status(400).json({ error: 'order must be an array' });
     }
 
-    await prisma.$transaction(
-      order.map(({ id, sortOrder }) =>
-        prisma.widget.update({ where: { id }, data: { sortOrder } })
-      )
-    );
-
+    await WidgetData.reorderWidgets(order);
     res.json({ success: true, updated: order.length });
   } catch (err) { next(err); }
 });
@@ -112,90 +59,57 @@ router.patch('/', async (req, res, next) => {
 // ── GET /widgets/:id ──
 router.get('/:id', async (req, res, next) => {
   try {
-    const widget = await prisma.widget.findUnique({
-      where: { id: req.params.id },
-      include: {
-        creator: { select: { email: true, name: true } },
-        versions: { orderBy: { version: 'desc' }, take: 10 },
-      },
-    });
-
+    const widget = await WidgetData.getWidgetById(req.params.id);
     if (!widget) return res.status(404).json({ error: 'Widget not found' });
 
-    res.json({
-      ...widget,
-      pnc: JSON.parse(widget.pnc),
-      config: JSON.parse(widget.config),
-      products: JSON.parse(widget.products),
-      versions: widget.versions.map(v => ({
-        ...v,
-        snapshot: JSON.parse(v.snapshot),
-      })),
-    });
+    // Get last 10 versions
+    const { versions } = await WidgetData.listVersions(req.params.id, { limit: 10 });
+
+    res.json({ ...widget, versions });
   } catch (err) { next(err); }
 });
 
 // ── PUT /widgets/:id ──
-// Full update
 router.put('/:id', async (req, res, next) => {
   try {
     const { type, slug, title, titleHi, status, pnc, config, products, sortOrder } = req.body;
 
     // Get current version number
-    const latestVersion = await prisma.widgetVersion.findFirst({
-      where: { widgetId: req.params.id },
-      orderBy: { version: 'desc' },
-    });
+    const latestVersion = await WidgetData.getLatestVersion(req.params.id);
 
-    const widget = await prisma.widget.update({
-      where: { id: req.params.id },
-      data: {
-        ...(type !== undefined && { type }),
-        ...(slug !== undefined && { slug }),
-        ...(title !== undefined && { title }),
-        ...(titleHi !== undefined && { titleHi }),
-        ...(status !== undefined && { status }),
-        ...(pnc !== undefined && { pnc: JSON.stringify(pnc) }),
-        ...(config !== undefined && { config: JSON.stringify(config) }),
-        ...(products !== undefined && { products: JSON.stringify(products) }),
-        ...(sortOrder !== undefined && { sortOrder }),
-      },
-    });
+    const data = {};
+    if (type !== undefined) data.type = type;
+    if (slug !== undefined) data.slug = slug;
+    if (title !== undefined) data.title = title;
+    if (titleHi !== undefined) data.titleHi = titleHi;
+    if (status !== undefined) data.status = status;
+    if (pnc !== undefined) data.pnc = pnc;
+    if (config !== undefined) data.config = config;
+    if (products !== undefined) data.products = products;
+    if (sortOrder !== undefined) data.sortOrder = sortOrder;
+
+    const widget = await WidgetData.updateWidget(req.params.id, data);
+    if (!widget) return res.status(404).json({ error: 'Widget not found' });
 
     // Save version
-    await prisma.widgetVersion.create({
-      data: {
-        widgetId: widget.id,
-        version: (latestVersion?.version || 0) + 1,
-        snapshot: JSON.stringify(req.body),
-        changedBy: req.user.email,
-        changeLog: 'Updated',
-      },
+    await WidgetData.createVersion({
+      widgetId: widget.id, widgetSlug: widget.slug, env: req.env,
+      version: (latestVersion?.version || 0) + 1,
+      snapshot: req.body,
+      changedBy: req.user.email, changeLog: 'Updated',
     });
 
     KineticSync.logActivitySafe({
-      action: 'update',
-      user: req.user,
-      targetId: widget.id,
-      targetType: 'widget',
-      details: { fields: Object.keys(req.body) },
-      env: req.env,
+      action: 'update', user: req.user,
+      targetId: widget.id, targetType: 'widget',
+      details: { fields: Object.keys(req.body) }, env: req.env,
     });
 
-    // Bust versions cache for this widget
-    Object.keys(versionsCache).forEach(k => { if (k.startsWith(req.params.id + ':')) delete versionsCache[k]; });
-
-    res.json({
-      ...widget,
-      pnc: JSON.parse(widget.pnc),
-      config: JSON.parse(widget.config),
-      products: JSON.parse(widget.products),
-    });
+    res.json(widget);
   } catch (err) { next(err); }
 });
 
 // ── PATCH /widgets/:id ──
-// Partial update (same as PUT but semantic difference)
 router.patch('/:id', async (req, res, next) => {
   try {
     const data = {};
@@ -206,35 +120,26 @@ router.patch('/:id', async (req, res, next) => {
     if (title !== undefined) data.title = title;
     if (titleHi !== undefined) data.titleHi = titleHi;
     if (status !== undefined) data.status = status;
-    if (pnc !== undefined) data.pnc = JSON.stringify(pnc);
-    if (config !== undefined) data.config = JSON.stringify(config);
-    if (products !== undefined) data.products = JSON.stringify(products);
+    if (pnc !== undefined) data.pnc = pnc;
+    if (config !== undefined) data.config = config;
+    if (products !== undefined) data.products = products;
     if (sortOrder !== undefined) data.sortOrder = sortOrder;
 
-    const widget = await prisma.widget.update({
-      where: { id: req.params.id },
-      data,
-    });
+    const widget = await WidgetData.updateWidget(req.params.id, data);
+    if (!widget) return res.status(404).json({ error: 'Widget not found' });
 
-    res.json({
-      ...widget,
-      pnc: JSON.parse(widget.pnc),
-      config: JSON.parse(widget.config),
-      products: JSON.parse(widget.products),
-    });
+    res.json(widget);
   } catch (err) { next(err); }
 });
 
 // ── DELETE /widgets/:id ──
 router.delete('/:id', async (req, res, next) => {
   try {
-    await prisma.widget.delete({ where: { id: req.params.id } });
+    await WidgetData.deleteWidget(req.params.id);
 
     KineticSync.logActivitySafe({
-      action: 'delete',
-      user: req.user,
-      targetId: req.params.id,
-      targetType: 'widget',
+      action: 'delete', user: req.user,
+      targetId: req.params.id, targetType: 'widget',
       env: req.env,
     });
 
@@ -245,85 +150,27 @@ router.delete('/:id', async (req, res, next) => {
 // ── POST /widgets/:id/duplicate ──
 router.post('/:id/duplicate', async (req, res, next) => {
   try {
-    const source = await prisma.widget.findUnique({ where: { id: req.params.id } });
-    if (!source) return res.status(404).json({ error: 'Widget not found' });
-
-    const suffix = `_copy_${Date.now().toString(36)}`;
-    const widget = await prisma.widget.create({
-      data: {
-        type: source.type,
-        slug: source.slug + suffix,
-        env: source.env,
-        title: source.title + ' (Copy)',
-        titleHi: source.titleHi,
-        status: 'DRAFT',
-        sortOrder: source.sortOrder + 1,
-        pnc: source.pnc,
-        config: source.config,
-        products: source.products,
-        createdBy: req.user.id,
-      },
-    });
+    const widget = await WidgetData.duplicateWidget(req.params.id, req.user, req.env);
+    if (!widget) return res.status(404).json({ error: 'Widget not found' });
 
     KineticSync.logActivitySafe({
-      action: 'create',
-      user: req.user,
-      targetId: widget.id,
-      targetType: 'widget',
-      details: { duplicatedFrom: source.id },
-      env: req.env,
+      action: 'create', user: req.user,
+      targetId: widget.id, targetType: 'widget',
+      details: { duplicatedFrom: req.params.id }, env: req.env,
     });
 
-    res.status(201).json({
-      ...widget,
-      pnc: JSON.parse(widget.pnc),
-      config: JSON.parse(widget.config),
-      products: JSON.parse(widget.products),
-    });
+    res.status(201).json(widget);
   } catch (err) { next(err); }
 });
 
 // ── GET /widgets/:id/versions ──
-// Supports pagination: ?limit=20&cursor=5 (cursor = version number to start before)
-// In-memory cache: { [key]: { data, ts } } — 10 s TTL
-const versionsCache = {};
-const VERSIONS_CACHE_TTL = 10_000;
-
 router.get('/:id/versions', async (req, res, next) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
     const cursor = parseInt(req.query.cursor) || null;
-    const cacheKey = `${req.params.id}:${limit}:${cursor}`;
 
-    // Serve from cache if fresh
-    const cached = versionsCache[cacheKey];
-    if (cached && Date.now() - cached.ts < VERSIONS_CACHE_TTL) {
-      return res.json(cached.data);
-    }
-
-    const where = { widgetId: req.params.id };
-    if (cursor) where.version = { lt: cursor };
-
-    const versions = await prisma.widgetVersion.findMany({
-      where,
-      orderBy: { version: 'desc' },
-      take: limit,
-    });
-
-    const hasMore = versions.length === limit;
-    const nextCursor = hasMore ? versions[versions.length - 1].version : null;
-
-    const payload = {
-      versions: versions.map(v => ({
-        ...v,
-        snapshot: JSON.parse(v.snapshot),
-      })),
-      nextCursor,
-      hasMore,
-    };
-
-    versionsCache[cacheKey] = { data: payload, ts: Date.now() };
-    res.json(payload);
+    const result = await WidgetData.listVersions(req.params.id, { limit, cursor });
+    res.json(result);
   } catch (err) { next(err); }
 });
 

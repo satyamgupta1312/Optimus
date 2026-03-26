@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/prod/:path*", "destination": "https://samaan.apnamart.in/:path*" },
+    { "source": "/uat/:path*", "destination": "https://smapi-cu.apnamart.in/:path*" },
+    { "source": "/api/local/:path*", "destination": "/api/local/index.js" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

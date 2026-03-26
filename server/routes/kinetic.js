@@ -1,78 +1,9 @@
 import { Router } from 'express';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import * as KineticSync from '../services/KineticSyncService.js';
 import * as Kinetic from '../services/KineticService.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ENV_PATH = path.join(__dirname, '..', '.env');
-
-// ── Metabase config (for product catalog) ──
-let METABASE_URL = process.env.METABASE_URL || '';
-let METABASE_API_KEY = process.env.METABASE_API_KEY || '';
-try {
-  if (fs.existsSync(ENV_PATH)) {
-    const envContent = fs.readFileSync(ENV_PATH, 'utf-8');
-    for (const line of envContent.split('\n')) {
-      let m = line.match(/^METABASE_URL=(.+)$/);
-      if (m) METABASE_URL = m[1].trim();
-      m = line.match(/^METABASE_API_KEY=(.+)$/);
-      if (m) METABASE_API_KEY = m[1].trim();
-    }
-  }
-} catch { /* ignore */ }
-
-if (METABASE_API_KEY) {
-  console.log(`[Catalog] Metabase configured → ${METABASE_URL} ✓`);
-} else {
-  console.warn('[Catalog] No METABASE_API_KEY — product catalog from Mirror disabled.');
-}
+import * as WidgetData from '../services/WidgetDataService.js';
 
 const router = Router();
-
-// ── Metabase structured query for product catalog ──
-// Table: smpcm_product (id:154) in Samaan DB (id:3)
-const METABASE_CATALOG_QUERY = {
-  database: 3,
-  type: 'query',
-  query: {
-    'source-table': 154,
-    fields: [
-      ['field', 2171, { 'base-type': 'type/BigInteger' }],  // id
-      ['field', 2157, { 'base-type': 'type/Integer' }],     // item_code
-      ['field', 2144, { 'base-type': 'type/Text' }],        // display_name
-      ['field', 2149, { 'base-type': 'type/Text' }],        // brand
-      ['field', 2156, { 'base-type': 'type/Text' }],        // main_image
-      ['field', 2146, { 'base-type': 'type/Float' }],       // mrp
-      ['field', 2188, { 'base-type': 'type/Float' }],       // selling_price
-    ],
-    filter: ['and',
-      ['=', ['field', 2177, { 'base-type': 'type/Boolean' }], true],
-      ['or',
-        ['!=', ['field', 2108, { 'base-type': 'type/Text' }], 'OFF'],
-        ['is-null', ['field', 2108, { 'base-type': 'type/Text' }]],
-      ],
-    ],
-  },
-};
-
-const IMAGE_BASE = 'https://gs.apnamart.in/';
-
-function mapRows(rows) {
-  return rows.map(r => {
-    const mainImage = r[4] || '';
-    return {
-      id: r[0],
-      item_code: String(r[1] ?? ''),
-      display_name: r[2] || '',
-      brand: r[3] || '',
-      product_image: mainImage ? `${IMAGE_BASE}${mainImage.replace(/^\//, '')}` : '',
-      mrp: r[5] || 0,
-      selling_price: r[6] || 0,
-    };
-  });
-}
 
 // ── GET /kinetic/health ──
 router.get('/health', (_req, res) => {
@@ -154,45 +85,10 @@ router.get('/search-widgets', async (req, res, next) => {
 });
 
 
-/**
- * Fetch specific products by item_code from Metabase (fast — small result set).
- * Uses Metabase structured query with item_code IN (...) filter.
- */
-async function fetchProductsByCodes(codes) {
-  const numericCodes = codes.map(c => parseInt(c)).filter(n => !isNaN(n));
-  if (numericCodes.length === 0) return {};
-
-  const query = {
-    ...METABASE_CATALOG_QUERY,
-    query: {
-      ...METABASE_CATALOG_QUERY.query,
-      filter: ['and',
-        ...METABASE_CATALOG_QUERY.query.filter.slice(1), // unwrap the existing 'and' filters
-        ['=', ['field', 2157, { 'base-type': 'type/Integer' }], ...numericCodes],
-      ],
-    },
-  };
-
-  const res = await fetch(`${METABASE_URL}/api/dataset`, {
-    method: 'POST',
-    headers: { 'x-api-key': METABASE_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify(query),
-  });
-  if (!res.ok) return {};
-  const data = await res.json();
-  const rows = mapRows(data.data?.rows || []);
-  const result = {};
-  for (const row of rows) {
-    if (row.item_code) result[row.item_code] = row;
-  }
-  return result;
-}
-
 // ── GET /kinetic/catalog/batch?codes=104303,104304,... ──
-// Batch lookup: queries Metabase directly for just the requested codes (fast, no OOM).
 router.get('/catalog/batch', async (req, res, next) => {
   try {
-    if (!METABASE_API_KEY) {
+    if (!WidgetData.isMetabaseAvailable()) {
       return res.json({ products: {}, source: 'metabase', available: false });
     }
 
@@ -203,7 +99,7 @@ router.get('/catalog/batch', async (req, res, next) => {
       return res.json({ products: {}, count: 0, source: 'metabase' });
     }
 
-    const results = await fetchProductsByCodes(codes);
+    const results = await WidgetData.batchProducts(codes);
     res.json({ products: results, count: Object.keys(results).length, source: 'metabase' });
   } catch (err) { next(err); }
 });

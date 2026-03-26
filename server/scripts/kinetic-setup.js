@@ -154,6 +154,50 @@ async function setup() {
     upsert_key: ['key', 'env'],
   });
 
+  console.log('[7] canvas_widgets');
+  await createAndPublish('canvas_widgets', {
+    description: 'Canvas Widgets (live widgets + header widgets)',
+    columns: [
+      { name: 'id', type: 'String', comment: 'UUID or primaryMasthead/secondaryMasthead' },
+      { name: 'type', type: 'String', comment: 'product_rail, collection_banner, primaryMasthead, etc.' },
+      { name: 'slug', type: 'String', comment: 'Unique per env (empty for header widgets)' },
+      { name: 'env', type: 'String', comment: 'PROD or UAT' },
+      { name: 'title', type: 'String' },
+      { name: 'title_hi', type: 'String' },
+      { name: 'status', type: 'String', default: "'DRAFT'", comment: 'DRAFT/PENDING/APPROVED/REJECTED' },
+      { name: 'sort_order', type: 'Int32', default: '0' },
+      { name: 'pnc', type: 'String', default: "'{}'", comment: 'JSON properties & characteristics' },
+      { name: 'config', type: 'String', default: "'{}'", comment: 'JSON widget-specific config' },
+      { name: 'products', type: 'String', default: "'[]'", comment: 'JSON array of product codes' },
+      { name: 'created_by', type: 'String', comment: 'Creator email' },
+      { name: 'created_at', type: 'String', comment: 'ISO timestamp' },
+      { name: 'updated_at', type: 'String', comment: 'ISO timestamp' },
+      { name: 'is_deleted', type: 'UInt8', default: '0', comment: '1 = soft deleted' },
+    ],
+    engine: 'MergeTree()',
+    order_by: '(id)',
+    upsert_key: ['id'],
+  });
+
+  console.log('[8] widget_versions');
+  await createAndPublish('widget_versions', {
+    description: 'Widget Version History',
+    columns: [
+      { name: 'id', type: 'String', comment: 'UUID' },
+      { name: 'widget_id', type: 'String', comment: 'Widget ID' },
+      { name: 'widget_slug', type: 'String', comment: 'Denormalized slug' },
+      { name: 'env', type: 'String', default: "'PROD'" },
+      { name: 'version', type: 'UInt32', comment: 'Per-widget increment' },
+      { name: 'snapshot', type: 'String', comment: 'Full widget state JSON' },
+      { name: 'changed_by', type: 'String', comment: 'Editor email' },
+      { name: 'change_log', type: 'String', default: "''" },
+      { name: 'created_at', type: 'String', comment: 'ISO timestamp' },
+    ],
+    engine: 'MergeTree()',
+    order_by: '(widget_id, version)',
+    upsert_key: ['widget_id', 'version'],
+  });
+
   // ── Saved Queries (new queries — old ones owned by another user, can't update) ──
 
   console.log('\n-- Saved queries --');

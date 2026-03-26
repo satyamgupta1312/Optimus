@@ -403,19 +403,24 @@ function safeJsonParse(str, fallback) {
 /**
  * Fetch requests from ClickHouse — BLOCKING, throws on failure.
  *
+ * Uses direct table read instead of saved queries to avoid Kinetic's
+ * auto-quoting of string variables (which breaks dynamic table names in SQL).
+ *
  * @param {string} env - 'PROD' or 'UAT'
  * @param {object} filters - { status?, date? }
  * @returns {Array} Nested request objects matching Prisma response shape
  */
 export async function fetchRequests(env, { status, date } = {}) {
   const table = getSubmissionsTable(env);
-  const variables = {
-    filter_table: table,
-  };
-  if (status) variables.filter_request_status = status;
-  if (date) variables.filter_date = date;
+  const whereParts = [];
+  if (status) whereParts.push(`request_status = '${status}'`);
+  if (date) whereParts.push(`dt = '${date}'`);
 
-  const result = await Kinetic.runQueryStrict(QUERY_PENDING, variables);
+  const result = await Kinetic.readRowsStrict(table, {
+    where: whereParts.length > 0 ? whereParts.join(' AND ') : undefined,
+    order_by: 'submitted_at DESC',
+    limit: 200,
+  });
   const rows = result?.data?.rows || [];
   return groupRowsIntoRequests(rows);
 }
@@ -429,9 +434,9 @@ export async function fetchRequests(env, { status, date } = {}) {
  */
 export async function fetchRequestById(requestId, env) {
   const table = getSubmissionsTable(env);
-  const result = await Kinetic.runQueryStrict(QUERY_BY_ID, {
-    filter_table: table,
-    filter_request_id: requestId,
+  const result = await Kinetic.readRowsStrict(table, {
+    where: `request_id = '${requestId}'`,
+    order_by: 'sort_order ASC',
   });
   const rows = result?.data?.rows || [];
   if (rows.length === 0) return null;
@@ -450,22 +455,16 @@ export async function fetchRequestById(requestId, env) {
  * @returns {{ logs: Array, pagination: object }}
  */
 export async function fetchActivityLog({ page = 1, limit = 50, action, env } = {}) {
-  // Use a wide date range (last 1 year) for general queries
-  const endDate = new Date().toISOString().split('T')[0];
-  const startDate = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0];
   const table = getActivityTable(env);
+  const whereParts = [];
+  if (action) whereParts.push(`action = '${action}'`);
 
-  const variables = {
-    filter_table: table,
-    start_date: startDate,
-    end_date: endDate,
-  };
-  if (action) variables.filter_action = action;
-  // Note: Kinetic saved query handles LIMIT/OFFSET via variables
-  variables.filter_limit = limit;
-  variables.filter_offset = (page - 1) * limit;
-
-  const result = await Kinetic.runQueryStrict(QUERY_ACTIVITY, variables);
+  const result = await Kinetic.readRowsStrict(table, {
+    where: whereParts.length > 0 ? whereParts.join(' AND ') : undefined,
+    order_by: 'created_at DESC',
+    limit,
+    offset: (page - 1) * limit,
+  });
   const rows = result?.data?.rows || [];
 
   const logs = rows.map(row => ({

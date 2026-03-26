@@ -9,6 +9,7 @@
     }
   },
   "rewrites": [
+    { "source": "/api/local/:path*/", "destination": "/api/local/index.js" },
     { "source": "/api/local/:path*", "destination": "/api/local/index.js" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]

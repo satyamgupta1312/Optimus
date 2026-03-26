@@ -25,11 +25,11 @@ const BACKENDS = {
 app.use(cors());
 
 // ── Backend proxy (before body parsers — needs raw body) ──
-app.all('/api/local/proxy/:env/*', express.raw({ type: '*/*', limit: '10mb' }), async (req, res) => {
+app.all('/api/local/proxy/:env/{*path}', express.raw({ type: '*/*', limit: '10mb' }), async (req, res) => {
   const backend = BACKENDS[req.params.env];
   if (!backend) return res.status(400).json({ error: 'Invalid env' });
 
-  const targetPath = req.params[0] || '';
+  const targetPath = Array.isArray(req.params.path) ? req.params.path.join('/') : (req.params.path || '');
   const qs = req.url.includes('?') ? '?' + req.url.split('?')[1] : '';
   const url = `${backend}/${targetPath}${qs}`;
 
@@ -48,23 +48,19 @@ app.all('/api/local/proxy/:env/*', express.raw({ type: '*/*', limit: '10mb' }), 
     // Forward status
     res.status(upstream.status);
 
-    // Forward response headers (especially Set-Cookie for CSRF/session)
+    // Forward Set-Cookie headers first (handle separately to avoid duplicates)
+    const setCookies = upstream.headers.getSetCookie ? upstream.headers.getSetCookie() : [];
+    setCookies.forEach(c => {
+      const cleaned = c.replace(/;\s*Domain=[^;]*/gi, '').replace(/;\s*SameSite=[^;]*/gi, '; SameSite=Lax');
+      res.append('Set-Cookie', cleaned);
+    });
+
+    // Forward other response headers
     for (const [key, value] of upstream.headers.entries()) {
       const lower = key.toLowerCase();
-      if (lower === 'transfer-encoding' || lower === 'content-encoding') continue;
-      if (lower === 'set-cookie') {
-        const raw = upstream.headers.getSetCookie ? upstream.headers.getSetCookie() : [value];
-        raw.forEach(c => {
-          // Strip Domain + force SameSite=Lax so cookies work on our origin
-          const cleaned = c.replace(/;\s*Domain=[^;]*/gi, '').replace(/;\s*SameSite=[^;]*/gi, '; SameSite=Lax');
-          res.append('Set-Cookie', cleaned);
-        });
-        continue;
-      }
+      if (lower === 'transfer-encoding' || lower === 'content-encoding' || lower === 'set-cookie') continue;
       if (lower === 'location') {
-        // Rewrite redirect Location to go through proxy
-        const loc = value.replace(backend, `/api/local/proxy/${req.params.env}`);
-        res.setHeader('Location', loc);
+        res.setHeader('Location', value.replace(backend, `/api/local/proxy/${req.params.env}`));
         continue;
       }
       res.setHeader(key, value);

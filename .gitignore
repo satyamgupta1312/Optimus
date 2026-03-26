@@ -33,3 +33,4 @@ server/credentials/
 
 # Uploaded media files
 server/uploads/
+.vercel

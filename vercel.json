@@ -2,6 +2,12 @@
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/local/index.js": {
+      "excludeFiles": "server/uploads/**",
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
     { "source": "/prod/:path*", "destination": "https://samaan.apnamart.in/:path*" },
     { "source": "/uat/:path*", "destination": "https://smapi-cu.apnamart.in/:path*" },

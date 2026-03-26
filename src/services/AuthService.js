@@ -142,8 +142,12 @@ export const logoutUser = async () => {
     } catch (e) {
         console.warn('[Auth] Logout failed (backend might be unreachable)');
     }
-    // Always clear local cookies
+    // Clear all local cookies (with multiple path variants to ensure removal)
     document.cookie.split(";").forEach((c) => {
-        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+        const name = c.replace(/^ +/, "").split("=")[0];
+        document.cookie = `${name}=;expires=${new Date().toUTCString()};path=/`;
+        document.cookie = `${name}=;expires=${new Date().toUTCString()};path=/;domain=${window.location.hostname}`;
     });
+    // Clear window-level user reference
+    delete window.currentUser;
 };

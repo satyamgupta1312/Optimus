@@ -353,8 +353,13 @@ export const GUIDE_CATEGORIES = [
             },
             {
                 title: 'Widget Duplication & Reorder',
-                description: '• **Duplicate**: Click the copy icon on any widget to clone it\n• The duplicate appears below the original with all data copied\n• **Reorder**: Drag widgets up/down in the emulator preview\n• Priority is auto-updated based on visual position',
-                tip: 'Duplicate a widget to quickly create variants — just change the PNC and products',
+                description: '• **Duplicate**: Click the copy icon on any widget to clone it\n• The duplicate appears below the original with all data copied\n• **Masthead Duplicate**: Copy icon on Primary/Secondary masthead **replaces** the original — purana hat jaata hai, naya copy uski jagah aa jaata hai (fresh slug, no _fetched link)\n• **Reorder**: Drag widgets up/down in the emulator preview\n• Priority is auto-updated based on visual position',
+                tip: 'Masthead is single-slot — duplicate replaces in-place. Body widgets get a copy inserted below.',
+            },
+            {
+                title: 'Logout & Re-Login',
+                description: '• **Logout** button (top-right corner) clears all session data\n• All cookies (CSRF, session) are cleared\n• localStorage user data is removed\n• Page hard-reloads — clears all React state (widgets, undo/redo, activity)\n• **Environment selection** (PROD/UAT) is preserved across logout\n• Fresh login works without "invalid credentials" error',
+                tip: 'If you see "invalid credentials" after logout, clear browser cookies manually and try again',
             },
         ],
     },

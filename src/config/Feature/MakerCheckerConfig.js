@@ -13,6 +13,7 @@
  *
  * Flow:
  *   Maker (creates/edits) → Submit → Checker (reviews) → Approve/Reject → Backend API Update
+ *   Super Admin (creates/edits) → Submit → Auto-Approved (no checker review needed)
  */
 
 // ── Role Permissions (what each role can DO) ──
@@ -20,10 +21,10 @@
 export const ROLE_PERMISSIONS = {
     SUPER_ADMIN: {
         label: 'Super Admin',
-        canCreate: true,
-        canEdit: true,
+        canCreate: true,     // Can create widgets (same as Maker)
+        canEdit: true,       // Can edit widgets (same as Maker)
         canDelete: true,
-        canSubmit: true,
+        canSubmit: true,     // Can submit — auto-approved (no checker review needed)
         canPreview: true,
         canApprove: true,
         canReject: true,
@@ -33,6 +34,7 @@ export const ROLE_PERMISSIONS = {
         canViewHistory: true,
         canLoadFromHistory: true,
         canManageStates: true,
+        autoApprove: true,   // Submissions are auto-approved on the server
     },
     CHECKER: {
         label: 'Checker',
@@ -77,7 +79,7 @@ export const PAGE_STATUS = {
         animated: false,
         editable: true,
         setBy: 'System (initial) / Checker (re-open)',
-        allowedActions: { maker: ['edit', 'add', 'delete', 'submit'], checker: [] },
+        allowedActions: { maker: ['edit', 'add', 'delete', 'submit'], checker: [], super_admin: ['edit', 'add', 'delete', 'submit'] },
     },
     PENDING: {
         label: 'Pending',
@@ -104,13 +106,14 @@ export const PAGE_STATUS = {
         animated: false,
         editable: true,
         setBy: 'Checker (reject)',
-        allowedActions: { maker: ['edit', 're-submit'], checker: [] },
+        allowedActions: { maker: ['edit', 're-submit'], checker: [], super_admin: ['edit', 're-submit'] },
     },
 };
 
 // ── Status Transition Rules ──
 export const STATUS_TRANSITIONS = [
-    { from: 'DRAFT', to: 'PENDING', action: 'submitForReview', allowedRole: 'maker', description: 'Only Maker can submit' },
+    { from: 'DRAFT', to: 'PENDING', action: 'submitForReview', allowedRole: 'maker', description: 'Maker submits for review' },
+    { from: 'DRAFT', to: 'APPROVED', action: 'submitForReview', allowedRole: 'super_admin', description: 'Super Admin submit → auto-approved (server-side)' },
     { from: 'PENDING', to: 'APPROVED', action: 'approvePage', allowedRole: 'checker', description: 'Only Checker can approve' },
     { from: 'PENDING', to: 'REJECTED', action: 'rejectPage', allowedRole: 'checker', description: 'Only Checker can reject' },
     { from: 'APPROVED', to: 'DRAFT', action: 'resetToDraft', allowedRole: 'checker', description: 'Only Checker can re-open' },
@@ -121,7 +124,7 @@ export const STATUS_TRANSITIONS = [
 // All editing operations check page status before proceeding
 export const EDIT_GUARDS = {
     editableStatuses: ['DRAFT', 'REJECTED'],
-    guardedOperations: ['addWidget', 'updateWidget', 'deleteWidget', 'moveWidget', 'duplicateWidget', 'bulkDelete'],
+    guardedOperations: ['addWidget', 'updateWidget', 'deleteWidget', 'moveWidget', 'duplicateWidget', 'duplicateMastheadWidget', 'bulkDelete'],
     blockedMessage: 'Cannot edit while in review or approved',
     source: 'src/context/WidgetContext.jsx',
 };
@@ -154,7 +157,7 @@ export const SUBMIT_PAYLOAD = {
     slugHandling: {
         description: 'Slug created by SlugBuilder is passed through as-is — no uniqueness check',
         validation: 'Required field check only (slug cannot be empty)',
-        storage: 'Same slug stored directly in Prisma DB',
+        storage: 'Slug stored in ClickHouse (Kinetic) as source of truth + Prisma Widget for versions/comments',
     },
     headerCleaning: 'File objects removed from headerWidgets for serialization',
     service: 'LocalApiService.createRequest() + LocalApiService.submitRequest()',
@@ -204,7 +207,7 @@ export const CHECKER_ACTIONS = {
         stateWiseProducts: 'Creates per-state sub-category items when widget.stateProducts has multiple keys',
     },
     approveAndDeploy: {
-        description: 'One-click: approve in Prisma + deploy to Django backend in sequence',
+        description: 'One-click: approve in ClickHouse (Kinetic) + deploy to Django backend in sequence',
         steps: ['LocalApiService.approveRequest()', 'BackendSyncService.deployRequest()'],
         requiresCsrf: true,
         csrfSource: 'Auto-read from session cookie via getCsrfToken() (AuthService.js)',
@@ -213,9 +216,30 @@ export const CHECKER_ACTIONS = {
     },
 };
 
+// ── Approval Lock (Race Condition Prevention) ──
+// Only one approve/reject processes at a time (in-memory lock on server).
+// Prevents duplicate DB writes, double Kinetic syncs, double activity logs.
+export const APPROVAL_LOCK = {
+    source: 'server/routes/requests.js',
+    type: 'In-memory lock (single-process)',
+    lockState: '{ requestId, user, startedAt } or null',
+    timeoutMs: 10000, // Auto-release after 10s to prevent deadlocks
+    appliesTo: ['/:id/approve', '/:id/reject'],
+    httpStatus: 423, // Locked
+    responseShape: '{ error, lockedBy, requestId }',
+    frontendHandling: {
+        source: 'src/components/Dashboard/RequestQueue.jsx',
+        detection: 'error.status === 423',
+        toast: 'An approval is already in progress, please wait a moment',
+        autoRetry: false, // User clicks again manually
+    },
+};
+
 // Express backend (server/routes/requests.js) handles approval for each widget type
+// Source of truth: ClickHouse (Kinetic) — Prisma Widget.status still updated for versions/comments
 export const APPROVAL_ROUTING = {
     source: 'server/routes/requests.js',
+    dataStore: 'ClickHouse (Kinetic) — widget_submissions / widget_submissions_uat tables',
     entryFunction: 'POST /api/local/requests/:id/approve',
     authentication: 'X-Optimus-User + X-Optimus-Env headers — auth middleware upserts User in Prisma, resolves role per-environment',
     widgetRoutes: {
@@ -266,14 +290,18 @@ export const WIDGET_ORIGIN = {
 };
 
 // ── Activity Logging ──
+// Source of truth: ClickHouse activity_log table (via KineticSyncService)
+// Request actions (submit/approve/reject/reopen) use BLOCKING writes (throw on failure)
+// Widget CRUD actions use fire-and-forget (logActivitySafe — never throws)
 export const ACTIVITY_LOG = {
-    source: 'src/context/ActivityLogContext.jsx',
+    source: 'ClickHouse activity_log table (server/services/KineticSyncService.js)',
+    frontendContext: 'src/context/ActivityLogContext.jsx',
     maxEntries: 100,
     actions: {
         widget_added: { logged: '{widgetId, type, title}', triggeredBy: 'addWidget()' },
         widget_updated: { logged: '{widgetId, changes: [fieldNames]}', triggeredBy: 'updateWidget()' },
         widget_deleted: { logged: '{widgetId, type}', triggeredBy: 'deleteWidget()' },
-        widget_duplicated: { logged: '{originalId, newId}', triggeredBy: 'duplicateWidget()' },
+        widget_duplicated: { logged: '{originalId, newId, masthead?}', triggeredBy: 'duplicateWidget() or duplicateMastheadWidget()' },
         bulk_delete: { logged: '{count, widgetIds}', triggeredBy: 'bulkDelete()' },
         state_restored: { logged: '{timestamp}', triggeredBy: 'restoreFromHistory()' },
         comment_added: { logged: '{widgetId, commentId}', triggeredBy: 'addComment()' },
@@ -281,10 +309,57 @@ export const ACTIVITY_LOG = {
     },
 };
 
+// ── Logout & Cache Clearing ──
+// Logout clears all session state to prevent "invalid credentials" on re-login.
+// Root cause: stale CSRF cookies / Django session cookies interfere with fresh login flow.
+export const LOGOUT_BEHAVIOR = {
+    trigger: 'Logout button (MainLayout header top-right)',
+    steps: [
+        'AuthService.logoutUser() — GET /logout/ to Django backend (fire-and-forget)',
+        'Clear all local cookies (with domain + path variants for thorough removal)',
+        'Clear window.currentUser reference',
+        'localStorage.removeItem("optimus_user") — clear stored user',
+        'window.location.reload() — hard reload clears all React state (WidgetContext, ActivityLog, UndoRedo, etc.)',
+    ],
+    preserves: ['optimus_env — environment selection survives logout for convenience'],
+    clears: ['optimus_user', 'All cookies (csrftoken, sessionid, etc.)', 'All React context state (via page reload)'],
+    source: {
+        authService: 'src/services/AuthService.js — logoutUser()',
+        authContext: 'src/context/AuthContext.jsx — logout()',
+    },
+};
+
+// ── Masthead Action Buttons ──
+// Primary and Secondary mastheads render outside the sortable widget list (in AppHeader / PhoneFrame).
+// They have their own Copy / Delete action buttons that appear when selected.
+// Duplicate uses duplicateMastheadWidget() — REPLACES original in-place (single-slot behavior).
+export const MASTHEAD_ACTIONS = {
+    primaryMasthead: {
+        renderedIn: 'src/components/Preview/AppHeader.jsx',
+        actions: ['duplicate (replace)', 'delete'],
+        buttonPosition: 'absolute top-2 right-2 z-30',
+        selectionSource: 'selectedWidgetId === primaryWidget.id',
+    },
+    secondaryMasthead: {
+        renderedIn: 'src/components/Preview/PhoneFrame.jsx',
+        actions: ['duplicate (replace)', 'delete'],
+        buttonPosition: 'absolute top-2 right-2 z-30',
+        selectionSource: 'selectedWidgetId === secondaryWidget.id',
+    },
+    duplicateBehavior: {
+        function: 'duplicateMastheadWidget(id) — WidgetContext.jsx',
+        description: 'Replaces original in-place with a fresh copy (new ID, cleared slug, no _fetched link)',
+        reason: 'Mastheads are single-slot — .find() picks first match, so a normal insert-after duplicate would be invisible',
+        clearedFields: ['slug', 'slug_name', '_fetched', '_rawData'],
+        preservedFields: ['type', 'pnc', 'all config/styling fields'],
+    },
+};
+
 // ── Error Handling ──
 export const ERROR_HANDLING = {
     submitFails: { behavior: 'Stays in DRAFT', toast: 'Failed to submit' },
     approvalFails: { behavior: 'Stays PENDING', toast: 'Failed to approve: {error}' },
+    kineticUnavailable: { behavior: '502 error — source of truth unavailable', toast: 'ClickHouse write failed: {error}' },
     individualWidgetFails: { behavior: 'Backend returns 400 with validation error details', toast: null },
     authExpired: { behavior: 'Auth middleware rejects request', fix: 'Re-login required' },
     unsupportedType: { behavior: 'Skipped during approval routing', toast: null },
@@ -306,7 +381,9 @@ export const UI_COMPONENTS = {
     BackendSyncService: { file: 'src/services/BackendSyncService.js', role: 'Direct backend deployment' },
     LocalApiService: { file: 'src/services/LocalApiService.js', role: 'Express backend API client (submit, approve, widgets, users, catalog)' },
     ValidationService: { file: 'src/services/ValidationService.js', role: 'Pre-submit validation + slug uniqueness checks' },
-    PrismaSchema: { file: 'server/prisma/schema.prisma', role: 'Database models (Widget with env field, Request, RequestWidget, User, etc.)' },
+    PrismaSchema: { file: 'server/prisma/schema.prisma', role: 'Database models (Widget, WidgetVersion, User, CheckerList, etc. — Request/RequestWidget/ActivityLog moved to ClickHouse)' },
+    KineticSetup: { file: 'server/scripts/kinetic-setup.js', role: 'ClickHouse table + query definitions (widget_submissions, activity_log)' },
+    KineticSyncService: { file: 'server/services/KineticSyncService.js', role: 'Blocking + fire-and-forget ClickHouse operations' },
     SnapshotPreview: { file: 'src/components/Dashboard/SnapshotPreview.jsx', role: 'Visual widget renderer from snapshot — used in WidgetHistory Preview' },
     MapToPageModal: { file: 'src/components/Dashboard/MapToPageModal.jsx', role: 'Post-deploy Layer 2 mapping modal — maps deployed widget slugs to page layout (Checker only)' },
     WidgetHistory: { file: 'src/components/Dashboard/WidgetHistory.jsx', role: 'Date-based widget history — browse submissions by date, load to canvas (spreads ALL snapshot fields), edit, submit/approve' },

@@ -238,8 +238,8 @@ export const HOMEPAGE_ENVIRONMENTS = {
     },
     UAT: {
         label: 'UAT',
-        baseUrl: 'https://uat.apnamart.in',
-        adminPanel: 'https://uat.apnamart.in/page-layout-widget-list/',
+        baseUrl: 'https://smapi-cu.apnamart.in',
+        adminPanel: 'https://smapi-cu.apnamart.in/page-layout-widget-list/',
         homepageSlug: HOMEPAGE_SLUG,
     },
 };

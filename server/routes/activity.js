@@ -1,60 +1,55 @@
 import { Router } from 'express';
-import { prisma } from '../prisma/client.js';
+import * as KineticSync from '../services/KineticSyncService.js';
 
 const router = Router();
 
 // ── GET /activity?page=1&limit=50&action=approve ──
-// Paginated activity log
+// Paginated activity log from ClickHouse
 router.get('/', async (req, res, next) => {
   try {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
-    const skip = (page - 1) * limit;
+    const action = req.query.action || undefined;
+    const env = req.query.env || req.env || undefined;
 
-    const where = {};
-    if (req.query.action) where.action = req.query.action;
-    if (req.query.userId) where.userId = req.query.userId;
-
-    const [logs, total] = await Promise.all([
-      prisma.activityLog.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-        include: { user: { select: { email: true, name: true } } },
-      }),
-      prisma.activityLog.count({ where }),
-    ]);
-
-    res.json({
-      logs: logs.map(l => ({ ...l, details: JSON.parse(l.details) })),
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
-    });
-  } catch (err) { next(err); }
+    const result = await KineticSync.fetchActivityLog({ page, limit, action, env });
+    res.json(result);
+  } catch (err) {
+    console.error('[activity GET /] ClickHouse read failed:', err.message);
+    res.status(502).json({ error: 'Failed to fetch activity log from ClickHouse', details: err.message });
+  }
 });
 
 // ── POST /activity ──
-// Create an activity log entry from the frontend
+// Create an activity log entry
 router.post('/', async (req, res, next) => {
   try {
-    const { action, details, targetId } = req.body;
+    const { action, details, targetId, targetType } = req.body;
 
     if (!action) {
       return res.status(400).json({ error: 'action is required' });
     }
 
-    const log = await prisma.activityLog.create({
-      data: {
-        action,
-        userId: req.user.id,
-        targetId: targetId || '',
-        details: JSON.stringify(details || {}),
-      },
-      include: { user: { select: { email: true, name: true } } },
+    await KineticSync.logActivity({
+      action,
+      user: req.user,
+      targetId: targetId || '',
+      targetType: targetType || '',
+      details: details || {},
+      env: req.env,
     });
 
-    res.status(201).json({ ...log, details: JSON.parse(log.details) });
-  } catch (err) { next(err); }
+    res.status(201).json({
+      action,
+      user: { email: req.user.email, name: req.user.name },
+      targetId: targetId || '',
+      details: details || {},
+      createdAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('[activity POST /] ClickHouse write failed:', err.message);
+    res.status(502).json({ error: 'Failed to write activity log to ClickHouse', details: err.message });
+  }
 });
 
 export default router;

@@ -255,7 +255,11 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
             fetchRequests();
         } catch (error) {
             console.error('Approve error:', error);
-            toast.error(`Failed to approve: ${error.message}`);
+            if (error.status === 423 || error.response?.status === 423) {
+                toast.error('An approval is already in progress, please wait a moment');
+            } else {
+                toast.error(`Failed to approve: ${error.message}`);
+            }
         } finally {
             setActionLoading(null);
         }
@@ -278,7 +282,11 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
             onReject?.(req.id);
             fetchRequests();
         } catch (error) {
-            toast.error('Failed to reject request');
+            if (error.status === 423 || error.response?.status === 423) {
+                toast.error('An approval is already in progress, please wait a moment');
+            } else {
+                toast.error('Failed to reject request');
+            }
         } finally {
             setActionLoading(null);
         }
@@ -406,7 +414,11 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
             fetchRequests();
         } catch (e) {
             toast.dismiss();
-            toast.error(`Error: ${e.message}`);
+            if (e.status === 423 || e.response?.status === 423) {
+                toast.error('An approval is already in progress, please wait a moment');
+            } else {
+                toast.error(`Error: ${e.message}`);
+            }
         } finally {
             setActionLoading(null);
         }

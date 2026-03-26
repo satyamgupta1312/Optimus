@@ -16,7 +16,7 @@ const ENV_PATH = path.join(__dirname, '..', '.env');
 let KINETIC_BASE = process.env.KINETIC_API_BASE || 'http://127.0.0.1:8888';
 let KINETIC_TOKEN = process.env.KINETIC_BEARER_TOKEN || '';
 let KINETIC_PHONE = process.env.KINETIC_USER_PHONE || '';
-const PROJECT = 'homepage';
+const PROJECT = 'widgets';
 
 // Simple .env loader (same pattern as DriveService.js)
 try {
@@ -158,5 +158,93 @@ export async function updateRows(table, { set, where }) {
   return kineticFetch(`${tableUrl(table)}/update`, {
     method: 'POST',
     body: JSON.stringify({ set, where }),
+  });
+}
+
+// ── Strict variants (throw on failure — for source-of-truth operations) ──
+
+/**
+ * Retry-enabled fetch that THROWS on failure instead of returning null.
+ * Same retry logic as kineticFetch but raises errors for callers to handle.
+ */
+async function kineticFetchStrict(url, options = {}, retries = 3) {
+  if (!KINETIC_TOKEN) {
+    throw new Error('Kinetic not configured (no KINETIC_BEARER_TOKEN)');
+  }
+
+  const headers = {
+    'Authorization': `Bearer ${KINETIC_TOKEN}`,
+    'Content-Type': 'application/json',
+    ...(KINETIC_PHONE ? { 'X-User-Phone': KINETIC_PHONE } : {}),
+    ...options.headers,
+  };
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, { ...options, headers });
+
+      if (res.ok) return await res.json();
+
+      const body = await res.text().catch(() => '');
+
+      // Don't retry client errors (4xx)
+      if (res.status >= 400 && res.status < 500) {
+        throw new Error(`Kinetic ${res.status}: ${body || url}`);
+      }
+
+      // Server error — retry
+      if (attempt < retries) {
+        const delay = 200 * Math.pow(2, attempt - 1);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+
+      throw new Error(`Kinetic ${res.status} after ${retries} attempts: ${body || url}`);
+    } catch (err) {
+      if (err.message.startsWith('Kinetic ')) throw err; // re-throw our own errors
+      if (attempt < retries) {
+        const delay = 200 * Math.pow(2, attempt - 1);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      throw new Error(`Kinetic network error after ${retries} attempts: ${err.message}`);
+    }
+  }
+}
+
+/** Insert rows — throws on failure */
+export async function insertRowsStrict(table, rows) {
+  return kineticFetchStrict(`${tableUrl(table)}/rows`, {
+    method: 'POST',
+    body: JSON.stringify({ rows }),
+  });
+}
+
+/** Update rows — throws on failure */
+export async function updateRowsStrict(table, { set, where }) {
+  return kineticFetchStrict(`${tableUrl(table)}/update`, {
+    method: 'POST',
+    body: JSON.stringify({ set, where }),
+  });
+}
+
+/** Run a saved query — throws on failure */
+export async function runQueryStrict(slug, variables = {}) {
+  return kineticFetchStrict(`${queryUrl(slug)}/run`, {
+    method: 'POST',
+    body: JSON.stringify(variables),
+  });
+}
+
+/** Read rows — throws on failure */
+export async function readRowsStrict(table, { where, order_by, limit, offset } = {}) {
+  const params = new URLSearchParams();
+  if (where) params.set('where', where);
+  if (order_by) params.set('order_by', order_by);
+  if (limit) params.set('limit', String(limit));
+  if (offset) params.set('offset', String(offset));
+  const qs = params.toString();
+  return kineticFetchStrict(`${tableUrl(table)}/rows${qs ? '?' + qs : ''}`, {
+    method: 'GET',
   });
 }

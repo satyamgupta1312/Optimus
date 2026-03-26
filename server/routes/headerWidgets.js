@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../prisma/client.js';
+import * as KineticSync from '../services/KineticSyncService.js';
 
 const router = Router();
 
@@ -54,13 +55,13 @@ router.put('/', async (req, res, next) => {
 
     await prisma.$transaction(ops);
 
-    await prisma.activityLog.create({
-      data: {
-        action: 'update',
-        userId: req.user.id,
-        targetId: 'headerWidgets',
-        details: JSON.stringify({ updated: Object.keys(req.body) }),
-      },
+    KineticSync.logActivitySafe({
+      action: 'update',
+      user: req.user,
+      targetId: 'headerWidgets',
+      targetType: 'headerWidgets',
+      details: { updated: Object.keys(req.body) },
+      env: req.env,
     });
 
     // Return updated state

@@ -209,8 +209,8 @@ const MainLayout = () => {
                         </button>
                     )}
 
-                    {/* Filter buttons for Maker - Controls both page status and queue filter */}
-                    {user?.role === 'MAKER' && (
+                    {/* Filter buttons for Maker/Admin - Controls both page status and queue filter */}
+                    {(user?.role === 'MAKER' || isSuperAdmin) && (
                         <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
                             <button
                                 onClick={() => {
@@ -252,7 +252,7 @@ const MainLayout = () => {
                     )}
 
                     {/* Workflow Actions */}
-                    {user?.role === 'MAKER' && (pageStatus === 'DRAFT' || pageStatus === 'REJECTED') && (
+                    {(user?.role === 'MAKER' || isSuperAdmin) && (pageStatus === 'DRAFT' || pageStatus === 'REJECTED') && (
                         <button
                             onClick={openSubmitModal}
                             className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2"

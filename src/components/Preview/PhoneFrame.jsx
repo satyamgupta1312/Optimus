@@ -1,7 +1,7 @@
 import React from 'react';
 import { useWidgetContext } from '../../context/WidgetContext';
 import { useAppSettings } from '../../context/AppSettingsContext';
-import { Battery, Signal, Wifi } from 'lucide-react';
+import { Battery, Signal, Wifi, Copy, X } from 'lucide-react';
 import {
     DndContext,
     closestCenter,
@@ -29,6 +29,7 @@ const PhoneFrame = () => {
         selectedWidgetId,
         setSelectedWidgetId,
         deleteWidget,
+        duplicateMastheadWidget,
         moveWidget,
         currentView,
         viewData,
@@ -152,9 +153,28 @@ const PhoneFrame = () => {
                             const isSecondarySelected = selectedWidgetId === secondaryWidget.id;
                             return (
                                 <div
-                                    className={`mb-2 cursor-pointer ${isSecondarySelected ? 'ring-2 ring-blue-500 rounded-xl' : ''}`}
+                                    className={`relative mb-2 cursor-pointer ${isSecondarySelected ? 'ring-2 ring-blue-500 rounded-xl' : ''}`}
                                     onClick={() => setSelectedWidgetId(secondaryWidget.id)}
                                 >
+                                    {/* Action Buttons (Copy / Delete) */}
+                                    {isSecondarySelected && (
+                                        <div className="absolute top-2 right-2 z-30 flex gap-1">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); duplicateMastheadWidget(secondaryWidget.id); }}
+                                                className="p-1.5 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors shadow-md"
+                                                title="Duplicate masthead (replaces original)"
+                                            >
+                                                <Copy size={12} />
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); deleteWidget(secondaryWidget.id); }}
+                                                className="p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-md"
+                                                title="Delete masthead"
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </div>
+                                    )}
                                     <SecondaryMasthead widget={secondaryWidget} />
                                 </div>
                             );

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Search, ShoppingBag, Leaf, Tractor, Flame, ShoppingCart, User, ChevronDown, MapPin, Ban } from 'lucide-react';
+import { Search, ShoppingBag, Leaf, Tractor, Flame, ShoppingCart, User, ChevronDown, MapPin, Ban, Copy, X } from 'lucide-react';
 import { useAppSettings } from '../../context/AppSettingsContext';
 import { useWidgetContext } from '../../context/WidgetContext';
 import PrimaryMasthead from '../Widgets/PrimaryMasthead';
@@ -16,7 +16,7 @@ import PrimaryMasthead from '../Widgets/PrimaryMasthead';
  */
 const AppHeader = () => {
     const { theme } = useAppSettings();
-    const { headerWidgets, widgets, setSelectedWidgetId, selectedWidgetId } = useWidgetContext();
+    const { headerWidgets, widgets, setSelectedWidgetId, selectedWidgetId, duplicateMastheadWidget, deleteWidget } = useWidgetContext();
 
     // Find the config-driven primary masthead widget for selection
     const primaryWidget = widgets.find(w => w.type === 'masthead' && w.pnc?.variant === 'primary');
@@ -72,6 +72,26 @@ const AppHeader = () => {
             style={{ ...getHeaderStyle(), color: headerTextColor }}
             onClick={() => primaryWidget && setSelectedWidgetId(primaryWidget.id)}
         >
+            {/* Action Buttons (Copy / Delete) — shown when primary masthead is selected */}
+            {isSelected && primaryWidget && (
+                <div className="absolute top-2 right-2 z-30 flex gap-1">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); duplicateMastheadWidget(primaryWidget.id); }}
+                        className="p-1.5 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors shadow-md"
+                        title="Duplicate masthead (replaces original)"
+                    >
+                        <Copy size={12} />
+                    </button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); deleteWidget(primaryWidget.id); }}
+                        className="p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-md"
+                        title="Delete masthead"
+                    >
+                        <X size={12} />
+                    </button>
+                </div>
+            )}
+
             {/* Content wrapper with relative positioning to stay above background */}
             <div className="relative z-10">
                 {/* Top Bar: Delivery Info & Profile */}

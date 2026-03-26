@@ -4,19 +4,44 @@
  * Transforms Optimus widget data into Kinetic table rows and
  * provides history/analytics fetch via saved queries.
  *
- * Sync points:
- *   1. syncSubmission()   — on submit (PENDING)
- *   2. syncStatusChange() — on approve/reject (APPROVED/REJECTED)
- *   3. syncDeploy()       — on deploy (DEPLOYED) with actual slugs + hierarchy
+ * Two operation modes:
+ *   1. STRICT (blocking, throws) — for source-of-truth writes/reads
+ *      createSubmission(), updateRequestStatus(), logActivity(),
+ *      fetchRequests(), fetchRequestById(), fetchActivityLog()
  *
- * All methods are safe to call fire-and-forget — they never throw.
+ *   2. FIRE-AND-FORGET (non-blocking, never throws) — for mirrors
+ *      syncDeploy(), syncUserRoleAdd/Remove(), syncLocation*()
+ *
+ * Sync points:
+ *   1. createSubmission()    — on submit (PENDING) — BLOCKING
+ *   2. updateRequestStatus() — on approve/reject/reopen — BLOCKING
+ *   3. logActivity()         — on any action — BLOCKING for requests, fire-and-forget for widget CRUD
+ *   4. syncDeploy()          — on deploy (DEPLOYED) with actual slugs + hierarchy
  */
 import * as Kinetic from './KineticService.js';
+import crypto from 'crypto';
 
-const TABLE = 'widget_submissions';
-const QUERY_HISTORY = 'homepage/submissions-by-date';
-const QUERY_ANALYTICS = 'homepage/analytics';
-const QUERY_SEARCH = 'homepage/search-widgets';
+// ── Table / Query constants ──
+
+const TABLE_PROD = 'submissions';
+const TABLE_UAT = 'submissions_uat';
+const TABLE_ACTIVITY = 'activity_log';
+const TABLE_ACTIVITY_UAT = 'activity_log_uat';
+
+const QUERY_HISTORY = 'widgets/submissions-by-date';
+const QUERY_ANALYTICS = 'widgets/analytics';
+const QUERY_SEARCH = 'widgets/search';
+const QUERY_PENDING = 'widgets/pending-requests';
+const QUERY_BY_ID = 'widgets/request-by-id';
+const QUERY_ACTIVITY = 'widgets/activity-log';
+
+function getSubmissionsTable(env) {
+  return env === 'UAT' ? TABLE_UAT : TABLE_PROD;
+}
+
+function getActivityTable(env) {
+  return env === 'UAT' ? TABLE_ACTIVITY_UAT : TABLE_ACTIVITY;
+}
 
 // ── Helpers ──
 
@@ -123,21 +148,369 @@ function derivePageSlug(w) {
   return pageType === 'category_page' ? `${base}_Cat_page` : `${base}_page_p`;
 }
 
-// ── Write path ──
+// ══════════════════════════════════════════════════════════════
+// STRICT (BLOCKING) — ClickHouse is source of truth
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Create a submission in ClickHouse — BLOCKING, throws on failure.
+ *
+ * @param {string} requestId - UUID for the request
+ * @param {Array}  widgets   - Canvas widgets array
+ * @param {object} user      - { id, email, name }
+ * @param {string} env       - 'PROD' or 'UAT'
+ * @param {object} headerWidgets - Header widget snapshot object
+ * @returns {object} Kinetic API response
+ */
+export async function createSubmission(requestId, widgets, user, env, headerWidgets = {}) {
+  const today = new Date().toISOString().split('T')[0];
+  const now = new Date().toISOString();
+  const table = getSubmissionsTable(env);
+  const headerJson = JSON.stringify(headerWidgets || {});
+
+  const rows = widgets.map((w, i) => {
+    const pnc = typeof w.pnc === 'string' ? w.pnc : JSON.stringify(w.pnc || {});
+    const products = typeof w.products === 'string'
+      ? JSON.parse(w.products)
+      : (w.products || []);
+
+    // Build a clean snapshot (strip File/Blob which can't serialize)
+    const snapshot = {};
+    for (const [k, v] of Object.entries(w)) {
+      if (typeof v === 'function') continue;
+      if (typeof File !== 'undefined' && v instanceof File) continue;
+      if (typeof Blob !== 'undefined' && v instanceof Blob) continue;
+      snapshot[k] = v;
+    }
+
+    return {
+      dt: today,
+      widget_id: w.id || w._dbId || '',
+      widget_type: w.type || 'unknown',
+      slug: w.slug || w.slug_name || '',
+      title: w.title || '',
+      title_hi: w.titleHi || '',
+      item_titles_hi: extractItemTitlesHi(w),
+      status: 'PENDING',
+      submitted_by: user.email || '',
+      edited_by: '',
+      edited_at: '',
+      env: env || 'PROD',
+      products_count: Array.isArray(products) ? products.length : 0,
+      pnc,
+      page_slug: derivePageSlug(w),
+      hierarchy: deriveHierarchy(w),
+      snapshot: JSON.stringify(snapshot),
+      request_id: requestId,
+      // New source-of-truth columns
+      rejection_reason: '',
+      header_widgets: headerJson,
+      request_type: 'Homepage Update',
+      sort_order: i,
+      request_status: 'PENDING',
+      submitted_at: now,
+      result: '',
+      error: '',
+    };
+  });
+
+  if (rows.length === 0) {
+    // Insert a header-only row if no body widgets but headerWidgets exist
+    if (Object.keys(headerWidgets || {}).length > 0) {
+      rows.push({
+        dt: today,
+        widget_id: '__header_only__',
+        widget_type: 'header',
+        slug: '',
+        title: 'Header Widgets Only',
+        title_hi: '',
+        item_titles_hi: '[]',
+        status: 'PENDING',
+        submitted_by: user.email || '',
+        edited_by: '',
+        edited_at: '',
+        env: env || 'PROD',
+        products_count: 0,
+        pnc: '{}',
+        page_slug: '',
+        hierarchy: '{}',
+        snapshot: '{}',
+        request_id: requestId,
+        rejection_reason: '',
+        header_widgets: headerJson,
+        request_type: 'Homepage Update',
+        sort_order: 0,
+        request_status: 'PENDING',
+        submitted_at: now,
+        result: '',
+        error: '',
+      });
+    } else {
+      throw new Error('No widgets to submit');
+    }
+  }
+
+  console.log(`[KineticSync] Creating submission: ${rows.length} widget(s) for request ${requestId}`);
+  const result = await Kinetic.insertRowsStrict(table, rows);
+  console.log(`[KineticSync] Submission created in ${table}`);
+  return result;
+}
+
+/**
+ * Update request status in ClickHouse — BLOCKING, throws on failure.
+ *
+ * @param {string} requestId - Request UUID
+ * @param {string} newStatus - 'APPROVED', 'REJECTED', 'DRAFT', 'DEPLOYED'
+ * @param {object} user      - { email }
+ * @param {string} env       - 'PROD' or 'UAT'
+ * @param {object} opts      - { rejectionReason? }
+ */
+export async function updateRequestStatus(requestId, newStatus, user, env, opts = {}) {
+  const table = getSubmissionsTable(env);
+  const set = {
+    request_status: `'${newStatus}'`,
+    status: `'${newStatus}'`,
+  };
+  if (user?.email) {
+    set.edited_by = `'${user.email}'`;
+    set.edited_at = `'${new Date().toISOString()}'`;
+  }
+  if (opts.rejectionReason !== undefined) {
+    set.rejection_reason = `'${(opts.rejectionReason || '').replace(/'/g, "\\'")}'`;
+  }
+
+  console.log(`[KineticSync] Updating status -> ${newStatus} for request ${requestId}`);
+  const result = await Kinetic.updateRowsStrict(table, {
+    set,
+    where: `request_id = '${requestId}'`,
+  });
+  console.log(`[KineticSync] Status updated`);
+  return result;
+}
+
+/**
+ * Log an activity entry to ClickHouse — BLOCKING, throws on failure.
+ *
+ * @param {object} params
+ * @param {string} params.action    - 'submit', 'approve', 'reject', 'create', etc.
+ * @param {object} params.user      - { email, name }
+ * @param {string} params.targetId  - Widget or Request ID
+ * @param {string} [params.targetType] - 'request', 'widget', 'headerWidgets'
+ * @param {object} [params.details] - Extra context
+ * @param {string} [params.env]     - 'PROD' or 'UAT'
+ */
+export async function logActivity({ action, user, targetId, targetType, details, env }) {
+  const today = new Date().toISOString().split('T')[0];
+  const now = new Date().toISOString();
+  const table = getActivityTable(env);
+
+  const row = {
+    id: crypto.randomUUID(),
+    dt: today,
+    action: action || '',
+    user_email: user?.email || '',
+    user_name: user?.name || user?.email?.split('@')[0] || '',
+    target_id: targetId || '',
+    target_type: targetType || '',
+    details: JSON.stringify(details || {}),
+    env: env || 'PROD',
+    created_at: now,
+  };
+
+  const result = await Kinetic.insertRowsStrict(table, [row]);
+  return result;
+}
+
+/**
+ * Fire-and-forget activity log — same as logActivity but swallows errors.
+ * Used for widget CRUD logs where failure is acceptable.
+ */
+export async function logActivitySafe(params) {
+  try {
+    await logActivity(params);
+  } catch (err) {
+    console.warn('[KineticSync] Activity log failed (non-blocking):', err.message);
+  }
+}
+
+// ── Read path (BLOCKING) ──
+
+/**
+ * Group flat CH rows into nested request objects matching the Prisma response shape.
+ *
+ * Input: flat rows with request_id, widget_id, snapshot, etc.
+ * Output: array of { id, status, type, env, submitter, headerWidgets, createdAt, rejectionReason, requestWidgets: [...] }
+ */
+function groupRowsIntoRequests(rows) {
+  const map = new Map();
+
+  for (const row of rows) {
+    const rid = row.request_id;
+    if (!map.has(rid)) {
+      map.set(rid, {
+        id: rid,
+        status: row.request_status || row.status || 'PENDING',
+        type: row.request_type || 'Homepage Update',
+        env: row.env || 'PROD',
+        submittedBy: row.submitted_by || '',
+        submitter: {
+          email: row.submitted_by || '',
+          name: row.submitted_by ? row.submitted_by.split('@')[0] : '',
+        },
+        rejectionReason: row.rejection_reason || '',
+        headerWidgets: safeJsonParse(row.header_widgets, {}),
+        createdAt: row.submitted_at || row.dt || '',
+        updatedAt: row.edited_at || row.submitted_at || '',
+        requestWidgets: [],
+      });
+    }
+
+    const req = map.get(rid);
+
+    // Skip header-only placeholder rows
+    if (row.widget_id === '__header_only__') continue;
+
+    req.requestWidgets.push({
+      id: `${rid}_${row.widget_id}`,
+      requestId: rid,
+      widgetId: row.widget_id || '',
+      snapshot: safeJsonParse(row.snapshot, {}),
+      sortOrder: Number(row.sort_order) || 0,
+      result: row.result || '',
+      error: row.error || '',
+      widget: {
+        id: row.widget_id || '',
+        type: row.widget_type || '',
+        slug: row.slug || '',
+        title: row.title || '',
+      },
+    });
+  }
+
+  // Sort requestWidgets by sortOrder
+  for (const req of map.values()) {
+    req.requestWidgets.sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+
+  return Array.from(map.values());
+}
+
+function safeJsonParse(str, fallback) {
+  if (!str) return fallback;
+  try { return JSON.parse(str); } catch { return fallback; }
+}
+
+/**
+ * Fetch requests from ClickHouse — BLOCKING, throws on failure.
+ *
+ * @param {string} env - 'PROD' or 'UAT'
+ * @param {object} filters - { status?, date? }
+ * @returns {Array} Nested request objects matching Prisma response shape
+ */
+export async function fetchRequests(env, { status, date } = {}) {
+  const table = getSubmissionsTable(env);
+  const variables = {
+    filter_table: table,
+  };
+  if (status) variables.filter_request_status = status;
+  if (date) variables.filter_date = date;
+
+  const result = await Kinetic.runQueryStrict(QUERY_PENDING, variables);
+  const rows = result?.data?.rows || [];
+  return groupRowsIntoRequests(rows);
+}
+
+/**
+ * Fetch a single request by ID — BLOCKING, throws on failure.
+ *
+ * @param {string} requestId - Request UUID
+ * @param {string} env - 'PROD' or 'UAT'
+ * @returns {object|null} Nested request object or null if not found
+ */
+export async function fetchRequestById(requestId, env) {
+  const table = getSubmissionsTable(env);
+  const result = await Kinetic.runQueryStrict(QUERY_BY_ID, {
+    filter_table: table,
+    filter_request_id: requestId,
+  });
+  const rows = result?.data?.rows || [];
+  if (rows.length === 0) return null;
+  const requests = groupRowsIntoRequests(rows);
+  return requests[0] || null;
+}
+
+/**
+ * Fetch activity log from ClickHouse — BLOCKING, throws on failure.
+ *
+ * @param {object} params
+ * @param {number} params.page   - Page number (1-based)
+ * @param {number} params.limit  - Items per page
+ * @param {string} [params.action] - Filter by action
+ * @param {string} [params.env]  - Filter by env
+ * @returns {{ logs: Array, pagination: object }}
+ */
+export async function fetchActivityLog({ page = 1, limit = 50, action, env } = {}) {
+  // Use a wide date range (last 1 year) for general queries
+  const endDate = new Date().toISOString().split('T')[0];
+  const startDate = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0];
+  const table = getActivityTable(env);
+
+  const variables = {
+    filter_table: table,
+    start_date: startDate,
+    end_date: endDate,
+  };
+  if (action) variables.filter_action = action;
+  // Note: Kinetic saved query handles LIMIT/OFFSET via variables
+  variables.filter_limit = limit;
+  variables.filter_offset = (page - 1) * limit;
+
+  const result = await Kinetic.runQueryStrict(QUERY_ACTIVITY, variables);
+  const rows = result?.data?.rows || [];
+
+  const logs = rows.map(row => ({
+    id: row.id,
+    action: row.action,
+    user: {
+      email: row.user_email || '',
+      name: row.user_name || '',
+    },
+    userId: row.user_email || '', // email as userId for ClickHouse
+    targetId: row.target_id || '',
+    targetType: row.target_type || '',
+    details: safeJsonParse(row.details, {}),
+    env: row.env || 'PROD',
+    createdAt: row.created_at || '',
+  }));
+
+  // For total count, we'd need a separate count query — approximate with rows.length
+  // If we got exactly `limit` rows, there might be more
+  const total = rows.length < limit ? (page - 1) * limit + rows.length : (page * limit) + 1;
+
+  return {
+    logs,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+  };
+}
+
+// ══════════════════════════════════════════════════════════════
+// FIRE-AND-FORGET — mirrors (never throw)
+// ══════════════════════════════════════════════════════════════
 
 /**
  * Sync widget submissions to Kinetic after Prisma transaction succeeds.
+ * (Legacy fire-and-forget — kept for backward compat with deploy sync)
  *
- * @param {object} request - The Prisma request object (with requestWidgets)
+ * @param {object} request - The request object (with requestWidgets)
  * @param {Array}  widgets - Original canvas widgets (pre-serialization)
  * @param {object} user    - { id, email, name }
- * @param {string} env     - 'PROD' or 'STAGING'
+ * @param {string} env     - 'PROD' or 'UAT'
  */
 export async function syncSubmission(request, widgets, user, env) {
   if (!Kinetic.isAvailable()) return;
-  if (env !== 'PROD') return;
 
   const today = new Date().toISOString().split('T')[0];
+  const table = getSubmissionsTable(env);
 
   const rows = widgets.map((w) => {
     const pnc = typeof w.pnc === 'string' ? w.pnc : JSON.stringify(w.pnc || {});
@@ -145,7 +518,6 @@ export async function syncSubmission(request, widgets, user, env) {
       ? JSON.parse(w.products)
       : (w.products || []);
 
-    // Build a clean snapshot (strip File/Blob which can't serialize)
     const snapshot = {};
     for (const [k, v] of Object.entries(w)) {
       if (typeof v === 'function') continue;
@@ -179,9 +551,9 @@ export async function syncSubmission(request, widgets, user, env) {
   if (rows.length === 0) return;
 
   console.log(`[KineticSync] Syncing ${rows.length} widget(s) for request ${request.id}`);
-  const result = await Kinetic.insertRows(TABLE, rows);
+  const result = await Kinetic.insertRows(table, rows);
   if (result) {
-    console.log(`[KineticSync] ✓ ${rows.length} row(s) synced`);
+    console.log(`[KineticSync] ${rows.length} row(s) synced`);
   } else {
     console.warn('[KineticSync] Insert failed (non-blocking)');
   }
@@ -189,10 +561,7 @@ export async function syncSubmission(request, widgets, user, env) {
 
 /**
  * Update status in Kinetic when a request is approved/rejected.
- *
- * @param {string} requestId - Request UUID
- * @param {string} newStatus - 'APPROVED' or 'REJECTED'
- * @param {object} [user]    - { email } of the approver/rejector
+ * (Legacy fire-and-forget)
  */
 export async function syncStatusChange(requestId, newStatus, user) {
   if (!Kinetic.isAvailable()) return;
@@ -203,13 +572,13 @@ export async function syncStatusChange(requestId, newStatus, user) {
     set.edited_at = `'${new Date().toISOString()}'`;
   }
 
-  console.log(`[KineticSync] Updating status → ${newStatus} for request ${requestId}`);
-  const result = await Kinetic.updateRows(TABLE, {
+  console.log(`[KineticSync] Updating status -> ${newStatus} for request ${requestId}`);
+  const result = await Kinetic.updateRows(TABLE_PROD, {
     set,
     where: `request_id = '${requestId}'`,
   });
   if (result) {
-    console.log(`[KineticSync] ✓ Status updated`);
+    console.log(`[KineticSync] Status updated`);
   } else {
     console.warn('[KineticSync] Status update failed (non-blocking)');
   }
@@ -217,17 +586,14 @@ export async function syncStatusChange(requestId, newStatus, user) {
 
 /**
  * Sync deploy results to Kinetic — updates with actual slugs and DEPLOYED status.
- *
- * @param {string} widgetId  - Widget UUID (matches widget_id in Kinetic)
- * @param {string} dt        - Submission date (YYYY-MM-DD) for upsert key match
- * @param {object} slugs     - Actual slugs object from builder.deploy() result
- * @param {object} [user]    - { email } of the deployer
  */
-export async function syncDeploy(widgetId, dt, slugs, user) {
+export async function syncDeploy(widgetId, dt, slugs, user, env) {
   if (!Kinetic.isAvailable()) return;
 
+  const table = getSubmissionsTable(env || 'PROD');
   const set = {
     status: "'DEPLOYED'",
+    request_status: "'DEPLOYED'",
     hierarchy: `'${JSON.stringify(slugs).replace(/'/g, "\\'")}'`,
   };
 
@@ -238,28 +604,21 @@ export async function syncDeploy(widgetId, dt, slugs, user) {
   }
 
   console.log(`[KineticSync] Syncing deploy for widget ${widgetId}`);
-  const result = await Kinetic.updateRows(TABLE, {
+  const result = await Kinetic.updateRows(table, {
     set,
     where: `widget_id = '${widgetId}' AND dt = '${dt}'`,
   });
   if (result) {
-    console.log(`[KineticSync] ✓ Deploy synced`);
+    console.log(`[KineticSync] Deploy synced`);
   } else {
     console.warn('[KineticSync] Deploy sync failed (non-blocking)');
   }
 }
 
-// ── User Roles sync ──
+// ── User Roles sync (fire-and-forget) ──
 
 const ROLES_TABLE = 'user_roles';
 
-/**
- * Sync a checker/admin addition to Kinetic.
- *
- * @param {object} user    - { email, name, role }
- * @param {string} env     - 'PROD' or 'STAGING'
- * @param {object} [addedBy] - { email } of who added this user
- */
 export async function syncUserRoleAdd(user, env, addedBy) {
   if (!Kinetic.isAvailable()) return;
 
@@ -275,21 +634,15 @@ export async function syncUserRoleAdd(user, env, addedBy) {
     updated_at: now,
   };
 
-  console.log(`[KineticSync] Syncing user role: ${row.email} → ${row.role} (${row.env})`);
+  console.log(`[KineticSync] Syncing user role: ${row.email} -> ${row.role} (${row.env})`);
   const result = await Kinetic.insertRows(ROLES_TABLE, [row]);
   if (result) {
-    console.log(`[KineticSync] ✓ User role synced`);
+    console.log(`[KineticSync] User role synced`);
   } else {
     console.warn('[KineticSync] User role sync failed (non-blocking)');
   }
 }
 
-/**
- * Sync a checker removal to Kinetic (soft-delete: is_active = 0).
- *
- * @param {string} email   - User email
- * @param {string} env     - 'PROD' or 'STAGING'
- */
 export async function syncUserRoleRemove(email, env) {
   if (!Kinetic.isAvailable()) return;
 
@@ -302,22 +655,16 @@ export async function syncUserRoleRemove(email, env) {
     where: `email = '${email}' AND env = '${env}'`,
   });
   if (result) {
-    console.log(`[KineticSync] ✓ User role removed`);
+    console.log(`[KineticSync] User role removed`);
   } else {
     console.warn('[KineticSync] User role remove failed (non-blocking)');
   }
 }
 
-// ── Locations sync ──
+// ── Locations sync (fire-and-forget) ──
 
 const LOCATIONS_TABLE = 'locations';
 
-/**
- * Sync a location (create or update) to Kinetic.
- * Fire-and-forget — never throws.
- *
- * @param {object} location - Prisma Location object
- */
 export async function syncLocationUpsert(location) {
   if (!Kinetic.isAvailable()) return;
 
@@ -338,19 +685,12 @@ export async function syncLocationUpsert(location) {
   console.log(`[KineticSync] Syncing location: ${row.key} (${row.env})`);
   const result = await Kinetic.insertRows(LOCATIONS_TABLE, [row]);
   if (result) {
-    console.log(`[KineticSync] ✓ Location synced: ${row.key}`);
+    console.log(`[KineticSync] Location synced: ${row.key}`);
   } else {
     console.warn('[KineticSync] Location sync failed (non-blocking)');
   }
 }
 
-/**
- * Sync location deletion to Kinetic (soft-delete: is_enabled = 0).
- * Fire-and-forget — never throws.
- *
- * @param {string} key - Location key
- * @param {string} env - Environment
- */
 export async function syncLocationDelete(key, env) {
   if (!Kinetic.isAvailable()) return;
 
@@ -363,18 +703,12 @@ export async function syncLocationDelete(key, env) {
     where: `key = '${key}' AND env = '${env}'`,
   });
   if (result) {
-    console.log(`[KineticSync] ✓ Location deleted: ${key}`);
+    console.log(`[KineticSync] Location deleted: ${key}`);
   } else {
     console.warn('[KineticSync] Location delete failed (non-blocking)');
   }
 }
 
-/**
- * Bulk sync all locations to Kinetic (for initial migration).
- * Fire-and-forget — never throws.
- *
- * @param {Array} locations - Array of Prisma Location objects
- */
 export async function syncLocationsBulk(locations) {
   if (!Kinetic.isAvailable()) return;
   if (!locations || locations.length === 0) return;
@@ -397,22 +731,14 @@ export async function syncLocationsBulk(locations) {
   console.log(`[KineticSync] Bulk syncing ${rows.length} location(s)`);
   const result = await Kinetic.insertRows(LOCATIONS_TABLE, rows);
   if (result) {
-    console.log(`[KineticSync] ✓ ${rows.length} location(s) synced`);
+    console.log(`[KineticSync] ${rows.length} location(s) synced`);
   } else {
     console.warn('[KineticSync] Bulk location sync failed (non-blocking)');
   }
 }
 
-// ── Read path ──
+// ── Read path (fire-and-forget — for history/analytics) ──
 
-/**
- * Fetch widget submission history from Kinetic.
- *
- * @param {string} startDate - YYYY-MM-DD
- * @param {string} endDate   - YYYY-MM-DD
- * @param {object} filters   - { status?, env? }
- * @returns {Array|null} rows or null on failure
- */
 export async function fetchHistory(startDate, endDate, filters = {}) {
   if (!Kinetic.isAvailable()) return null;
 
@@ -427,14 +753,6 @@ export async function fetchHistory(startDate, endDate, filters = {}) {
   return result?.data?.rows || null;
 }
 
-/**
- * Fetch aggregated analytics from Kinetic.
- *
- * @param {string} startDate - YYYY-MM-DD
- * @param {string} endDate   - YYYY-MM-DD
- * @param {object} filters   - { env? }
- * @returns {Array|null} rows or null on failure
- */
 export async function fetchAnalytics(startDate, endDate, filters = {}) {
   if (!Kinetic.isAvailable()) return null;
 
@@ -448,12 +766,6 @@ export async function fetchAnalytics(startDate, endDate, filters = {}) {
   return result?.data?.rows || null;
 }
 
-/**
- * Search widgets by slug or title from Kinetic (ClickHouse).
- *
- * @param {string} query - Search term
- * @returns {Array|null} rows or null on failure
- */
 export async function searchWidgets(query) {
   if (!Kinetic.isAvailable()) return null;
 

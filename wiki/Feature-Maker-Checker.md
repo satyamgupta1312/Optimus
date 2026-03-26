@@ -54,6 +54,7 @@ MAKER UI                                  CHECKER UI
 | :--- | :--- | :--- |
 | **Maker** | Create, edit, delete widgets; Submit for review | Approve or reject |
 | **Checker** | Preview, approve, reject, re-open; Deploy | Create or edit widgets |
+| **Super Admin** | All Maker powers (create, edit, submit) + All Checker powers (approve, reject, deploy) + Manage Users. Submissions are **auto-approved** (no checker review needed) | — |
 
 ---
 
@@ -94,10 +95,11 @@ MAKER UI                                  CHECKER UI
 ### Status Transition Rules
 
 ```
-DRAFT      → PENDING     Only Maker can submit (submitForReview)
-PENDING    → APPROVED    Only Checker can approve (approvePage)
-PENDING    → REJECTED    Only Checker can reject (rejectPage)
-APPROVED   → DRAFT       Only Checker can re-open (resetToDraft)
+DRAFT      → PENDING     Maker submits (submitForReview)
+DRAFT      → APPROVED    Super Admin submits → auto-approved (no PENDING step)
+PENDING    → APPROVED    Checker/Super Admin approves (approvePage)
+PENDING    → REJECTED    Checker/Super Admin rejects (rejectPage)
+APPROVED   → DRAFT       Checker/Super Admin re-opens (resetToDraft)
 REJECTED   → PENDING     Maker edits and re-submits (submitForReview)
 ```
 
@@ -458,20 +460,76 @@ After a successful deploy, the Checker can map deployed widgets to a CMS page la
 
 ---
 
-## 6. Approval Automation — Express Backend
+## 6. Approval Automation — Express Backend + ClickHouse
 
 **Source:** `server/routes/requests.js`
+**Data Store:** ClickHouse via Kinetic (source of truth for Request, RequestWidget, ActivityLog)
+
+### Architecture
+
+All submission, approval, and activity data is stored in **ClickHouse** (via Kinetic managed tables). Prisma/SQLite is still used for Widget records (needed for WidgetVersion, Comments, canvas UI), but `Request`, `RequestWidget`, and `ActivityLog` are fully managed in ClickHouse.
+
+```
+Write path:  Express route → KineticSyncService (BLOCKING) → ClickHouse
+Read path:   Express route → KineticSyncService → Saved Query → ClickHouse
+Error:       ClickHouse unavailable → 502 error (source of truth can't silently fail)
+```
+
+**Tables:**
+- `widget_submissions` — PROD request + widget data (upsert key: `request_id, widget_id`)
+- `widget_submissions_uat` — UAT request + widget data (identical schema, separate table)
+- `activity_log` — Audit trail for all actions (upsert key: `dt, id`)
+
+### Approval Lock (Race Condition Prevention)
+
+**Source:** `server/routes/requests.js` (top of file)
+
+Multiple checkers clicking Approve/Reject simultaneously can cause duplicate writes and double activity logs. An **in-memory lock** ensures only one approve/reject processes at a time.
+
+```
+Lock state:  approvalLock = null | { requestId, user, startedAt }
+Timeout:     10 seconds (auto-release to prevent deadlocks from crashes)
+
+Checker A clicks Approve
+  → Server: lock free? YES → acquire lock → process → release lock → 200 OK
+
+Checker B clicks Approve (while A is processing)
+  → Server: lock free? NO → 423 Locked { error, lockedBy, requestId }
+  → Frontend: toast "An approval is already in progress, please wait a moment"
+
+Checker B clicks Approve (after A is done)
+  → Server: lock free? YES → acquire lock → process → 200 OK
+```
+
+**Server side:** `acquireLock(requestId, user)` / `releaseLock()` helpers wrap the approve and reject routes. Lock is always released in a `finally` block.
+
+**Frontend side:** `handleApprove`, `handleRejectConfirm`, and `handleApproveAndDeploy` catch `error.status === 423` and show a toast instead of a generic error.
+
+### Auto-Approve (Super Admin Submit)
+
+```javascript
+// POST /api/local/requests (when req.user.role === 'SUPER_ADMIN')
+// After creating the submission in ClickHouse:
+// 1. Immediately updates request_status → APPROVED in ClickHouse
+// 2. Updates Widget.status → APPROVED in Prisma
+// 3. Logs activity with { autoApproved: true }
+// 4. Returns response with status: 'APPROVED' (frontend sets pageStatus accordingly)
+// No PENDING step — Super Admin's submissions skip checker review entirely.
+```
 
 ### Approve Flow
 
 ```javascript
 // POST /api/local/requests/:id/approve
 // 1. Validates role: CHECKER or SUPER_ADMIN only
-// 2. Checks request status is PENDING
-// 3. Optionally approves only selected widgets (selectedWidgetIds)
-// 4. Updates Request.status → APPROVED
-// 5. Updates Widget.status → APPROVED for all selected widgets
-// 6. Logs ActivityLog entry (action: 'approve')
+// 2. Acquires approval lock → 423 if locked
+// 3. Reads request from ClickHouse (KineticSync.fetchRequestById)
+// 4. Checks request status is PENDING
+// 5. Optionally approves only selected widgets (selectedWidgetIds)
+// 6. BLOCKING: Updates request_status → APPROVED in ClickHouse
+// 7. Updates Widget.status → APPROVED in Prisma (for WidgetVersion/Comments)
+// 8. BLOCKING: Logs activity to ClickHouse activity_log
+// 9. Releases lock in finally block
 ```
 
 ### Reject Flow
@@ -479,20 +537,24 @@ After a successful deploy, the Checker can map deployed widgets to a CMS page la
 ```javascript
 // POST /api/local/requests/:id/reject
 // 1. Validates role: CHECKER or SUPER_ADMIN only
-// 2. Checks request status is PENDING
-// 3. Updates Request.status → REJECTED + stores rejectionReason
-// 4. Updates Widget.status → REJECTED for all widgets in request
-// 5. Logs ActivityLog entry (action: 'reject')
+// 2. Acquires approval lock → 423 if locked
+// 3. Reads request from ClickHouse
+// 4. Checks request status is PENDING
+// 5. BLOCKING: Updates request_status → REJECTED + stores rejection_reason in ClickHouse
+// 6. Updates Widget.status → REJECTED in Prisma
+// 7. BLOCKING: Logs activity to ClickHouse
+// 8. Releases lock in finally block
 ```
 
 ### Reopen Flow
 
 ```javascript
 // POST /api/local/requests/:id/reopen
-// 1. Checks request status is APPROVED or REJECTED
-// 2. Updates Request.status → DRAFT + clears rejectionReason
-// 3. Updates Widget.status → DRAFT for all widgets
-// 4. Logs ActivityLog entry (action: 'reopen')
+// 1. Reads request from ClickHouse
+// 2. Checks request status is APPROVED or REJECTED
+// 3. BLOCKING: Updates request_status → DRAFT + clears rejection_reason in ClickHouse
+// 4. Updates Widget.status → DRAFT in Prisma
+// 5. BLOCKING: Logs activity to ClickHouse
 ```
 
 ### Authentication
@@ -528,31 +590,82 @@ Every request:
 
 ---
 
-## 7. Data Storage — Prisma DB (SQLite)
+## 7. Data Storage — ClickHouse (Kinetic) + Prisma (SQLite)
+
+### Source of Truth: ClickHouse (via Kinetic)
+
+Request, RequestWidget, and ActivityLog data is stored in **ClickHouse** via Kinetic managed tables. This replaces the former Prisma/SQLite storage for these entities.
+
+**Service:** `server/services/KineticSyncService.js` (blocking strict methods)
+**Low-level client:** `server/services/KineticService.js` (strict + fire-and-forget variants)
+**Setup:** `server/scripts/kinetic-setup.js` (idempotent table + query creation)
+
+### ClickHouse Tables
+
+| Table | CH Name | Purpose | Upsert Key |
+| :--- | :--- | :--- | :--- |
+| **widget_submissions** | `kinetic.homepage__widget_submissions` | PROD request + widget data | `(request_id, widget_id)` |
+| **widget_submissions_uat** | `kinetic.homepage__widget_submissions_uat` | UAT request + widget data | `(request_id, widget_id)` |
+| **activity_log** | `kinetic.homepage__activity_log` | Audit trail for all actions | `(dt, id)` |
+
+### widget_submissions Schema (PROD + UAT identical)
+
+| Column | Type | Purpose |
+| :--- | :--- | :--- |
+| `dt` | Date | Submission date |
+| `request_id` | String | Request UUID (groups widgets into one submission) |
+| `widget_id` | String | Widget UUID |
+| `request_status` | String | Request-level status (PENDING/APPROVED/REJECTED/DRAFT/DEPLOYED) |
+| `status` | String | Widget-level status |
+| `submitted_by` | String | Submitter email |
+| `header_widgets` | String | JSON snapshot of header widgets |
+| `rejection_reason` | String | Rejection reason text |
+| `snapshot` | String | Full widget snapshot JSON |
+| `sort_order` | UInt32 | Widget position in request |
+| `submitted_at` | String | ISO timestamp |
+| `result` | String | Deploy result |
+| `error` | String | Deploy error |
+
+### activity_log Schema
+
+| Column | Type | Purpose |
+| :--- | :--- | :--- |
+| `id` | String | UUID |
+| `dt` | Date | Action date |
+| `action` | String | submit, approve, reject, create, update, delete, deploy, reopen |
+| `user_email` | String | Actor email |
+| `user_name` | String | Actor name |
+| `target_id` | String | Widget or Request ID |
+| `target_type` | String | request, widget, headerWidgets |
+| `details` | String | Extra context as JSON |
+| `env` | String | PROD or UAT |
+
+### Prisma DB (SQLite) — Still Used
 
 **Database:** `server/prisma/optimus.db`
-**Schema:** `server/prisma/schema.prisma`
-
-### Database Tables
 
 | Table | Purpose | Key Fields |
 | :--- | :--- | :--- |
-| **Request** | Approval workflow record | `id`, `status`, `submittedBy`, `headerWidgets`, `rejectionReason` |
-| **RequestWidget** | Snapshot of each widget at submission | `requestId`, `widgetId`, `snapshot` (JSON), `sortOrder` |
-| **Widget** | Central widget entity | `id`, `type`, `slug`, `env` (UAT/PROD, default PROD), `title`, `status`, `pnc`, `config`, `products`. Unique on `[slug, env]` — same slug allowed in both envs. |
-| **User** | User identity + role | `email` (unique), `name`, `role` (MAKER/CHECKER/SUPER_ADMIN) |
-| **ActivityLog** | Audit trail | `action`, `userId`, `targetId`, `details` (JSON) |
-| **CheckerList** | Users authorized as Checkers (per env) | `userId`, `env` (UAT/PROD), unique on `[userId, env]` |
+| **Widget** | Central widget entity (versions, comments, canvas UI) | `id`, `type`, `slug`, `env`, `title`, `status`, `pnc`, `config`, `products` |
+| **WidgetVersion** | Version history | `widgetId`, `version`, `snapshot` |
+| **User** | User identity + role | `email` (unique), `name`, `role` |
+| **CheckerList** | Users authorized as Checkers (per env) | `userId`, `env` |
+| **HeaderWidget** | Header widget slots | `id`, `config` |
+| **Comment** | Widget comments | `widgetId`, `text`, `userId` |
+| **Product** | Local product catalog | `itemCode`, etc. |
+| **Location** | State/city definitions | `key`, `env` |
 
 ### API Routes (Express Backend)
 
-| Method | Route | Description |
-| :--- | :--- | :--- |
-| POST | `/api/local/requests` | Maker submits — creates Widgets + Request + RequestWidget snapshots |
-| GET | `/api/local/requests` | Fetch all requests (with status filter) |
-| POST | `/api/local/requests/:id/approve` | Checker approves — updates status to APPROVED |
-| POST | `/api/local/requests/:id/reject` | Checker rejects — updates status to REJECTED + stores reason |
-| POST | `/api/local/requests/:id/reopen` | Re-open — sets status back to DRAFT |
+| Method | Route | Data Source | Description |
+| :--- | :--- | :--- | :--- |
+| GET | `/api/local/requests` | ClickHouse | Fetch requests (with status/date filter) |
+| POST | `/api/local/requests` | ClickHouse + Prisma | Submit — writes to CH (source of truth) + creates Widget in Prisma |
+| POST | `/api/local/requests/:id/approve` | ClickHouse + Prisma | Approve — updates CH status + Prisma Widget.status |
+| POST | `/api/local/requests/:id/reject` | ClickHouse + Prisma | Reject — updates CH status + Prisma Widget.status |
+| POST | `/api/local/requests/:id/reopen` | ClickHouse + Prisma | Reopen — updates CH status + Prisma Widget.status |
+| GET | `/api/local/activity` | ClickHouse | Fetch activity log |
+| POST | `/api/local/activity` | ClickHouse | Create activity log entry |
 
 ### Slug Validation Logic
 
@@ -586,6 +699,7 @@ All actions are logged for audit trail:
 | `widget_updated` | `{widgetId, changes: [fieldNames]}` | updateWidget() |
 | `widget_deleted` | `{widgetId, type}` | deleteWidget() |
 | `widget_duplicated` | `{originalId, newId}` | duplicateWidget() |
+| `widget_duplicated` | `{originalId, newId, masthead: true}` | duplicateMastheadWidget() |
 | `bulk_delete` | `{count, widgetIds}` | bulkDelete() |
 | `state_restored` | `{timestamp}` | restoreFromHistory() |
 | `comment_added` | `{widgetId, commentId}` | addComment() |
@@ -821,6 +935,8 @@ model Location {
 | :--- | :--- |
 | Submit fails (network error) | Toast: "Failed to submit" — stays in DRAFT |
 | Approval fails (backend error) | Toast: "Failed to approve: {error}" — stays PENDING |
+| Concurrent approve/reject (423 Locked) | Toast: "An approval is already in progress, please wait a moment" — user retries manually |
+| **Kinetic/ClickHouse unavailable** | **502 error — "ClickHouse write failed"** — source of truth can't silently fail |
 | Individual widget creation fails | Backend returns 400 with validation error details |
 | Auth session expired | Re-login required — auth middleware rejects request |
 | Unsupported widget type | Skipped during approval routing |
@@ -828,10 +944,95 @@ model Location {
 | Fetch widget not found | Toast: "Widget not found with slug: {slug}" |
 | Empty `background_multimedia` on deploy | "Background Multimedia Name is invalid" — omit field if empty |
 | Slug validation fails | Checks both `widget.slug` and `widget.slug_name` before failing |
+| Widget CRUD activity log fails | Non-blocking (fire-and-forget) — widget operation succeeds, log silently skipped |
 
 ---
 
-## 14. Related Documentation
+## 14. Logout & Cache Clearing
+
+Logout karne pe pura session clear hota hai taki re-login pe "invalid credentials" na aaye.
+
+### Problem
+
+Django session cookies (csrftoken, sessionid) stale hote hain after logout → fresh login pe CSRF mismatch → "invalid credentials".
+
+### Solution: Hard Reload on Logout
+
+```
+1. AuthService.logoutUser() is called:
+   - GET /logout/ to Django backend (fire-and-forget)
+   - Clear ALL local cookies (with domain + path variants)
+   - Clear window.currentUser reference
+2. AuthContext.logout() completes:
+   - localStorage.removeItem('optimus_user')
+   - window.location.reload() — HARD RELOAD
+3. Hard reload clears:
+   - All React state (WidgetContext, ActivityLog, UndoRedo)
+   - Any in-memory caches
+   - Stale CSRF tokens
+4. LoginPage renders fresh — user can login without issues
+```
+
+### What's Preserved
+
+- `localStorage.optimus_env` — environment selection (PROD/UAT) survives logout for convenience
+
+### What's Cleared
+
+| Item | Cleared By |
+|------|-----------|
+| `optimus_user` | localStorage.removeItem |
+| All cookies (csrftoken, sessionid) | Cookie expiry loop |
+| `window.currentUser` | delete statement |
+| React state (widgets, activity, undo/redo) | Page reload |
+
+**Files:** `src/services/AuthService.js`, `src/context/AuthContext.jsx`
+
+---
+
+## 15. Masthead Action Buttons (Duplicate / Delete)
+
+Primary and Secondary mastheads render **outside** the sortable widget list (in AppHeader and PhoneFrame respectively). They have their own **Copy / Delete** action buttons that appear when selected.
+
+### Why Special Handling?
+
+Mastheads are **single-slot** — only ONE primary and ONE secondary can exist. The header uses `.find()` to pick the first match. A normal `duplicateWidget()` (insert-after) would create an invisible duplicate.
+
+### Behavior: `duplicateMastheadWidget(id)`
+
+```
+1. Click a masthead in emulator → selected (blue ring)
+2. Copy/Delete buttons appear (top-right corner)
+3. Copy → duplicateMastheadWidget(id):
+   a. Creates a fresh copy (new ID)
+   b. Clears slug, slug_name, _fetched, _rawData (treat as new widget)
+   c. REPLACES the original in-place (same array position)
+   d. Selects the new copy automatically
+   e. Toast: "Masthead duplicated (replaced original)"
+4. Delete → deleteWidget(id) → masthead removed
+5. Same edit guards apply (only in DRAFT / REJECTED status)
+```
+
+### What Gets Cleared vs Preserved
+
+| Cleared (fresh start) | Preserved (keeps config) |
+|----------------------|------------------------|
+| `slug`, `slug_name` | `type`, `pnc.variant` |
+| `_fetched`, `_rawData` | All colors, media, styling |
+| `id` (new UUID) | `carouselItems`, `master_key` |
+
+### Files
+
+| Masthead | Action Buttons In |
+|----------|-------------------|
+| Primary Masthead | `src/components/Preview/AppHeader.jsx` |
+| Secondary Masthead | `src/components/Preview/PhoneFrame.jsx` |
+
+**Context function:** `duplicateMastheadWidget()`, `deleteWidget()` from `WidgetContext.jsx`
+
+---
+
+## 16. Related Documentation
 
 - [AUTH-Flow.md](./AUTH-Flow.md) — Login flow, role assignment, CSRF, checker management
 - [DATA-Architecture.md](./DATA-Architecture.md) — Database schema, API routes, local backend

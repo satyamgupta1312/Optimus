@@ -1,15 +1,8 @@
 import { Router } from 'express';
 import { prisma } from '../prisma/client.js';
+import * as KineticSync from '../services/KineticSyncService.js';
 
 const router = Router();
-
-// Keys that are stored as dedicated Widget columns (not part of config)
-const WIDGET_STANDARD_KEYS = new Set([
-  'type', 'slug', 'slug_name', 'title', 'titleHi',
-  'pnc', 'config', 'products', 'sortOrder',
-  'id', 'lastModified', 'lastModifiedBy', 'status',
-  '_fetched', '_fromDB', '_dbId', '_rawData',
-]);
 
 // ── GET /widgets ──
 // List all widgets, ordered by sortOrder
@@ -42,37 +35,6 @@ router.get('/', async (req, res, next) => {
       config: JSON.parse(w.config),
       products: JSON.parse(w.products),
     }));
-
-    // Backfill: for widgets with empty config, merge data from the latest
-    // request snapshot so that older records (saved before the config
-    // round-trip fix) still return full widget data.
-    const emptyConfigIds = parsed
-      .filter(w => Object.keys(w.config).length === 0)
-      .map(w => w.id);
-
-    if (emptyConfigIds.length > 0) {
-      const snapshots = await prisma.requestWidget.findMany({
-        where: { widgetId: { in: emptyConfigIds } },
-        orderBy: { id: 'desc' },
-        distinct: ['widgetId'],
-      });
-
-      const snapMap = new Map();
-      for (const rw of snapshots) {
-        const snap = JSON.parse(rw.snapshot);
-        const extra = {};
-        for (const [k, v] of Object.entries(snap)) {
-          if (!WIDGET_STANDARD_KEYS.has(k)) extra[k] = v;
-        }
-        snapMap.set(rw.widgetId, extra);
-      }
-
-      for (const w of parsed) {
-        if (snapMap.has(w.id)) {
-          w.config = snapMap.get(w.id);
-        }
-      }
-    }
 
     res.json(parsed);
   } catch (err) { next(err); }
@@ -110,13 +72,13 @@ router.post('/', async (req, res, next) => {
       },
     });
 
-    await prisma.activityLog.create({
-      data: {
-        action: 'create',
-        userId: req.user.id,
-        targetId: widget.id,
-        details: JSON.stringify({ type, slug }),
-      },
+    KineticSync.logActivitySafe({
+      action: 'create',
+      user: req.user,
+      targetId: widget.id,
+      targetType: 'widget',
+      details: { type, slug },
+      env: req.env,
     });
 
     res.status(201).json({
@@ -211,13 +173,13 @@ router.put('/:id', async (req, res, next) => {
       },
     });
 
-    await prisma.activityLog.create({
-      data: {
-        action: 'update',
-        userId: req.user.id,
-        targetId: widget.id,
-        details: JSON.stringify({ fields: Object.keys(req.body) }),
-      },
+    KineticSync.logActivitySafe({
+      action: 'update',
+      user: req.user,
+      targetId: widget.id,
+      targetType: 'widget',
+      details: { fields: Object.keys(req.body) },
+      env: req.env,
     });
 
     // Bust versions cache for this widget
@@ -268,12 +230,12 @@ router.delete('/:id', async (req, res, next) => {
   try {
     await prisma.widget.delete({ where: { id: req.params.id } });
 
-    await prisma.activityLog.create({
-      data: {
-        action: 'delete',
-        userId: req.user.id,
-        targetId: req.params.id,
-      },
+    KineticSync.logActivitySafe({
+      action: 'delete',
+      user: req.user,
+      targetId: req.params.id,
+      targetType: 'widget',
+      env: req.env,
     });
 
     res.json({ success: true });
@@ -303,13 +265,13 @@ router.post('/:id/duplicate', async (req, res, next) => {
       },
     });
 
-    await prisma.activityLog.create({
-      data: {
-        action: 'create',
-        userId: req.user.id,
-        targetId: widget.id,
-        details: JSON.stringify({ duplicatedFrom: source.id }),
-      },
+    KineticSync.logActivitySafe({
+      action: 'create',
+      user: req.user,
+      targetId: widget.id,
+      targetType: 'widget',
+      details: { duplicatedFrom: source.id },
+      env: req.env,
     });
 
     res.status(201).json({

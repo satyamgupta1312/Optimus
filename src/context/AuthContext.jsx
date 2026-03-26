@@ -76,9 +76,11 @@ export const AuthProvider = ({ children }) => {
 
     const logout = async () => {
         await logoutUser();
-        setUser(null);
-        setCheckerList([]);
+        // Clear all app-related localStorage (preserve optimus_env for convenience)
         localStorage.removeItem('optimus_user');
+        // Hard reload — clears all React state (WidgetContext, ActivityLog, UndoRedo)
+        // and ensures a fresh CSRF token on next login
+        window.location.reload();
     };
 
     const addChecker = async (email, name) => {

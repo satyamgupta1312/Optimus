@@ -248,6 +248,35 @@ export const WidgetProvider = ({ children }) => {
         }
     };
 
+    // Masthead-specific duplicate: replaces the original in-place (single-slot behavior).
+    // Since only one primary / one secondary masthead is rendered (.find() picks first match),
+    // a normal duplicate would be invisible. This replaces the original with a fresh copy.
+    const duplicateMastheadWidget = (id) => {
+        if (pageStatus !== 'DRAFT' && pageStatus !== 'REJECTED') {
+            showToast.warning("Cannot edit while in review or approved");
+            return;
+        }
+        const widget = widgets.find(w => w.id === id);
+        if (widget) {
+            const duplicate = {
+                ...widget,
+                id: safeUUID(),
+                title: (widget.title || '') + ' (Copy)',
+                slug: '',          // Fresh slug — not linked to original
+                slug_name: '',
+                _fetched: undefined, // Treat as newly created
+                _rawData: undefined,
+                lastModified: new Date().toISOString(),
+                lastModifiedBy: 'Current User'
+            };
+            // Replace original in-place — copy takes exact same position
+            setWidgets(prev => prev.map(w => w.id === id ? duplicate : w));
+            setSelectedWidgetId(duplicate.id);
+            logActivity('widget_duplicated', { originalId: id, newId: duplicate.id, masthead: true });
+            showToast.success('Masthead duplicated (replaced original)');
+        }
+    };
+
     const bulkDelete = (ids) => {
         if (pageStatus !== 'DRAFT' && pageStatus !== 'REJECTED') {
             showToast.warning("Cannot edit while in review or approved");
@@ -350,14 +379,20 @@ export const WidgetProvider = ({ children }) => {
                 }));
             };
 
-            await LocalApiService.createRequest({
+            const result = await LocalApiService.createRequest({
                 widgets: widgetsToSubmit,
                 headerWidgets: cleanHeaderWidgets(selectedHeaders),
             });
 
-            setPageStatus('PENDING');
-            logActivity('page_submitted', { widgetCount: widgetsToSubmit.length, totalWidgets: widgets.length, user: user?.email });
-            showToast.success(`${widgetsToSubmit.length} widget(s) submitted for review!`);
+            // SUPER_ADMIN auto-approve: server returns APPROVED status directly
+            const isAutoApproved = result?.status === 'APPROVED';
+            setPageStatus(isAutoApproved ? 'APPROVED' : 'PENDING');
+            logActivity('page_submitted', { widgetCount: widgetsToSubmit.length, totalWidgets: widgets.length, user: user?.email, autoApproved: isAutoApproved });
+            if (isAutoApproved) {
+                showToast.success(`${widgetsToSubmit.length} widget(s) submitted & auto-approved!`);
+            } else {
+                showToast.success(`${widgetsToSubmit.length} widget(s) submitted for review!`);
+            }
         } catch (e) {
             console.error(e);
             showToast.error('Failed to submit: ' + e.message);
@@ -432,6 +467,7 @@ export const WidgetProvider = ({ children }) => {
             setHeaderWidgets, // Exposing for RequestQueue restoration
             // New features
             duplicateWidget,
+            duplicateMastheadWidget,
             bulkDelete,
             selectedWidgetIds,
             toggleWidgetSelection,

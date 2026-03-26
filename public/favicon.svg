@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#E0E7FF" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#g1)"/>
+  <!-- Grid of 4 widget blocks (representing widget manager) -->
+  <rect x="14" y="14" width="15" height="15" rx="3" fill="url(#g2)"/>
+  <rect x="35" y="14" width="15" height="15" rx="3" fill="url(#g2)" opacity="0.75"/>
+  <rect x="14" y="35" width="15" height="15" rx="3" fill="url(#g2)" opacity="0.75"/>
+  <rect x="35" y="35" width="15" height="15" rx="3" fill="url(#g2)" opacity="0.55"/>
+</svg>

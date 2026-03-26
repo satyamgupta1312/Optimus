@@ -89,9 +89,9 @@ const MainLayout = () => {
             <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 z-10 sticky top-0">
                 <div className="flex items-center gap-4">
                     <img
-                        src="/assets/optimus-logo.png"
+                        src="/assets/optimus-logo.svg"
                         alt="Optimus"
-                        className="h-10 w-auto"
+                        className="h-9 w-auto"
                     />
                     {/* Environment Badge (read-only — switch from login page) */}
                     <span

@@ -105,12 +105,14 @@ const LoginPage = () => {
                             <div className="relative">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={15} />
                                 <input
-                                    type="password"
+                                    type="text"
+                                    autoComplete="off"
                                     required
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[13px] text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-slate-300 focus:ring-1 focus:ring-slate-300 transition-all"
                                     placeholder="Enter your password"
+                                    style={{ WebkitTextSecurity: 'disc', textSecurity: 'disc' }}
                                 />
                             </div>
                         </div>

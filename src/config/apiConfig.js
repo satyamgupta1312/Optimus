@@ -23,12 +23,16 @@ const ENV = localStorage.getItem('optimus_env') || import.meta.env.VITE_ENV || '
 const PROD_URL = import.meta.env.VITE_API_BASE_URL_PROD || 'https://samaan.apnamart.in';
 const UAT_URL = import.meta.env.VITE_API_BASE_URL_UAT || 'https://smapi-cu.apnamart.in';
 
+const IS_DEV = import.meta.env.DEV;
+
 /**
  * API_BASE — the base URL prefix for all backend API calls.
- * Always uses '/uat' or '/prod' — both Vite dev proxy and Vercel rewrites
- * strip the prefix and forward to the actual backend.
+ * In dev: '/uat' or '/prod' — Vite proxy handles forwarding.
+ * In prod (Vercel): '/api/local/proxy/uat' or '/api/local/proxy/prod' — Express serverless proxy.
  */
-export const API_BASE = '/' + ENV.toLowerCase();
+export const API_BASE = IS_DEV
+    ? '/' + ENV.toLowerCase()
+    : '/api/local/proxy/' + ENV.toLowerCase();
 
 /**
  * ACTIVE_ENV — which environment is currently active ('UAT' or 'PROD').

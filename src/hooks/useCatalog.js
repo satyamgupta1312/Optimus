@@ -16,16 +16,17 @@ import { CATALOG_CACHE } from '../config/Feature/ProductCatalogConfig';
  * Cache: sessionStorage stores previously fetched products (TTL 30 min).
  */
 
-/** Map a server row to the product shape used by all consumers */
+/** Map a server row to the product shape used by all consumers.
+ *  Backend returns camelCase: { id, itemCode, name, brand, image, mrp, price } */
 function mapRow(row) {
     return {
         id: String(row.id ?? ''),
-        itemCode: String(row.item_code ?? ''),
-        displayName: row.display_name ?? '',
+        itemCode: String(row.itemCode ?? row.item_code ?? ''),
+        displayName: row.name ?? row.display_name ?? '',
         brand: row.brand ?? '',
-        imageUrl: row.product_image ?? '',
+        imageUrl: row.image ?? row.product_image ?? '',
         mrp: parseFloat(row.mrp) || 0,
-        price: parseFloat(row.selling_price) || 0,
+        price: parseFloat(row.price ?? row.selling_price) || 0,
     };
 }
 

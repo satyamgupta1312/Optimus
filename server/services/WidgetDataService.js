@@ -523,7 +523,7 @@ export async function deleteLocation(key, env) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// PRODUCTS (Metabase API)
+// PRODUCTS (Metabase Structured Query)
 // ══════════════════════════════════════════════════════════════
 
 const IMAGE_BASE = 'https://gs.apnamart.in/';
@@ -536,14 +536,6 @@ const METABASE_FIELDS = [
   ['field', 2156, { 'base-type': 'type/Text' }],        // main_image
   ['field', 2146, { 'base-type': 'type/Float' }],       // mrp
   ['field', 2188, { 'base-type': 'type/Float' }],       // selling_price
-];
-
-const METABASE_BASE_FILTERS = [
-  ['=', ['field', 2177, { 'base-type': 'type/Boolean' }], true],
-  ['or',
-    ['!=', ['field', 2108, { 'base-type': 'type/Text' }], 'OFF'],
-    ['is-null', ['field', 2108, { 'base-type': 'type/Text' }]],
-  ],
 ];
 
 function mapProductRow(r) {
@@ -591,7 +583,7 @@ export async function searchProducts(query, limit = 20) {
     query: {
       'source-table': 154,
       fields: METABASE_FIELDS,
-      filter: ['and', ...METABASE_BASE_FILTERS, searchFilter],
+      filter: ['and', searchFilter],
       limit: take,
       'order-by': [['asc', ['field', 2144, { 'base-type': 'type/Text' }]]],
     },
@@ -613,10 +605,7 @@ export async function batchProducts(codes) {
     query: {
       'source-table': 154,
       fields: METABASE_FIELDS,
-      filter: ['and',
-        ...METABASE_BASE_FILTERS,
-        ['=', ['field', 2157, { 'base-type': 'type/Integer' }], ...numericCodes],
-      ],
+      filter: ['=', ['field', 2157, { 'base-type': 'type/Integer' }], ...numericCodes],
     },
   };
 

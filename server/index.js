@@ -33,11 +33,14 @@ app.all('/api/local/proxy/:env/{*path}', express.raw({ type: '*/*', limit: '10mb
   const qs = req.url.includes('?') ? '?' + req.url.split('?')[1] : '';
   const url = `${backend}/${targetPath}${qs}`;
 
-  // Forward select request headers
+  // Forward select request headers — override Referer/Origin to match backend
+  // (Django CSRF validates Referer origin must match the server host)
   const headers = {};
-  for (const h of ['content-type', 'cookie', 'x-csrftoken', 'referer', 'accept']) {
+  for (const h of ['content-type', 'cookie', 'x-csrftoken', 'accept']) {
     if (req.headers[h]) headers[h] = req.headers[h];
   }
+  headers['referer'] = `${backend}/`;
+  headers['origin'] = backend;
 
   try {
     const fetchOpts = { method: req.method, headers, redirect: 'manual' };

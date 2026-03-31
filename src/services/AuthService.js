@@ -76,6 +76,13 @@ export const loginUser = async (username, password) => {
             // Got 200 — could be the login form again (failed) or the homepage (success)
             const html = await response.text();
 
+            const hasCSRFError = html.includes('CSRF') || html.includes('csrf') || html.includes('Forbidden');
+            if (hasCSRFError) {
+                console.error('[Auth] ❌ Login FAILED - CSRF/Forbidden error in response');
+                console.error('[Auth] Response snippet:', html.substring(0, 500));
+                throw new Error('CSRF verification failed. Please refresh and try again.');
+            }
+
             const hasError = html.includes('errorlist') ||
                 html.includes('Please enter a correct') ||
                 html.includes('Invalid username') ||
@@ -92,6 +99,7 @@ export const loginUser = async (username, password) => {
 
             if (hasLoginForm) {
                 console.error('[Auth] ❌ Login FAILED - login form still in response');
+                console.error('[Auth] Response snippet:', html.substring(0, 300));
                 throw new Error('Invalid credentials. Please check your username and password.');
             }
 

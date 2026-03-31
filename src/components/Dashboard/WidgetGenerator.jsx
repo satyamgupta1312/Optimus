@@ -102,11 +102,13 @@ const WidgetGenerator = ({ onClose }) => {
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 mb-1">CSRF Token</label>
                                 <input
-                                    type="password"
+                                    type="text"
+                                    autoComplete="off"
                                     value={config.csrfToken}
                                     onChange={(e) => setConfig({ ...config, csrfToken: e.target.value })}
                                     className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition-all"
                                     placeholder="Enter token..."
+                                    style={{ WebkitTextSecurity: 'disc', textSecurity: 'disc' }}
                                 />
                             </div>
                         </div>

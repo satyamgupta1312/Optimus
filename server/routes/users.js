@@ -3,7 +3,7 @@ import * as WidgetData from '../services/WidgetDataService.js';
 
 const router = Router();
 
-const SUPER_ADMIN_EMAIL = 'satyam.gupta@apnamart.in';
+const SUPER_ADMIN_IDENTIFIERS = ['satyam.gupta@apnamart.in', 'manoj.kumar'];
 
 // ── GET /users/me ──
 router.get('/me', async (req, res) => {
@@ -22,22 +22,10 @@ router.get('/checkers', async (req, res, next) => {
       addedAt: c.addedAt,
     }));
 
-    // Always include SUPER_ADMIN at the top (non-removable)
-    const alreadyIncluded = result.some(u => u.email === SUPER_ADMIN_EMAIL);
-    if (!alreadyIncluded) {
-      result.unshift({
-        email: SUPER_ADMIN_EMAIL,
-        name: SUPER_ADMIN_EMAIL.split('@')[0],
-        role: 'SUPER_ADMIN',
-        addedAt: null,
-        isSuperAdmin: true,
-      });
-    } else {
-      const idx = result.findIndex(u => u.email === SUPER_ADMIN_EMAIL);
-      if (idx !== -1) result[idx].isSuperAdmin = true;
-    }
+    // Filter out super admins from dynamic list (they're shown separately in UI)
+    const filtered = result.filter(u => !SUPER_ADMIN_IDENTIFIERS.includes(u.email));
 
-    res.json(result);
+    res.json(filtered);
   } catch (err) { next(err); }
 });
 
@@ -53,7 +41,7 @@ router.post('/checkers', async (req, res, next) => {
 
     const lowerEmail = email.toLowerCase();
 
-    if (lowerEmail === SUPER_ADMIN_EMAIL) {
+    if (SUPER_ADMIN_IDENTIFIERS.includes(lowerEmail)) {
       return res.status(400).json({ error: 'SUPER_ADMIN already has all checker powers' });
     }
 
@@ -75,7 +63,7 @@ router.delete('/checkers', async (req, res, next) => {
 
     const lowerEmail = email.toLowerCase();
 
-    if (lowerEmail === SUPER_ADMIN_EMAIL) {
+    if (SUPER_ADMIN_IDENTIFIERS.includes(lowerEmail)) {
       return res.status(400).json({ error: 'Cannot remove SUPER_ADMIN from checker list' });
     }
 

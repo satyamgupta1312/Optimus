@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { UserPlus, Trash2, Shield, Loader2 } from 'lucide-react';
 
-const SUPER_ADMIN_EMAIL = 'satyam.gupta@apnamart.in';
+const SUPER_ADMIN_IDENTIFIERS = ['satyam.gupta@apnamart.in', 'manoj.kumar'];
 
 const ManageApprovalUsers = () => {
     const { checkerList, loadingCheckers, fetchCheckerList, addChecker, removeChecker } = useAuth();
@@ -28,7 +28,7 @@ const ManageApprovalUsers = () => {
             return;
         }
 
-        if (trimmedEmail === SUPER_ADMIN_EMAIL) {
+        if (SUPER_ADMIN_IDENTIFIERS.includes(trimmedEmail)) {
             setError('Super Admin is already a checker by default.');
             return;
         }
@@ -71,12 +71,12 @@ const ManageApprovalUsers = () => {
             <form onSubmit={handleAdd} className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                     <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Email or Username</label>
                         <input
-                            type="email"
+                            type="text"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            placeholder="user@apnamart.in"
+                            placeholder="user@apnamart.in or username"
                             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             disabled={adding}
                         />
@@ -120,19 +120,24 @@ const ManageApprovalUsers = () => {
                     </div>
                 ) : (
                     <div className="space-y-2">
-                        {/* Super Admin — always shown, not removable */}
-                        <div className="flex items-center justify-between px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
-                            <div className="flex items-center gap-2">
-                                <Shield size={14} className="text-amber-600" />
-                                <div>
-                                    <span className="text-sm font-medium text-slate-800">Satyam Gupta</span>
-                                    <span className="text-xs text-slate-500 ml-2">{SUPER_ADMIN_EMAIL}</span>
+                        {/* Super Admins — always shown, not removable */}
+                        {[
+                            { name: 'Satyam Gupta', id: 'satyam.gupta@apnamart.in' },
+                            { name: 'Manoj Kumar', id: 'manoj.kumar' },
+                        ].map((admin) => (
+                            <div key={admin.id} className="flex items-center justify-between px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                                <div className="flex items-center gap-2">
+                                    <Shield size={14} className="text-amber-600" />
+                                    <div>
+                                        <span className="text-sm font-medium text-slate-800">{admin.name}</span>
+                                        <span className="text-xs text-slate-500 ml-2">{admin.id}</span>
+                                    </div>
                                 </div>
+                                <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full uppercase">
+                                    Super Admin
+                                </span>
                             </div>
-                            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full uppercase">
-                                Super Admin
-                            </span>
-                        </div>
+                        ))}
 
                         {/* Dynamic checker list */}
                         {checkerList.map((checker) => (

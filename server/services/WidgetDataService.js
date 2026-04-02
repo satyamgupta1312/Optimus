@@ -43,7 +43,7 @@ const VERSIONS_TABLE = 'widget_versions';
 const ROLES_TABLE = 'user_roles';
 const LOCATIONS_TABLE = 'locations';
 
-const SUPER_ADMIN_IDENTIFIERS = ['satyam.gupta@apnamart.in', 'satyam'];
+const SUPER_ADMIN_IDENTIFIERS = ['satyam.gupta@apnamart.in', 'satyam', 'manoj.kumar'];
 
 // ── Auth cache ──
 const userCache = new Map();

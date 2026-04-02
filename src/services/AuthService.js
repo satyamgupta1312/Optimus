@@ -117,11 +117,12 @@ export const loginUser = async (username, password) => {
         let role = 'MAKER';
         const lowerUser = username.toLowerCase();
 
-        const SUPER_ADMINS = ['satyam.gupta@apnamart.in', 'manoj.kumar'];
         if (ACTIVE_ENV === 'UAT' && lowerUser === 'satyam') {
             role = 'SUPER_ADMIN';
-        } else if (SUPER_ADMINS.includes(lowerUser)) {
+        } else if (lowerUser === 'satyam.gupta@apnamart.in') {
             role = 'SUPER_ADMIN';
+        } else if (lowerUser === 'manoj.kumar') {
+            role = 'CHECKER';
         }
 
         console.log('[Auth] Assigned role:', role);

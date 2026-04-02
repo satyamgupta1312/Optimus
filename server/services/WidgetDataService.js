@@ -43,7 +43,8 @@ const VERSIONS_TABLE = 'widget_versions';
 const ROLES_TABLE = 'user_roles';
 const LOCATIONS_TABLE = 'locations';
 
-const SUPER_ADMIN_IDENTIFIERS = ['satyam.gupta@apnamart.in', 'satyam', 'manoj.kumar'];
+const SUPER_ADMIN_IDENTIFIERS = ['satyam.gupta@apnamart.in', 'satyam'];
+const HARDCODED_CHECKERS = { 'manoj.kumar': 'Manoj Kumar' };
 
 // ── Auth cache ──
 const userCache = new Map();
@@ -59,6 +60,11 @@ export async function resolveUser(email, env) {
   // SUPER_ADMIN — zero DB calls
   if (SUPER_ADMIN_IDENTIFIERS.includes(lowerEmail)) {
     return { email: lowerEmail, name: lowerEmail.split('@')[0], role: 'SUPER_ADMIN' };
+  }
+
+  // Hard-coded CHECKER — zero DB calls
+  if (HARDCODED_CHECKERS[lowerEmail]) {
+    return { email: lowerEmail, name: HARDCODED_CHECKERS[lowerEmail], role: 'CHECKER' };
   }
 
   // Check cache

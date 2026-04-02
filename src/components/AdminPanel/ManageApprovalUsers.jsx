@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { UserPlus, Trash2, Shield, Loader2 } from 'lucide-react';
 
-const SUPER_ADMIN_IDENTIFIERS = ['satyam.gupta@apnamart.in', 'manoj.kumar'];
+const SUPER_ADMIN_IDENTIFIERS = ['satyam.gupta@apnamart.in'];
 
 const ManageApprovalUsers = () => {
     const { checkerList, loadingCheckers, fetchCheckerList, addChecker, removeChecker } = useAuth();
@@ -120,24 +120,19 @@ const ManageApprovalUsers = () => {
                     </div>
                 ) : (
                     <div className="space-y-2">
-                        {/* Super Admins — always shown, not removable */}
-                        {[
-                            { name: 'Satyam Gupta', id: 'satyam.gupta@apnamart.in' },
-                            { name: 'Manoj Kumar', id: 'manoj.kumar' },
-                        ].map((admin) => (
-                            <div key={admin.id} className="flex items-center justify-between px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
-                                <div className="flex items-center gap-2">
-                                    <Shield size={14} className="text-amber-600" />
-                                    <div>
-                                        <span className="text-sm font-medium text-slate-800">{admin.name}</span>
-                                        <span className="text-xs text-slate-500 ml-2">{admin.id}</span>
-                                    </div>
+                        {/* Super Admin — always shown, not removable */}
+                        <div className="flex items-center justify-between px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                            <div className="flex items-center gap-2">
+                                <Shield size={14} className="text-amber-600" />
+                                <div>
+                                    <span className="text-sm font-medium text-slate-800">Satyam Gupta</span>
+                                    <span className="text-xs text-slate-500 ml-2">satyam.gupta@apnamart.in</span>
                                 </div>
-                                <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full uppercase">
-                                    Super Admin
-                                </span>
                             </div>
-                        ))}
+                            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full uppercase">
+                                Super Admin
+                            </span>
+                        </div>
 
                         {/* Dynamic checker list */}
                         {checkerList.map((checker) => (

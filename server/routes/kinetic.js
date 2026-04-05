@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import * as KineticSync from '../services/KineticSyncService.js';
-import * as Kinetic from '../services/KineticService.js';
+import * as SubmissionService from '../services/SubmissionService.js';
+import { isAvailable } from '../services/SupabaseService.js';
 import * as WidgetData from '../services/WidgetDataService.js';
 
 const router = Router();
@@ -8,82 +8,44 @@ const router = Router();
 // ── GET /kinetic/health ──
 router.get('/health', (_req, res) => {
   res.json({
-    available: Kinetic.isAvailable(),
+    available: isAvailable(),
+    backend: 'supabase',
     timestamp: new Date().toISOString(),
   });
 });
 
 // ── GET /kinetic/history ──
-// Fetch widget submission history from ClickHouse/BigQuery via Kinetic saved query.
-// Query params: startDate, endDate, status, env
 router.get('/history', async (req, res, next) => {
   try {
-    if (!Kinetic.isAvailable()) {
-      return res.json({ rows: [], source: 'kinetic', available: false });
-    }
-
-    const { startDate, endDate, status, env } = req.query;
+    const { startDate, endDate, status } = req.query;
     if (!startDate || !endDate) {
       return res.status(400).json({ error: 'startDate and endDate are required' });
     }
 
-    const rows = await KineticSync.fetchHistory(startDate, endDate, { status, env });
-
-    res.json({
-      rows: rows || [],
-      count: rows ? rows.length : 0,
-      source: 'kinetic',
-    });
-  } catch (err) { next(err); }
-});
-
-// ── GET /kinetic/analytics ──
-// Fetch aggregated widget analytics from Kinetic saved query.
-// Query params: startDate, endDate, env
-router.get('/analytics', async (req, res, next) => {
-  try {
-    if (!Kinetic.isAvailable()) {
-      return res.json({ rows: [], source: 'kinetic', available: false });
+    const requests = await SubmissionService.fetchRequests(req.env, { status });
+    const rows = [];
+    for (const r of requests) {
+      for (const rw of r.requestWidgets) {
+        rows.push({ ...rw.snapshot, request_id: r.id, status: r.status, submitted_by: r.submittedBy });
+      }
     }
 
-    const { startDate, endDate, env } = req.query;
-    if (!startDate || !endDate) {
-      return res.status(400).json({ error: 'startDate and endDate are required' });
-    }
-
-    const rows = await KineticSync.fetchAnalytics(startDate, endDate, { env });
-
-    res.json({
-      rows: rows || [],
-      count: rows ? rows.length : 0,
-      source: 'kinetic',
-    });
+    res.json({ rows, count: rows.length, source: 'supabase' });
   } catch (err) { next(err); }
 });
 
 // ── GET /kinetic/search-widgets?q=... ──
-// Search widgets by slug or title from ClickHouse (Mirror).
 router.get('/search-widgets', async (req, res, next) => {
   try {
-    if (!Kinetic.isAvailable()) {
-      return res.json({ rows: [], source: 'kinetic', available: false });
-    }
-
     const { q } = req.query;
     if (!q || !q.trim()) {
       return res.status(400).json({ error: 'q (search query) is required' });
     }
 
-    const rows = await KineticSync.searchWidgets(q.trim());
-
-    res.json({
-      rows: rows || [],
-      count: rows ? rows.length : 0,
-      source: 'kinetic',
-    });
+    const widgets = await WidgetData.listWidgets(req.env, { slug: q.trim() });
+    res.json({ rows: widgets, count: widgets.length, source: 'supabase' });
   } catch (err) { next(err); }
 });
-
 
 // ── GET /kinetic/catalog/batch?codes=104303,104304,... ──
 router.get('/catalog/batch', async (req, res, next) => {
@@ -105,12 +67,10 @@ router.get('/catalog/batch', async (req, res, next) => {
 });
 
 // ── POST /kinetic/deploy-sync ──
-// Called by frontend after successful deploy to sync actual slugs to Kinetic.
-// Body: { widgets: [{ widgetId, dt, slugs }] }
 router.post('/deploy-sync', async (req, res, next) => {
   try {
-    if (!Kinetic.isAvailable()) {
-      return res.json({ synced: 0, available: false });
+    if (req.user.role !== 'CHECKER' && req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: 'Only CHECKER or SUPER_ADMIN can deploy' });
     }
 
     const { widgets } = req.body;
@@ -122,12 +82,32 @@ router.post('/deploy-sync', async (req, res, next) => {
     let synced = 0;
 
     for (const w of widgets) {
+      if (!w.requestId) {
+        return res.status(400).json({ error: 'requestId is required for each widget' });
+      }
+
+      // Verify request is APPROVED before deploying
+      const request = await SubmissionService.fetchRequestById(w.requestId, req.env);
+      if (!request) {
+        return res.status(404).json({ error: `Request ${w.requestId} not found` });
+      }
+      if (request.status !== 'APPROVED') {
+        return res.status(400).json({ error: `Cannot deploy request in ${request.status} status. Must be APPROVED.` });
+      }
+
       const dt = w.dt || today;
-      await KineticSync.syncDeploy(w.widgetId, dt, w.slugs || {}, req.user);
+      await SubmissionService.syncDeploy(w.widgetId, dt, w.slugs || {}, req.user, req.env, w.requestId);
+
+      // Log deploy activity
+      await SubmissionService.logActivitySafe({
+        action: 'deploy', user: req.user,
+        targetId: w.widgetId, targetType: 'widget',
+        details: { slugs: w.slugs }, env: req.env,
+      });
       synced++;
     }
 
-    res.json({ synced, source: 'kinetic' });
+    res.json({ synced, source: 'supabase' });
   } catch (err) { next(err); }
 });
 

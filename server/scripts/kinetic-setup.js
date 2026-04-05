@@ -122,7 +122,7 @@ async function setup() {
       { name: 'email', type: 'String', comment: 'User email (primary identifier)' },
       { name: 'name', type: 'String', comment: 'Display name' },
       { name: 'role', type: 'String', comment: 'CHECKER or SUPER_ADMIN' },
-      { name: 'env', type: 'String', comment: 'Environment: PROD or STAGING' },
+      { name: 'env', type: 'String', comment: 'Environment: PROD or UAT' },
       { name: 'added_at', type: 'String', comment: 'When user was added (ISO timestamp)' },
       { name: 'added_by', type: 'String', comment: 'Who added this user (email)' },
       { name: 'is_active', type: 'UInt8', default: '1', comment: '1 = active, 0 = removed' },

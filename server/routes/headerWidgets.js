@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as WidgetData from '../services/WidgetDataService.js';
-import * as KineticSync from '../services/KineticSyncService.js';
+import * as SubService from '../services/SubmissionService.js';
 
 const router = Router();
 
@@ -15,6 +15,10 @@ router.get('/', async (_req, res, next) => {
 // ── PUT /header-widgets ──
 router.put('/', async (req, res, next) => {
   try {
+    if (req.user.role !== 'CHECKER' && req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: 'Only CHECKER or SUPER_ADMIN can update header widgets' });
+    }
+
     const { primaryMasthead, secondaryMasthead } = req.body;
 
     if (primaryMasthead === undefined && secondaryMasthead === undefined) {
@@ -28,7 +32,7 @@ router.put('/', async (req, res, next) => {
       await WidgetData.upsertHeaderWidget('secondaryMasthead', secondaryMasthead, req.user.email);
     }
 
-    KineticSync.logActivitySafe({
+    SubService.logActivitySafe({
       action: 'update', user: req.user,
       targetId: 'headerWidgets', targetType: 'headerWidgets',
       details: { updated: Object.keys(req.body) }, env: req.env,

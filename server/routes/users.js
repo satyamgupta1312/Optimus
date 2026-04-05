@@ -3,7 +3,7 @@ import * as WidgetData from '../services/WidgetDataService.js';
 
 const router = Router();
 
-const SUPER_ADMIN_IDENTIFIERS = ['satyam.gupta@apnamart.in'];
+const SUPER_ADMIN_IDENTIFIERS = ['satyam.gupta@apnamart.in', 'satyam'];
 
 // ── GET /users/me ──
 router.get('/me', async (req, res) => {

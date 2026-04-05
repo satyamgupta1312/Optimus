@@ -21,6 +21,12 @@
 import * as Kinetic from './KineticService.js';
 import crypto from 'crypto';
 
+/** Escape single quotes and backslashes for ClickHouse SQL strings */
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
 // ── Table / Query constants ──
 
 const TABLE_PROD = 'submissions';
@@ -170,9 +176,11 @@ export async function createSubmission(requestId, widgets, user, env, headerWidg
 
   const rows = widgets.map((w, i) => {
     const pnc = typeof w.pnc === 'string' ? w.pnc : JSON.stringify(w.pnc || {});
-    const products = typeof w.products === 'string'
-      ? JSON.parse(w.products)
-      : (w.products || []);
+    let products = w.products || [];
+    if (typeof products === 'string') {
+      try { products = JSON.parse(products); } catch { products = []; }
+    }
+    if (!Array.isArray(products)) products = [];
 
     // Build a clean snapshot (strip File/Blob which can't serialize)
     const snapshot = {};
@@ -272,17 +280,17 @@ export async function updateRequestStatus(requestId, newStatus, user, env, opts 
     status: `'${newStatus}'`,
   };
   if (user?.email) {
-    set.edited_by = `'${user.email}'`;
+    set.edited_by = `'${esc(user.email)}'`;
     set.edited_at = `'${new Date().toISOString()}'`;
   }
   if (opts.rejectionReason !== undefined) {
-    set.rejection_reason = `'${(opts.rejectionReason || '').replace(/'/g, "\\'")}'`;
+    set.rejection_reason = `'${esc(opts.rejectionReason || '')}'`;
   }
 
   console.log(`[KineticSync] Updating status -> ${newStatus} for request ${requestId}`);
   const result = await Kinetic.updateRowsStrict(table, {
     set,
-    where: `request_id = '${requestId}'`,
+    where: `request_id = '${esc(requestId)}'`,
   });
   console.log(`[KineticSync] Status updated`);
   return result;
@@ -413,8 +421,8 @@ function safeJsonParse(str, fallback) {
 export async function fetchRequests(env, { status, date } = {}) {
   const table = getSubmissionsTable(env);
   const whereParts = [];
-  if (status) whereParts.push(`request_status = '${status}'`);
-  if (date) whereParts.push(`dt = '${date}'`);
+  if (status) whereParts.push(`request_status = '${esc(status)}'`);
+  if (date) whereParts.push(`dt = '${esc(date)}'`);
 
   const result = await Kinetic.readRowsStrict(table, {
     where: whereParts.length > 0 ? whereParts.join(' AND ') : undefined,
@@ -435,7 +443,7 @@ export async function fetchRequests(env, { status, date } = {}) {
 export async function fetchRequestById(requestId, env) {
   const table = getSubmissionsTable(env);
   const result = await Kinetic.readRowsStrict(table, {
-    where: `request_id = '${requestId}'`,
+    where: `request_id = '${esc(requestId)}'`,
     order_by: 'sort_order ASC',
   });
   const rows = result?.data?.rows || [];
@@ -457,7 +465,7 @@ export async function fetchRequestById(requestId, env) {
 export async function fetchActivityLog({ page = 1, limit = 50, action, env } = {}) {
   const table = getActivityTable(env);
   const whereParts = [];
-  if (action) whereParts.push(`action = '${action}'`);
+  if (action) whereParts.push(`action = '${esc(action)}'`);
 
   const result = await Kinetic.readRowsStrict(table, {
     where: whereParts.length > 0 ? whereParts.join(' AND ') : undefined,
@@ -513,9 +521,11 @@ export async function syncSubmission(request, widgets, user, env) {
 
   const rows = widgets.map((w) => {
     const pnc = typeof w.pnc === 'string' ? w.pnc : JSON.stringify(w.pnc || {});
-    const products = typeof w.products === 'string'
-      ? JSON.parse(w.products)
-      : (w.products || []);
+    let products = w.products || [];
+    if (typeof products === 'string') {
+      try { products = JSON.parse(products); } catch { products = []; }
+    }
+    if (!Array.isArray(products)) products = [];
 
     const snapshot = {};
     for (const [k, v] of Object.entries(w)) {
@@ -565,16 +575,16 @@ export async function syncSubmission(request, widgets, user, env) {
 export async function syncStatusChange(requestId, newStatus, user) {
   if (!Kinetic.isAvailable()) return;
 
-  const set = { status: `'${newStatus}'` };
+  const set = { status: `'${esc(newStatus)}'`, request_status: `'${esc(newStatus)}'` };
   if (user?.email) {
-    set.edited_by = `'${user.email}'`;
+    set.edited_by = `'${esc(user.email)}'`;
     set.edited_at = `'${new Date().toISOString()}'`;
   }
 
   console.log(`[KineticSync] Updating status -> ${newStatus} for request ${requestId}`);
   const result = await Kinetic.updateRows(TABLE_PROD, {
     set,
-    where: `request_id = '${requestId}'`,
+    where: `request_id = '${esc(requestId)}'`,
   });
   if (result) {
     console.log(`[KineticSync] Status updated`);
@@ -586,26 +596,29 @@ export async function syncStatusChange(requestId, newStatus, user) {
 /**
  * Sync deploy results to Kinetic — updates with actual slugs and DEPLOYED status.
  */
-export async function syncDeploy(widgetId, dt, slugs, user, env) {
+export async function syncDeploy(widgetId, dt, slugs, user, env, requestId) {
   if (!Kinetic.isAvailable()) return;
 
   const table = getSubmissionsTable(env || 'PROD');
   const set = {
     status: "'DEPLOYED'",
     request_status: "'DEPLOYED'",
-    hierarchy: `'${JSON.stringify(slugs).replace(/'/g, "\\'")}'`,
+    hierarchy: `'${esc(JSON.stringify(slugs))}'`,
   };
 
-  if (slugs.page) set.page_slug = `'${slugs.page}'`;
+  if (slugs.page) set.page_slug = `'${esc(slugs.page)}'`;
   if (user?.email) {
-    set.edited_by = `'${user.email}'`;
+    set.edited_by = `'${esc(user.email)}'`;
     set.edited_at = `'${new Date().toISOString()}'`;
   }
+
+  const whereParts = [`widget_id = '${esc(widgetId)}'`, `dt = '${esc(dt)}'`];
+  if (requestId) whereParts.push(`request_id = '${esc(requestId)}'`);
 
   console.log(`[KineticSync] Syncing deploy for widget ${widgetId}`);
   const result = await Kinetic.updateRows(table, {
     set,
-    where: `widget_id = '${widgetId}' AND dt = '${dt}'`,
+    where: whereParts.join(' AND '),
   });
   if (result) {
     console.log(`[KineticSync] Deploy synced`);
@@ -651,7 +664,7 @@ export async function syncUserRoleRemove(email, env) {
       is_active: '0',
       updated_at: `'${new Date().toISOString()}'`,
     },
-    where: `email = '${email}' AND env = '${env}'`,
+    where: `email = '${esc(email)}' AND env = '${esc(env)}'`,
   });
   if (result) {
     console.log(`[KineticSync] User role removed`);
@@ -699,7 +712,7 @@ export async function syncLocationDelete(key, env) {
       is_enabled: '0',
       updated_at: `'${new Date().toISOString()}'`,
     },
-    where: `key = '${key}' AND env = '${env}'`,
+    where: `key = '${esc(key)}' AND env = '${esc(env)}'`,
   });
   if (result) {
     console.log(`[KineticSync] Location deleted: ${key}`);

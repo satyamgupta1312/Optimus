@@ -1,8 +1,11 @@
 import { Router } from 'express';
 import * as WidgetData from '../services/WidgetDataService.js';
-import * as KineticSync from '../services/KineticSyncService.js';
+import * as SubService from '../services/SubmissionService.js';
+import { validateWidget } from '../middleware/validate.js';
 
 const router = Router();
+
+const VALID_STATUSES = new Set(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'DEPLOYED']);
 
 // ── GET /widgets ──
 router.get('/', async (req, res, next) => {
@@ -18,6 +21,11 @@ router.post('/', async (req, res, next) => {
   try {
     const { type, slug, title, titleHi, pnc, config, products, sortOrder } = req.body;
 
+    const errors = validateWidget(req.body);
+    if (errors.length > 0) {
+      return res.status(400).json({ error: 'Validation failed', details: errors });
+    }
+
     const widget = await WidgetData.createWidget({
       type, slug, env: req.env,
       title: title || '', titleHi: titleHi || '',
@@ -28,14 +36,14 @@ router.post('/', async (req, res, next) => {
 
     // Create initial version
     await WidgetData.createVersion({
-      widgetId: widget.id, widgetSlug: slug, env: req.env,
+      widgetId: widget.widgetId, widgetSlug: slug, env: req.env,
       version: 1, snapshot: req.body,
       changedBy: req.user.email, changeLog: 'Created',
     });
 
-    KineticSync.logActivitySafe({
+    SubService.logActivitySafe({
       action: 'create', user: req.user,
-      targetId: widget.id, targetType: 'widget',
+      targetId: widget.widgetId, targetType: 'widget',
       details: { type, slug }, env: req.env,
     });
 
@@ -59,7 +67,7 @@ router.patch('/', async (req, res, next) => {
 // ── GET /widgets/:id ──
 router.get('/:id', async (req, res, next) => {
   try {
-    const widget = await WidgetData.getWidgetById(req.params.id);
+    const widget = await WidgetData.getWidgetById(req.params.id, req.env);
     if (!widget) return res.status(404).json({ error: 'Widget not found' });
 
     // Get last 10 versions
@@ -73,6 +81,18 @@ router.get('/:id', async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
   try {
     const { type, slug, title, titleHi, status, pnc, config, products, sortOrder } = req.body;
+
+    // Validate status value
+    if (status !== undefined && !VALID_STATUSES.has(status)) {
+      return res.status(400).json({ error: `Invalid status '${status}'. Must be one of: ${[...VALID_STATUSES].join(', ')}` });
+    }
+
+    // Guard: only CHECKER/SUPER_ADMIN can change status to APPROVED/REJECTED
+    if (status !== undefined && ['APPROVED', 'REJECTED'].includes(status)) {
+      if (req.user.role !== 'CHECKER' && req.user.role !== 'SUPER_ADMIN') {
+        return res.status(403).json({ error: 'Only CHECKER or SUPER_ADMIN can set APPROVED/REJECTED status' });
+      }
+    }
 
     // Get current version number
     const latestVersion = await WidgetData.getLatestVersion(req.params.id);
@@ -88,20 +108,20 @@ router.put('/:id', async (req, res, next) => {
     if (products !== undefined) data.products = products;
     if (sortOrder !== undefined) data.sortOrder = sortOrder;
 
-    const widget = await WidgetData.updateWidget(req.params.id, data);
+    const widget = await WidgetData.updateWidget(req.params.id, data, req.env);
     if (!widget) return res.status(404).json({ error: 'Widget not found' });
 
     // Save version
     await WidgetData.createVersion({
-      widgetId: widget.id, widgetSlug: widget.slug, env: req.env,
+      widgetId: widget.widgetId, widgetSlug: widget.slug, env: req.env,
       version: (latestVersion?.version || 0) + 1,
       snapshot: req.body,
       changedBy: req.user.email, changeLog: 'Updated',
     });
 
-    KineticSync.logActivitySafe({
+    SubService.logActivitySafe({
       action: 'update', user: req.user,
-      targetId: widget.id, targetType: 'widget',
+      targetId: widget.widgetId, targetType: 'widget',
       details: { fields: Object.keys(req.body) }, env: req.env,
     });
 
@@ -115,6 +135,18 @@ router.patch('/:id', async (req, res, next) => {
     const data = {};
     const { type, slug, title, titleHi, status, pnc, config, products, sortOrder } = req.body;
 
+    // Validate status value
+    if (status !== undefined && !VALID_STATUSES.has(status)) {
+      return res.status(400).json({ error: `Invalid status '${status}'. Must be one of: ${[...VALID_STATUSES].join(', ')}` });
+    }
+
+    // Guard: only CHECKER/SUPER_ADMIN can change status to APPROVED/REJECTED
+    if (status !== undefined && ['APPROVED', 'REJECTED'].includes(status)) {
+      if (req.user.role !== 'CHECKER' && req.user.role !== 'SUPER_ADMIN') {
+        return res.status(403).json({ error: 'Only CHECKER or SUPER_ADMIN can set APPROVED/REJECTED status' });
+      }
+    }
+
     if (type !== undefined) data.type = type;
     if (slug !== undefined) data.slug = slug;
     if (title !== undefined) data.title = title;
@@ -125,8 +157,23 @@ router.patch('/:id', async (req, res, next) => {
     if (products !== undefined) data.products = products;
     if (sortOrder !== undefined) data.sortOrder = sortOrder;
 
-    const widget = await WidgetData.updateWidget(req.params.id, data);
+    const widget = await WidgetData.updateWidget(req.params.id, data, req.env);
     if (!widget) return res.status(404).json({ error: 'Widget not found' });
+
+    // Create version for audit trail
+    const latestVersion = await WidgetData.getLatestVersion(req.params.id);
+    await WidgetData.createVersion({
+      widgetId: widget.widgetId, widgetSlug: widget.slug, env: req.env,
+      version: (latestVersion?.version || 0) + 1,
+      snapshot: req.body,
+      changedBy: req.user.email, changeLog: 'Updated (partial)',
+    });
+
+    SubService.logActivitySafe({
+      action: 'update', user: req.user,
+      targetId: widget.widgetId, targetType: 'widget',
+      details: { fields: Object.keys(req.body) }, env: req.env,
+    });
 
     res.json(widget);
   } catch (err) { next(err); }
@@ -135,9 +182,9 @@ router.patch('/:id', async (req, res, next) => {
 // ── DELETE /widgets/:id ──
 router.delete('/:id', async (req, res, next) => {
   try {
-    await WidgetData.deleteWidget(req.params.id);
+    await WidgetData.deleteWidget(req.params.id, req.env);
 
-    KineticSync.logActivitySafe({
+    SubService.logActivitySafe({
       action: 'delete', user: req.user,
       targetId: req.params.id, targetType: 'widget',
       env: req.env,
@@ -153,9 +200,9 @@ router.post('/:id/duplicate', async (req, res, next) => {
     const widget = await WidgetData.duplicateWidget(req.params.id, req.user, req.env);
     if (!widget) return res.status(404).json({ error: 'Widget not found' });
 
-    KineticSync.logActivitySafe({
+    SubService.logActivitySafe({
       action: 'create', user: req.user,
-      targetId: widget.id, targetType: 'widget',
+      targetId: widget.widgetId, targetType: 'widget',
       details: { duplicatedFrom: req.params.id }, env: req.env,
     });
 

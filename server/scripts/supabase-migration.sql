@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS submissions (
   env TEXT NOT NULL DEFAULT 'PROD',
   products_count INTEGER DEFAULT 0,
   pnc JSONB DEFAULT '{}',
+  config JSONB DEFAULT '{}',
   hierarchy JSONB DEFAULT '{}',
   rejection_reason TEXT DEFAULT '',
   header_widgets JSONB DEFAULT '{}',

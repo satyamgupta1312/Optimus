@@ -15,7 +15,7 @@ const formatDateForInput = (d) => d.toISOString().split('T')[0];
  * config is a JSON blob that needs spreading. This handles both shapes.
  */
 function dbWidgetToCanvas(widget, snapshot) {
-    const src = snapshot || widget;
+    const src = (snapshot && Object.keys(snapshot).length > 0) ? snapshot : widget;
 
     // Parse JSON strings that may come from DB records
     const pnc = typeof src.pnc === 'string' ? JSON.parse(src.pnc) : (src.pnc || {});
@@ -67,22 +67,22 @@ const WidgetHistory = ({ onClose }) => {
     const fetchData = useCallback(async (d) => {
         setLoading(true);
         try {
-            // Fetch from both Prisma and Kinetic in parallel
-            const [prismaResult, kineticResult] = await Promise.allSettled([
+            // Fetch from both Supabase and Kinetic in parallel
+            const [dbResult, kineticResult] = await Promise.allSettled([
                 LocalApiService.getRequestsByDate(d),
                 LocalApiService.getKineticHistory({ startDate: d, endDate: d }),
             ]);
 
-            const prismaRequests = prismaResult.status === 'fulfilled' ? prismaResult.value : [];
+            const dbRequests = dbResult.status === 'fulfilled' ? dbResult.value : [];
 
-            // Merge Kinetic rows as supplementary data (Prisma is authoritative)
+            // Merge Kinetic rows as supplementary data (Supabase is authoritative)
             const kineticRows = kineticResult.status === 'fulfilled' ? (kineticResult.value?.rows || []) : [];
 
             // Group Kinetic rows by request_id to form pseudo-request objects
-            const prismaRequestIds = new Set(prismaRequests.map(r => r.id));
+            const dbRequestIds = new Set(dbRequests.map(r => r.id));
             const kineticByRequest = {};
             for (const row of kineticRows) {
-                if (prismaRequestIds.has(row.request_id)) continue; // already in Prisma
+                if (dbRequestIds.has(row.request_id)) continue; // already in Supabase
                 if (!kineticByRequest[row.request_id]) {
                     kineticByRequest[row.request_id] = {
                         id: row.request_id,
@@ -102,13 +102,13 @@ const WidgetHistory = ({ onClose }) => {
                         slug: row.slug,
                         title: row.title,
                     },
-                    snapshot: row.snapshot ? (typeof row.snapshot === 'string' ? JSON.parse(row.snapshot) : row.snapshot) : {},
+                    snapshot: row.snapshot ? (typeof row.snapshot === 'string' ? JSON.parse(row.snapshot) : row.snapshot) : null,
                 });
             }
 
-            // Tag Prisma requests
-            const taggedPrisma = prismaRequests.map(r => ({ ...r, _source: 'prisma' }));
-            const mergedRequests = [...taggedPrisma, ...Object.values(kineticByRequest)];
+            // Tag Supabase requests
+            const taggedDb = dbRequests.map(r => ({ ...r, _source: 'supabase' }));
+            const mergedRequests = [...taggedDb, ...Object.values(kineticByRequest)];
 
             setRequests(mergedRequests);
             setExpandedRequests(new Set(mergedRequests.map(r => r.id)));
@@ -312,10 +312,10 @@ const WidgetHistory = ({ onClose }) => {
                                                 <div className="border-t border-slate-100 bg-slate-50/50 divide-y divide-slate-100">
                                                     {req.requestWidgets.map((rw) => {
                                                         const w = rw.widget || {};
-                                                        const snap = rw.snapshot || {};
-                                                        const widgetType = w.type || snap.type || '';
-                                                        const slug = w.slug || snap.slug || snap.slug_name || '';
-                                                        const title = w.title || snap.title || '';
+                                                        const snap = (rw.snapshot && Object.keys(rw.snapshot).length > 0) ? rw.snapshot : null;
+                                                        const widgetType = w.type || snap?.type || '';
+                                                        const slug = w.slug || snap?.slug || snap?.slug_name || '';
+                                                        const title = w.title || snap?.title || '';
                                                         const isPreview = previewId === rw.id;
 
                                                         return (
@@ -365,8 +365,9 @@ const WidgetHistory = ({ onClose }) => {
                                                                             snapshot={{
                                                                                 type: widgetType,
                                                                                 title,
-                                                                                ...snap,
-                                                                                ...(typeof snap.config === 'string' ? JSON.parse(snap.config) : (snap.config || {})),
+                                                                                ...(snap || {}),
+                                                                                ...(typeof snap?.config === 'string' ? JSON.parse(snap.config) : (snap?.config || {})),
+                                                                                ...(typeof rw.config === 'string' ? JSON.parse(rw.config) : (rw.config || {})),
                                                                             }}
                                                                             label={slug}
                                                                         />

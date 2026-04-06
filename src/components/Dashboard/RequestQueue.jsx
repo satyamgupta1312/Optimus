@@ -7,7 +7,7 @@ import { getCsrfToken } from '../../services/AuthService';
 import MapToPageModal from './MapToPageModal';
 import toast from 'react-hot-toast';
 
-// Normalize Prisma response shape to the UI shape the component expects
+// Normalize API response shape to the UI shape the component expects
 const normalizeRequest = (r) => ({
     id: r.id,
     user: r.submitter?.email || 'Unknown',
@@ -17,18 +17,20 @@ const normalizeRequest = (r) => ({
     rejectionReason: r.rejectionReason || '',
     headerWidgets: r.headerWidgets || {},
     widgets: (r.requestWidgets || []).map(rw => {
-        const snap = rw.snapshot || {};
         const w = rw.widget || {};
+        const config = rw.config || {};
         return {
-            id: w.id || snap.id || rw.widgetId,
-            type: w.type || snap.type || '',
-            slug: w.slug || snap.slug || snap.slug_name || '',
-            title: w.title || snap.title || '',
-            titleHi: snap.titleHi || '',
-            pnc: rw.pnc || snap.pnc || {},
-            config: snap.config || {},
-            products: snap.products || [],
+            id: w.id || rw.widgetId,
+            type: w.type || '',
+            slug: w.slug || '',
+            title: w.title || '',
+            titleHi: w.titleHi || '',
+            pnc: rw.pnc || {},
+            ...config,
+            products: rw.products || [],
+            hierarchy: rw.hierarchy || {},
             sortOrder: rw.sortOrder ?? 0,
+            _dbId: rw.widgetId,
         };
     }),
 });
@@ -108,7 +110,7 @@ const UserAvatar = ({ name, size = 'md' }) => {
 
 const RequestQueue = ({ onClose, onApprove, onReject }) => {
     const { setWidgets, setHeaderWidgets } = useWidgetContext();
-    const { user } = useAuth();
+    const { user, logout } = useAuth();
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(null); // Track which request is being actioned
@@ -309,7 +311,8 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
     const handleDeploy = async (req) => {
         const token = getCsrfToken();
         if (!token) {
-            toast.error('Session expired — please re-login');
+            toast.error('Session expired — redirecting to login...');
+            setTimeout(() => logout(), 1500);
             return;
         }
 
@@ -326,24 +329,27 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                     result.summary || 'Deployed successfully!',
                     { icon: '🚀', duration: 4000 }
                 );
-                // Update Prisma status to APPROVED after successful deploy
-                try {
-                    await LocalApiService.approveRequest(req.id);
-                    fetchRequests(); // Refresh the list so status badge updates
-                } catch (e) {
-                    console.warn('[Deploy] Prisma status update failed (non-fatal):', e.message);
+                // Update Supabase status — only if not already approved
+                if (req.status !== 'APPROVED' && req.status !== 'Complete') {
+                    try {
+                        await LocalApiService.approveRequest(req.id);
+                    } catch (e) {
+                        console.warn('[Deploy] Supabase status update failed (non-fatal):', e.message);
+                    }
                 }
-                // Fire-and-forget: sync deploy slugs to Kinetic
+                fetchRequests();
+                // Fire-and-forget: sync deploy slugs to Supabase
                 if (result.results?.length) {
-                    const kineticWidgets = result.results
+                    const deployWidgets = result.results
                         .filter(r => r.status === 'ok' && r.slug)
                         .map(r => ({
+                            requestId: req.id,
                             widgetId: r.widgetId || '',
                             slugs: r.slugs || { widget: r.slug },
                         }));
-                    if (kineticWidgets.length) {
-                        LocalApiService.syncDeployToKinetic(kineticWidgets)
-                            .catch(e => console.warn('[Kinetic] Deploy sync failed:', e.message));
+                    if (deployWidgets.length) {
+                        LocalApiService.syncDeployToKinetic(deployWidgets)
+                            .catch(e => console.warn('[Deploy] Sync failed:', e.message));
                     }
                 }
             } else {
@@ -369,7 +375,8 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
     const handleApproveAndDeploy = async (req) => {
         const token = getCsrfToken();
         if (!token) {
-            toast.error('Session expired — please re-login');
+            toast.error('Session expired — redirecting to login...');
+            setTimeout(() => logout(), 1500);
             return;
         }
 
@@ -384,7 +391,7 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
         const loadingToast = toast.loading('Approving & deploying...');
 
         try {
-            // Step 1: Approve in Prisma
+            // Step 1: Approve in Supabase
             const selectedWidgetIds = (req.widgets || [])
                 .filter((_, i) => selectedIndices.has(i))
                 .map(w => w.id)
@@ -402,17 +409,18 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
             toast.dismiss(deployToast);
             if (result.success) {
                 toast.success(result.summary || 'Deployed successfully!', { icon: '🚀', duration: 4000 });
-                // Fire-and-forget: sync deploy slugs to Kinetic
+                // Fire-and-forget: sync deploy slugs to Supabase
                 if (result.results?.length) {
-                    const kineticWidgets = result.results
+                    const deployWidgets = result.results
                         .filter(r => r.status === 'ok' && r.slug)
                         .map(r => ({
+                            requestId: req.id,
                             widgetId: r.widgetId || '',
                             slugs: r.slugs || { widget: r.slug },
                         }));
-                    if (kineticWidgets.length) {
-                        LocalApiService.syncDeployToKinetic(kineticWidgets)
-                            .catch(e => console.warn('[Kinetic] Deploy sync failed:', e.message));
+                    if (deployWidgets.length) {
+                        LocalApiService.syncDeployToKinetic(deployWidgets)
+                            .catch(e => console.warn('[Deploy] Sync failed:', e.message));
                     }
                 }
             } else {

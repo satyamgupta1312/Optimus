@@ -49,13 +49,13 @@ const remoteCache = {};
 /** Map a server row to the CatalogService product shape */
 function mapRow(row) {
     return {
-        itemCode: String(row.item_code ?? ''),
-        name: row.display_name ?? '',
+        itemCode: String(row.item_code ?? row.itemCode ?? ''),
+        name: row.display_name ?? row.name ?? '',
         brand: row.brand ?? '',
-        image: row.product_image ?? '',
+        image: row.product_image ?? row.image ?? '',
         mrp: parseFloat(row.mrp) || 0,
-        price: parseFloat(row.selling_price) || 0,
-        priceDisplay: '₹' + (row.selling_price || row.mrp || '0'),
+        price: parseFloat(row.selling_price ?? row.price) || 0,
+        priceDisplay: '₹' + (row.selling_price || row.price || row.mrp || '0'),
     };
 }
 

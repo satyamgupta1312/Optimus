@@ -7,7 +7,7 @@
  * Wiki Reference: wiki/Backend-work-flow.md
  *
  * Architecture:
- *   UI (Canvas) → Express Backend (PENDING) → Prisma DB (Validation + Status Update)
+ *   UI (Canvas) → Express Backend (PENDING) → Supabase DB (Validation + Status Update)
  *   → Backend API (POST/PATCH widgets, requests, approvals)
  */
 
@@ -92,13 +92,13 @@ export const SUBMIT_PAYLOAD_SCHEMA = {
 };
 
 // ── Database Fields ──
-// Maps payload data to their Prisma DB table fields.
+// Maps payload data to their Supabase DB table fields.
 export const DB_FIELDS = {
     widget: {
         env: { type: 'string', default: 'PROD', values: ['UAT', 'PROD'], description: 'Environment — same slug allowed in both. Unique constraint: @@unique([slug, env])' },
     },
     request: {
-        id: { type: 'uuid', auto: true, description: 'Prisma auto-generated UUID' },
+        id: { type: 'uuid', auto: true, description: 'Supabase auto-generated UUID' },
         submittedBy: { type: 'string', source: 'req.user.id', description: 'User FK from auth middleware' },
         type: { type: 'string', default: 'Homepage Update' },
         status: { type: 'enum', values: ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED'] },
@@ -302,17 +302,17 @@ export const DEPLOY_CONFIG = {
 
 // ── Approve vs Deploy Distinction ─────────────────────────────────────────
 // IMPORTANT: Approve ≠ Deploy. These are two separate steps.
-//   Approve: Updates Prisma DB status (PENDING → APPROVED). No backend API calls.
+//   Approve: Updates Supabase DB status (PENDING → APPROVED). No backend API calls.
 //   Deploy:  Makes actual API calls to Django backend (POST widget, mappings, etc.)
 //
 // Three ways to deploy:
-//   1. "Approve" button → only updates Prisma. Then "Deploy" button separately.
-//   2. "Approve & Deploy" button → does both in one click (approve Prisma + deploy backend).
+//   1. "Approve" button → only updates Supabase. Then "Deploy" button separately.
+//   2. "Approve & Deploy" button → does both in one click (approve Supabase + deploy backend).
 //   3. "Deploy" button on already-APPROVED requests → re-deploy (manual sync).
 export const APPROVE_DEPLOY_FLOW = {
     approveOnly: {
         service: 'LocalApiService.approveRequest()',
-        effect: 'Prisma status → APPROVED (no backend API calls)',
+        effect: 'Supabase status → APPROVED (no backend API calls)',
         uiButton: 'Approve',
     },
     deployOnly: {
@@ -322,7 +322,7 @@ export const APPROVE_DEPLOY_FLOW = {
     },
     approveAndDeploy: {
         services: ['LocalApiService.approveRequest()', 'BackendSyncService.deployRequest()'],
-        effect: 'Prisma status → APPROVED + backend API calls in sequence',
+        effect: 'Supabase status → APPROVED + backend API calls in sequence',
         uiButton: 'Approve & Deploy',
     },
 };
@@ -343,7 +343,7 @@ export const WORKFLOW_SUMMARY = {
     stages: Object.keys(WORKFLOW_STAGES),
     roles: Object.keys(ROLE_PERMISSIONS),
     backend: {
-        type: 'Express + Prisma + SQLite',
+        type: 'Express + Supabase',
         port: 3001,
         dbFile: 'server/prisma/optimus.db',
     },

@@ -84,16 +84,23 @@ router.post('/', async (req, res, next) => {
       } catch (widgetErr) {
         // Rollback: soft-delete any widgets created before the failure
         for (const cw of createdWidgets) {
-          try { await WidgetData.deleteWidget(cw.widget.id, req.env); } catch { /* best-effort */ }
+          try { await WidgetData.deleteWidget(cw.widget.widgetId, req.env); } catch { /* best-effort */ }
         }
         throw widgetErr;
       }
 
-      // ── Step 2: Build submission with guaranteed server UUIDs ──
+      // ── Step 2: Build submission with guaranteed server UUIDs + config ──
       const widgetsWithIds = inlineWidgets.map((w, i) => {
         const widgetId = createdWidgets[i]?.widget.widgetId;
         if (!widgetId) throw new Error(`Missing widget_id for widget index ${i}`);
-        return { ...w, id: widgetId };
+        // Build config from non-standard fields (stateProducts, scrollItems, carouselItems, etc.)
+        const widgetConfig = {};
+        for (const [k, v] of Object.entries(w)) {
+          if (STANDARD_KEYS.has(k)) continue;
+          if (typeof v === 'function') continue;
+          widgetConfig[k] = v;
+        }
+        return { ...w, id: widgetId, config: { ...(w.config || {}), ...widgetConfig } };
       });
 
       // BLOCKING: Create submission
@@ -103,7 +110,7 @@ router.post('/', async (req, res, next) => {
       } catch (submissionErr) {
         // Rollback: soft-delete all created widgets
         for (const cw of createdWidgets) {
-          try { await WidgetData.deleteWidget(cw.widget.id, req.env); } catch { /* best-effort */ }
+          try { await WidgetData.deleteWidget(cw.widget.widgetId, req.env); } catch { /* best-effort */ }
         }
         throw submissionErr;
       }
@@ -133,7 +140,7 @@ router.post('/', async (req, res, next) => {
     const widgets = await WidgetData.findWidgetsByIds(widgetIds);
 
     const widgetSnapshots = widgets.map((w, i) => ({
-      id: w.id, type: w.type, slug: w.slug,
+      id: w.widgetId, type: w.type, slug: w.slug,
       title: w.title, titleHi: w.titleHi,
       pnc: w.pnc, config: w.config, products: w.products,
       sortOrder: i,

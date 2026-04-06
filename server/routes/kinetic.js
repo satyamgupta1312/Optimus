@@ -26,7 +26,14 @@ router.get('/history', async (req, res, next) => {
     const rows = [];
     for (const r of requests) {
       for (const rw of r.requestWidgets) {
-        rows.push({ ...rw.snapshot, request_id: r.id, status: r.status, submitted_by: r.submittedBy });
+        rows.push({
+          ...rw.widget,
+          pnc: rw.pnc,
+          hierarchy: rw.hierarchy,
+          request_id: r.id,
+          status: r.status,
+          submitted_by: r.submittedBy,
+        });
       }
     }
 
@@ -78,12 +85,14 @@ router.post('/deploy-sync', async (req, res, next) => {
       return res.status(400).json({ error: 'widgets array is required' });
     }
 
-    const today = new Date().toISOString().split('T')[0];
     let synced = 0;
 
     for (const w of widgets) {
       if (!w.requestId) {
         return res.status(400).json({ error: 'requestId is required for each widget' });
+      }
+      if (!w.widgetId) {
+        return res.status(400).json({ error: 'widgetId is required for each widget' });
       }
 
       // Verify request is APPROVED before deploying
@@ -95,15 +104,7 @@ router.post('/deploy-sync', async (req, res, next) => {
         return res.status(400).json({ error: `Cannot deploy request in ${request.status} status. Must be APPROVED.` });
       }
 
-      const dt = w.dt || today;
-      await SubmissionService.syncDeploy(w.widgetId, dt, w.slugs || {}, req.user, req.env, w.requestId);
-
-      // Log deploy activity
-      await SubmissionService.logActivitySafe({
-        action: 'deploy', user: req.user,
-        targetId: w.widgetId, targetType: 'widget',
-        details: { slugs: w.slugs }, env: req.env,
-      });
+      await SubmissionService.syncDeploy(w.widgetId, w.slugs || {}, req.user, req.env, w.requestId);
       synced++;
     }
 

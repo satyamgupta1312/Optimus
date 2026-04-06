@@ -34,12 +34,25 @@ export function generateTimestamp() {
     return `${yy}${MM}${dd}_${hh}${mm}${ss}`;
 }
 
+/** Strip known widget type suffixes to get clean base slug */
+export function stripSuffix(slug) {
+    return (slug || '')
+        .replace(/_spr_opt$/, '')
+        .replace(/_spr$/, '')
+        .replace(/_crausel_w$/, '')
+        .replace(/_cl_w_hp$/, '')
+        .replace(/_cm_hp$/, '')
+        .replace(/_mm$/, '');
+}
+
 export class SlugGenerator {
     /**
-     * @param {string} base - Raw base string (title or slug)
+     * @param {string} base - Raw base string (title or slug).
+     *   If it already contains a type suffix (_spr_opt, _crausel_w, etc.),
+     *   the suffix is stripped so get('_spr_opt') won't double it.
      */
     constructor(base) {
-        this.base = sanitizeSlug(base);
+        this.base = stripSuffix(sanitizeSlug(base));
     }
 
     /** Deterministic slug: {base}{suffix} */

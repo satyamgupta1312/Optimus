@@ -418,12 +418,20 @@ export class SPRBuilder {
                 this.log(`[ProductRail] Step 3 — Page Layout exists (${pageId}), Skipping Create...`);
             } else {
                 this.log(`[ProductRail] Step 3 — Page Layout new, Creating: ${slugs.page}`);
-                await callApi(ENDPOINTS.pageLayout, {
-                    slug_name: slugs.page,
-                    page_heading: this.widget.title,
-                    page_layout_type: '2',
-                    page_type: pageType,
-                });
+                try {
+                    await callApi(ENDPOINTS.pageLayout, {
+                        slug_name: slugs.page,
+                        page_heading: this.widget.title,
+                        page_layout_type: '2',
+                        page_type: pageType,
+                    });
+                } catch (createErr) {
+                    if (createErr.message?.includes('already exists') || createErr.message?.includes('exists')) {
+                        this.log(`[ProductRail] Step 3 — Already exists, skipping...`);
+                    } else {
+                        throw createErr;
+                    }
+                }
             }
 
             results.push({ step: 'page_layout', slug: slugs.page, status: 'ok' });
@@ -1097,31 +1105,48 @@ export class SPRBuilder {
                     });
                 } else {
                     this.log(`[ProductRail] Step 7 — Row Item [${stateKey}] new, Creating: ${riSlug}`);
-                    await callApi(ENDPOINTS.widgetItem, {
-                        widget_item_id: 'undefined',
-                        deactivated_flag: 'no',
-                        item_click_action: '',
-                        slug_name: riSlug,
-                        slave_key: '',
-                        item_type: 'item_rows',
-                        media: '',
-                        text_en: '',
-                        media_en: '',
-                        text_hi: '',
-                        media_hi: '',
-                        text_bg: '',
-                        media_bg: '',
-                        product_list: mergedCodes,
-                        filters: '[]',
-                        filter_lst: StateMapper.buildInStockFilter(mergedCodes),
-                        property_lst: '[]',
-                        pl_edit: 'PL',
-                        is_clickable: 'no',
-                        update_product_list: 'no',
-                        start_time: this.dates.start,
-                        end_time: this.dates.end,
-                        click_action_params: '{}',
-                    }, { multipart: true });
+                    try {
+                        await callApi(ENDPOINTS.widgetItem, {
+                            widget_item_id: 'undefined',
+                            deactivated_flag: 'no',
+                            item_click_action: '',
+                            slug_name: riSlug,
+                            slave_key: '',
+                            item_type: 'item_rows',
+                            media: '',
+                            text_en: '',
+                            media_en: '',
+                            text_hi: '',
+                            media_hi: '',
+                            text_bg: '',
+                            media_bg: '',
+                            product_list: mergedCodes,
+                            filters: '[]',
+                            filter_lst: StateMapper.buildInStockFilter(mergedCodes),
+                            property_lst: '[]',
+                            pl_edit: 'PL',
+                            is_clickable: 'no',
+                            update_product_list: 'no',
+                            start_time: this.dates.start,
+                            end_time: this.dates.end,
+                            click_action_params: '{}',
+                        }, { multipart: true });
+                    } catch (createErr) {
+                        if (createErr.message?.includes('already exists') || createErr.message?.includes('exists')) {
+                            this.log(`[ProductRail] Step 7 — Already exists, retrying as UPDATE...`);
+                            const retryId = await getWidgetItemId(riSlug);
+                            if (retryId) {
+                                await updateApi(`/api/app/widget_item/${retryId}/`, {
+                                    slug_name: riSlug, item_type: 'item_rows',
+                                    product_list: mergedCodes,
+                                    filter_lst: StateMapper.buildInStockFilter(mergedCodes),
+                                    start_time: this.dates.start, end_time: this.dates.end,
+                                });
+                            }
+                        } else {
+                            throw createErr;
+                        }
+                    }
                 }
 
                 results.push({ step: `row_item_${stateKey}`, slug: riSlug, status: 'ok' });
@@ -1187,7 +1212,30 @@ export class SPRBuilder {
                     filter_dict: '{}',
                     app_configurations: '{}',
                 };
-                await callApi(ENDPOINTS.widget, widgetPayload, { multipart: true });
+                try {
+                    await callApi(ENDPOINTS.widget, widgetPayload, { multipart: true });
+                } catch (createErr) {
+                    // If "already exists", retry as UPDATE
+                    if (createErr.message?.includes('already exists') || createErr.message?.includes('exists')) {
+                        this.log(`[ProductRail] Step 8 — Slug exists, retrying as UPDATE...`);
+                        const retryId = await getWidgetId(slugs.widget);
+                        if (retryId) {
+                            await updateApi(`/api/app/widget/${retryId}/`, {
+                                slug_name: slugs.widget,
+                                widget_type: widgetType,
+                                heading_en: isMultimedia ? '' : this.widget.title,
+                                heading_hi: isMultimedia ? '' : (this.widget.titleHi || ''),
+                                start_time: this.dates.start,
+                                end_time: this.dates.end,
+                                view_all_action_params: viewAllParams,
+                            });
+                        } else {
+                            throw createErr;
+                        }
+                    } else {
+                        throw createErr;
+                    }
+                }
             }
 
             results.push({ step: 'widget', slug: slugs.widget, status: 'ok' });

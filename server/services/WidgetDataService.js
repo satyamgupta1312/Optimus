@@ -148,12 +148,12 @@ export async function listWidgets(env, { status, type, slug, date } = {}) {
   return (data || []).map(parseWidget);
 }
 
-export async function getWidgetById(id, env) {
+export async function getWidgetById(widgetId, env) {
   const sb = getClient();
   let query = sb
     .from('canvas_widgets')
     .select('*')
-    .eq('id', id)
+    .eq('widget_id', widgetId)
     .eq('is_deleted', false);
 
   if (env) query = query.eq('env', env);
@@ -165,19 +165,40 @@ export async function getWidgetById(id, env) {
 
 export async function createWidget(data) {
   const sb = getClient();
-  const id = data.id || crypto.randomUUID();
+
+  // widget_id priority:
+  // 1. Explicitly provided (e.g., from SMApp deploy callback)
+  // 2. Lookup from SMApp backend (smapp_widgets) by slug + type + pnc
+  //    - Derives full SMApp slug: base_slug + suffix (_spr_opt, _crausel_w, etc.)
+  //    - Falls back to CONTAINS search for mastheads (timestamp suffixes)
+  // 3. Fallback to UUID (widget not yet on backend)
+  // Derive full slug (base + type suffix) for SMApp matching
+  const pnc = typeof data.pnc === 'string' ? JSON.parse(data.pnc) : (data.pnc || {});
+  const fullSlug = deriveSmappSlug(data.slug, data.type, pnc) || data.slug || '';
+
+  // widget_id: lookup from SMApp using full slug
+  let widgetId = data.widgetId || null;
+  if (!widgetId && fullSlug) {
+    widgetId = await lookupSmappWidgetId(fullSlug);
+  }
+  if (!widgetId && data.slug) {
+    // Fallback: CONTAINS search (mastheads with timestamp suffix)
+    widgetId = await resolveSmappWidgetId(data.slug, data.type, pnc);
+  }
+  if (!widgetId) {
+    widgetId = crypto.randomUUID();
+  }
 
   const row = {
-    id,
-    widget_id: id,
+    widget_id: widgetId,
     type: data.type || 'unknown',
-    slug: data.slug || '',
+    slug: fullSlug,
     env: data.env || 'PROD',
     title: data.title || '',
     title_hi: data.titleHi || '',
     status: data.status || 'DRAFT',
     sort_order: data.sortOrder ?? 0,
-    pnc: typeof data.pnc === 'string' ? JSON.parse(data.pnc) : (data.pnc || {}),
+    pnc,
     config: typeof data.config === 'string' ? JSON.parse(data.config) : (data.config || {}),
     products: typeof data.products === 'string' ? JSON.parse(data.products) : (data.products || []),
     author: data.createdBy || '',
@@ -194,7 +215,7 @@ export async function createWidget(data) {
   return parseWidget(inserted);
 }
 
-export async function updateWidget(id, data, env) {
+export async function updateWidget(widgetId, data, env) {
   const sb = getClient();
   const updates = {};
 
@@ -211,7 +232,7 @@ export async function updateWidget(id, data, env) {
   let query = sb
     .from('canvas_widgets')
     .update(updates)
-    .eq('id', id)
+    .eq('widget_id', widgetId)
     .eq('is_deleted', false);
 
   if (env) query = query.eq('env', env);
@@ -222,12 +243,12 @@ export async function updateWidget(id, data, env) {
   return parseWidget(updated);
 }
 
-export async function deleteWidget(id, env) {
+export async function deleteWidget(widgetId, env) {
   const sb = getClient();
   let query = sb
     .from('canvas_widgets')
     .update({ is_deleted: true })
-    .eq('id', id);
+    .eq('widget_id', widgetId);
 
   if (env) query = query.eq('env', env);
 
@@ -237,26 +258,26 @@ export async function deleteWidget(id, env) {
 
 export async function reorderWidgets(order) {
   const sb = getClient();
-  for (const { id, sortOrder } of order) {
+  for (const { id: widgetId, sortOrder } of order) {
     const { error } = await sb
       .from('canvas_widgets')
       .update({ sort_order: sortOrder })
-      .eq('id', id)
+      .eq('widget_id', widgetId)
       .eq('is_deleted', false);
 
     if (error) throw new Error(`Supabase: ${error.message}`);
   }
 }
 
-export async function duplicateWidget(sourceId, user, env) {
-  const source = await getWidgetById(sourceId);
+export async function duplicateWidget(sourceWidgetId, user, env) {
+  const source = await getWidgetById(sourceWidgetId, env);
   if (!source) return null;
 
   const suffix = `_copy_${Date.now().toString(36)}`;
   return createWidget({
     type: source.type,
     slug: source.slug + suffix,
-    env: source.env,
+    env,
     title: source.title + ' (Copy)',
     titleHi: source.titleHi,
     status: 'DRAFT',
@@ -281,14 +302,14 @@ export async function updateWidgetStatuses(widgetIds, status) {
   if (error) throw new Error(`Supabase: ${error.message}`);
 }
 
-export async function findWidgetsByIds(ids) {
-  if (!ids || ids.length === 0) return [];
+export async function findWidgetsByIds(widgetIds) {
+  if (!widgetIds || widgetIds.length === 0) return [];
   const sb = getClient();
 
   const { data, error } = await sb
     .from('canvas_widgets')
     .select('*')
-    .in('id', ids)
+    .in('widget_id', widgetIds)
     .eq('is_deleted', false);
 
   if (error) throw new Error(`Supabase: ${error.message}`);
@@ -391,22 +412,22 @@ export async function createVersion(data) {
     change_log: data.changeLog || '',
   };
 
-  // If id is provided (e.g., from submission), use it directly
-  if (data.id !== undefined) row.id = data.id;
-  else {
-    // Otherwise generate next id (max+1)
+  // DB column is NOT auto-increment — generate next id via max+1
+  // Use a retry loop to handle concurrent inserts
+  for (let attempt = 0; attempt < 3; attempt++) {
     const { data: maxRow } = await sb.from('widget_versions').select('id').order('id', { ascending: false }).limit(1).single();
     row.id = (maxRow?.id || 0) + 1;
+
+    const { data: inserted, error } = await sb
+      .from('widget_versions')
+      .insert(row)
+      .select()
+      .single();
+
+    if (!error) return parseVersion(inserted);
+    if (error.code === '23505' && attempt < 2) continue; // unique violation — retry
+    throw new Error(`Supabase: ${error.message}`);
   }
-
-  const { data: inserted, error } = await sb
-    .from('widget_versions')
-    .insert(row)
-    .select()
-    .single();
-
-  if (error) throw new Error(`Supabase: ${error.message}`);
-  return parseVersion(inserted);
 }
 
 export async function getLatestVersion(widgetId) {
@@ -714,4 +735,195 @@ export async function batchProducts(codes) {
 
 export function isMetabaseAvailable() {
   return !!METABASE_API_KEY;
+}
+
+// ══════════════════════════════════════════════════════════════
+// SMAPP WIDGET LOOKUP (smapp_widgets table — Samaan DB id:3, table:236)
+// ══════════════════════════════════════════════════════════════
+//
+// SMApp stores widgets with a SUFFIXED slug (e.g., base_slug + "_spr_opt").
+// Our canvas_widgets stores the BASE slug (e.g., "testtt_spr_sc_all_masthead_global").
+// This module derives the full SMApp slug from base + type + pnc,
+// then looks up the numeric widget ID from Metabase.
+//
+// Field IDs (smapp_widgets, table 236):
+//   2906 = id (int8, PK)
+//   2910 = slug_name (varchar)
+//   2904 = widget_type (varchar)
+//   19578 = heading_en (varchar)
+
+const SMAPP_WIDGET_TABLE = 236;
+const SMAPP_WIDGET_FIELDS = {
+  id: ['field', 2906, { 'base-type': 'type/BigInteger' }],
+  slug_name: ['field', 2910, { 'base-type': 'type/Text' }],
+  widget_type: ['field', 2904, { 'base-type': 'type/Text' }],
+  heading_en: ['field', 19578, { 'base-type': 'type/Text' }],
+};
+
+/**
+ * Derive the SMApp widget slug from our base slug + type + pnc.
+ *
+ * Suffix rules (from wiki/SLUG_NAME.md Section 8):
+ *   product_rail standard     → _spr
+ *   product_rail optimized    → _spr_opt
+ *   collection_banner scroll  → _crausel_w    (carousel)
+ *   collection_banner stick   → _cm_hp        (category grid)
+ *   masthead primary          → (contains search — timestamp suffix)
+ *   masthead secondary        → (contains search — timestamp suffix)
+ */
+/**
+ * Strip widget type suffix from slug to get the base slug.
+ * e.g., "test_spr_sc_global_spr_opt" → "test_spr_sc_global"
+ */
+export function stripSlugSuffix(slug) {
+  if (!slug) return '';
+  return slug
+    .replace(/_spr_opt$/, '')
+    .replace(/_spr$/, '')
+    .replace(/_crausel_w$/, '')
+    .replace(/_cl_w_hp$/, '')
+    .replace(/_cm_hp$/, '')
+    .replace(/_mm$/, '');
+}
+
+/**
+ * Derive the full SMApp slug by adding type suffix to base slug.
+ * Base slug should NOT have suffix — use stripSlugSuffix() first if unsure.
+ */
+export function deriveSmappSlug(baseSlug, type, pnc = {}) {
+  if (!baseSlug) return null;
+
+  const t = (type || '').toLowerCase();
+
+  // If slug already has a known suffix, return as-is (don't re-derive)
+  if (baseSlug.endsWith('_spr_opt') || baseSlug.endsWith('_spr') ||
+      baseSlug.endsWith('_crausel_w') || baseSlug.endsWith('_cl_w_hp') ||
+      baseSlug.endsWith('_cm_hp') || baseSlug.endsWith('_mm')) {
+    return baseSlug;
+  }
+
+  // No suffix yet — add based on type + pnc
+  const clean = stripSlugSuffix(baseSlug);
+
+  if (t === 'product_rail' || t.includes('product_row')) {
+    return clean + (pnc.is_optimized ? '_spr_opt' : '_spr');
+  }
+
+  if (t === 'collection_banner' || t === 'carousel') {
+    if (pnc.displayMode === 'stick' || t === 'category') {
+      return clean + '_cm_hp';
+    }
+    return clean + '_crausel_w';
+  }
+
+  if (t === 'masthead') return null;
+
+  return clean;
+}
+
+/**
+ * Lookup SMApp widget ID by exact slug_name match.
+ * Returns numeric ID (e.g., "9338") or null if not found.
+ */
+export async function lookupSmappWidgetId(slugName) {
+  if (!METABASE_API_KEY || !slugName) return null;
+
+  const rows = await metabaseQuery({
+    database: 3,
+    type: 'query',
+    query: {
+      'source-table': SMAPP_WIDGET_TABLE,
+      fields: [SMAPP_WIDGET_FIELDS.id, SMAPP_WIDGET_FIELDS.slug_name],
+      filter: ['=', SMAPP_WIDGET_FIELDS.slug_name, slugName],
+      limit: 1,
+    },
+  });
+
+  return rows.length > 0 ? String(rows[0][0]) : null;
+}
+
+/**
+ * Lookup SMApp widget ID using CONTAINS (for mastheads with timestamp suffixes).
+ * Returns numeric ID or null.
+ */
+async function lookupSmappWidgetIdByContains(baseSlug) {
+  if (!METABASE_API_KEY || !baseSlug) return null;
+
+  const rows = await metabaseQuery({
+    database: 3,
+    type: 'query',
+    query: {
+      'source-table': SMAPP_WIDGET_TABLE,
+      fields: [SMAPP_WIDGET_FIELDS.id, SMAPP_WIDGET_FIELDS.slug_name],
+      filter: ['contains', SMAPP_WIDGET_FIELDS.slug_name, baseSlug],
+      'order-by': [['desc', SMAPP_WIDGET_FIELDS.id]], // latest first
+      limit: 1,
+    },
+  });
+
+  return rows.length > 0 ? String(rows[0][0]) : null;
+}
+
+/**
+ * Full SMApp widget ID lookup — derives proper slug, then queries Metabase.
+ *
+ * @param {string} baseSlug — slug from canvas_widgets
+ * @param {string} type — widget type (product_rail, collection_banner, masthead)
+ * @param {object} pnc — widget properties { is_optimized, displayMode, ... }
+ * @returns {string|null} — SMApp widget ID or null
+ */
+export async function resolveSmappWidgetId(baseSlug, type, pnc = {}) {
+  if (!METABASE_API_KEY || !baseSlug) return null;
+
+  const smappSlug = deriveSmappSlug(baseSlug, type, pnc);
+
+  // Exact match for types with deterministic suffixes
+  if (smappSlug) {
+    const id = await lookupSmappWidgetId(smappSlug);
+    if (id) return id;
+  }
+
+  // Fallback: contains search (mastheads, or if exact match failed)
+  return lookupSmappWidgetIdByContains(baseSlug);
+}
+
+/**
+ * Batch lookup SMApp widget IDs for multiple slugs.
+ * Returns { baseSlug: smappId, ... }
+ */
+export async function batchLookupSmappWidgetIds(widgets) {
+  if (!METABASE_API_KEY || !widgets || widgets.length === 0) return {};
+
+  // Derive all SMApp slugs
+  const smappSlugs = [];
+  const slugMap = new Map(); // smappSlug → baseSlug
+
+  for (const w of widgets) {
+    const smappSlug = deriveSmappSlug(w.slug, w.type, w.pnc || {});
+    if (smappSlug) {
+      smappSlugs.push(smappSlug);
+      slugMap.set(smappSlug, w.slug);
+    }
+  }
+
+  if (smappSlugs.length === 0) return {};
+
+  const rows = await metabaseQuery({
+    database: 3,
+    type: 'query',
+    query: {
+      'source-table': SMAPP_WIDGET_TABLE,
+      fields: [SMAPP_WIDGET_FIELDS.id, SMAPP_WIDGET_FIELDS.slug_name],
+      filter: ['=', SMAPP_WIDGET_FIELDS.slug_name, ...smappSlugs],
+      limit: smappSlugs.length,
+    },
+  });
+
+  const result = {};
+  for (const r of rows) {
+    const smappSlug = r[1];
+    const baseSlug = slugMap.get(smappSlug) || smappSlug;
+    result[baseSlug] = String(r[0]);
+  }
+  return result;
 }

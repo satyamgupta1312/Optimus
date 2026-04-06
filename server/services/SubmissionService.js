@@ -13,6 +13,7 @@
  *   6. fetchRequestById()    — get single request
  */
 import { getClient } from './SupabaseService.js';
+import { deriveSmappSlug, stripSlugSuffix } from './WidgetDataService.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -34,11 +35,14 @@ try {
 } catch { /* ignore */ }
 
 /**
- * Lookup widget_id from canvas_widgets table by slug.
- * Same ID used in canvas_widgets, submissions, and widget_versions.
+ * Lookup widget_id by slug.
+ * 1. Check canvas_widgets first (already synced)
+ * 2. Fallback to SMApp backend via Metabase (smapp_widgets table)
  */
 async function lookupWidgetIdBySlug(slug) {
   if (!slug) return null;
+
+  // 1. Check our own DB first
   try {
     const sb = getClient();
     const { data } = await sb
@@ -48,7 +52,13 @@ async function lookupWidgetIdBySlug(slug) {
       .eq('is_deleted', false)
       .limit(1)
       .single();
-    return data?.widget_id || null;
+    if (data?.widget_id) return data.widget_id;
+  } catch { /* not found locally */ }
+
+  // 2. Fallback: lookup from SMApp via Metabase
+  try {
+    const { lookupSmappWidgetId } = await import('./WidgetDataService.js');
+    return await lookupSmappWidgetId(slug);
   } catch {
     return null;
   }
@@ -175,11 +185,16 @@ export async function createSubmission(requestIdOverride, widgets, user, env, he
     }
     if (!Array.isArray(products)) products = [];
 
+    // Derive full slug with suffix (same as mirror) — prevents double suffix
+    const wPnc = typeof w.pnc === 'object' ? w.pnc : {};
+    const fullSlug = deriveSmappSlug(w.slug || w.slug_name || '', w.type, wPnc)
+      || w.slug || w.slug_name || '';
+
     return {
       request_id: requestId,
-      widget_id: widgetIds[i] || w.id || null,
+      widget_id: w.id || widgetIds[i] || null,
       widget_type: w.type || 'unknown',
-      slug: w.slug || w.slug_name || '',
+      slug: fullSlug,
       title: w.title || '',
       title_hi: w.titleHi || '',
       item_titles_hi: extractItemTitlesHi(w),
@@ -187,6 +202,7 @@ export async function createSubmission(requestIdOverride, widgets, user, env, he
       env: env || 'PROD',
       products_count: products.length,
       pnc: typeof w.pnc === 'object' ? w.pnc : {},
+      config: typeof w.config === 'object' ? w.config : {},
       hierarchy: deriveHierarchy(w),
       rejection_reason: '',
       header_widgets: headerWidgets || {},
@@ -212,6 +228,7 @@ export async function createSubmission(requestIdOverride, widgets, user, env, he
         env: env || 'PROD',
         products_count: 0,
         pnc: {},
+        config: {},
         hierarchy: {},
         rejection_reason: '',
         header_widgets: headerWidgets,
@@ -227,24 +244,32 @@ export async function createSubmission(requestIdOverride, widgets, user, env, he
   }
 
   console.log(`[Submission] Creating: ${rows.length} widget(s) for request ${requestId}`);
-  const { data: inserted, error } = await sb.from('submissions').insert(rows).select('id, widget_id, slug, env, widget_type, title, pnc, hierarchy');
+  const { data: inserted, error } = await sb.from('submissions').insert(rows).select('id, widget_id, slug, env, widget_type, title, pnc, config, hierarchy');
   if (error) throw new Error(`Supabase: ${error.message}`);
 
-  // Also create matching widget_versions with same id & widget_id
-  const versionRows = (inserted || []).filter(r => r.widget_id).map(r => ({
-    id: r.id,
-    widget_id: r.widget_id,
-    widget_slug: r.slug,
-    env: r.env,
-    version: 1,
-    snapshot: { type: r.widget_type, slug: r.slug, title: r.title, pnc: r.pnc, hierarchy: r.hierarchy },
-    changed_by: user.email || '',
-    change_log: `From submission #${r.id}`,
-  }));
+  // Also create matching widget_versions
+  // Need to generate IDs since column is not auto-increment
+  if ((inserted || []).some(r => r.widget_id)) {
+    try {
+      const { data: maxRow } = await sb.from('widget_versions').select('id').order('id', { ascending: false }).limit(1).single();
+      let nextId = (maxRow?.id || 0) + 1;
 
-  if (versionRows.length > 0) {
-    const { error: vErr } = await sb.from('widget_versions').upsert(versionRows, { onConflict: 'id' });
-    if (vErr) console.warn('[Submission] widget_versions sync failed (non-fatal):', vErr.message);
+      const versionRows = (inserted || []).filter(r => r.widget_id).map(r => ({
+        id: nextId++,
+        widget_id: r.widget_id,
+        widget_slug: r.slug,
+        env: r.env,
+        version: 1,
+        snapshot: { type: r.widget_type, slug: r.slug, title: r.title, pnc: r.pnc, hierarchy: r.hierarchy },
+        changed_by: user.email || '',
+        change_log: `From submission #${requestId}`,
+      }));
+
+      const { error: vErr } = await sb.from('widget_versions').insert(versionRows);
+      if (vErr) console.warn('[Submission] widget_versions sync failed (non-fatal):', vErr.message);
+    } catch (e) {
+      console.warn('[Submission] widget_versions sync failed (non-fatal):', e.message);
+    }
   }
 
   return requestId;
@@ -307,15 +332,21 @@ export async function updateRequestStatus(requestId, newStatus, user, env, opts 
   }
 
   // Append to history
+  const ACTION_MAP = { APPROVED: 'approve', REJECTED: 'reject', DEPLOYED: 'deploy', PENDING: 'reopen', DRAFT: 'reopen' };
+  const actionName = ACTION_MAP[newStatus] || newStatus.toLowerCase();
   const extra = {};
   if (opts.rejectionReason) extra.reason = opts.rejectionReason;
-  await appendHistory(requestId, newStatus.toLowerCase(), user, extra);
+  await appendHistory(requestId, actionName, user, extra);
 }
 
 /**
  * Log activity — appends to history array. No separate table.
  */
 export async function logActivity({ action, user, targetId, targetType, details, env }) {
+  if (targetType === 'widget' || targetType === 'headerWidgets') {
+    console.log(`[Activity] ${action} ${targetType}:${targetId} by ${user?.email}`);
+    return;
+  }
   await appendHistory(targetId, action, user, details || {});
 }
 
@@ -371,9 +402,11 @@ function groupRowsIntoRequests(rows) {
         type: row.widget_type || '',
         slug: row.slug || '',
         title: row.title || '',
+        titleHi: row.title_hi || '',
       },
       hierarchy: row.hierarchy || {},
       pnc: row.pnc || {},
+      config: row.config || {},
     });
   }
 
@@ -417,27 +450,53 @@ export async function fetchRequestById(requestId, env) {
 
 // ── Deploy sync ──
 
-export async function syncDeploy(widgetId, dt, hierarchyWithIds, user, env, requestId) {
+export async function syncDeploy(widgetId, hierarchyWithIds, user, env, requestId) {
+  if (!requestId) throw new Error('requestId is required for deploy sync');
+
   const sb = getClient();
+
+  // After deploy, lookup mirror ID by slug and update widget_id
+  const { data: subRow } = await sb.from('submissions')
+    .select('slug')
+    .eq('request_id', requestId)
+    .limit(1)
+    .single();
+
+  let mirrorWidgetId = null;
+  if (subRow?.slug) {
+    const { lookupSmappWidgetId } = await import('./WidgetDataService.js');
+    mirrorWidgetId = await lookupSmappWidgetId(subRow.slug);
+    if (mirrorWidgetId) {
+      console.log(`[Submission] Mirror ID found: ${mirrorWidgetId} for slug ${subRow.slug}`);
+    }
+  }
+
   const updates = {
     request_status: 'DEPLOYED',
     hierarchy: hierarchyWithIds,
   };
+  if (mirrorWidgetId) updates.widget_id = String(mirrorWidgetId);
 
-  let query = sb
+  // Update by request_id (widget_id might be UUID or mirror ID)
+  const { data, error } = await sb
     .from('submissions')
     .update(updates)
-    .eq('widget_id', widgetId);
+    .eq('request_id', requestId)
+    .select('id');
 
-  if (requestId) query = query.eq('request_id', requestId);
+  if (error) throw new Error(`Supabase deploy sync failed: ${error.message}`);
 
-  console.log(`[Submission] Deploy sync for widget ${widgetId}`);
-  const { error } = await query;
-  if (error) {
-    console.warn('[Submission] Deploy sync failed:', error.message);
-    return;
+  const affected = data?.length || 0;
+  console.log(`[Submission] Deploy sync: ${affected} rows updated`);
+
+  // Also update canvas_widgets and widget_versions with mirror ID
+  if (mirrorWidgetId && subRow?.slug) {
+    await sb.from('canvas_widgets').update({ widget_id: String(mirrorWidgetId) }).eq('slug', subRow.slug);
+    for (const row of (data || [])) {
+      await sb.from('widget_versions').update({ widget_id: String(mirrorWidgetId) }).eq('id', row.id);
+    }
+    console.log(`[Submission] Updated widget_id to ${mirrorWidgetId} across all tables`);
   }
 
-  // Append deploy to history
-  await appendHistory(requestId || widgetId, 'deploy', user);
+  await appendHistory(requestId, 'deploy', user);
 }

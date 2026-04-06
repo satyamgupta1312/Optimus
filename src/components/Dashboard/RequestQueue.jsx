@@ -16,7 +16,7 @@ const normalizeRequest = (r) => ({
     date: r.createdAt,
     rejectionReason: r.rejectionReason || '',
     headerWidgets: r.headerWidgets || {},
-    widgets: (r.requestWidgets || []).map(rw => rw.snapshot),
+    widgets: (r.requestWidgets || []).map(rw => rw.snapshot || rw.widget || {}),
 });
 
 // Helper: Format relative time

@@ -16,7 +16,21 @@ const normalizeRequest = (r) => ({
     date: r.createdAt,
     rejectionReason: r.rejectionReason || '',
     headerWidgets: r.headerWidgets || {},
-    widgets: (r.requestWidgets || []).map(rw => rw.snapshot || rw.widget || {}),
+    widgets: (r.requestWidgets || []).map(rw => {
+        const snap = rw.snapshot || {};
+        const w = rw.widget || {};
+        return {
+            id: w.id || snap.id || rw.widgetId,
+            type: w.type || snap.type || '',
+            slug: w.slug || snap.slug || snap.slug_name || '',
+            title: w.title || snap.title || '',
+            titleHi: snap.titleHi || '',
+            pnc: rw.pnc || snap.pnc || {},
+            config: snap.config || {},
+            products: snap.products || [],
+            sortOrder: rw.sortOrder ?? 0,
+        };
+    }),
 });
 
 // Helper: Format relative time

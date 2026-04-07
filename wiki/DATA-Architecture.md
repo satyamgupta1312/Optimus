@@ -1,257 +1,358 @@
-# DATA Architecture — Local Express + Prisma + SQLite
+# DATA Architecture — Express + Supabase (PostgreSQL)
 
 > **Status:** Active
-> **Stack:** Express 5 + Prisma ORM + SQLite
-> **Port:** 3001 (API) / 8888 (Vite proxy)
+> **Stack:** Express 5 + Supabase (PostgreSQL) + Metabase (Mirror)
+> **Port:** 3001 (API) / 5173 (Vite)
 
 ---
 
 ## Overview
 
-Optimus uses a local Express backend to persist widget state, manage the approval workflow, and serve the product catalog. The Django API at `samaan.apnamart.in` remains untouched — it handles actual widget deployment to production.
+Optimus uses a local Express backend with Supabase (PostgreSQL) for persistence. The Django API at `samaan.apnamart.in` handles actual widget deployment. Widget metadata is mirrored to Metabase at `mirror.apnamart.in`.
 
 ```
-┌─────────────┐     /api/local/*      ┌──────────────────┐
-│  React App  │ ──────────────────────▶│  Express :3001   │
-│  (Vite)     │                        │  Prisma + SQLite │
-│  :8888      │     /api/*             └──────────────────┘
-│             │ ──────────────────────▶  Django (samaan.apnamart.in)
-└─────────────┘
+┌─────────────┐     /api/local/*      ┌──────────────────────┐
+│  React App  │ ──────────────────────>│  Express :3001       │
+│  (Vite)     │                        │  Supabase (Postgres) │
+│  :5173      │     /api/*             └──────────┬───────────┘
+│             │ ──────────────────────>  Django (samaan.apnamart.in)
+└─────────────┘                                   │
+                                                  ▼
+                                        mirror.apnamart.in (Metabase)
+                                        └── smapp_widgets table
+                                            (source of widget_id)
 ```
 
 ---
 
-## Database Schema
+## The `widget_id` Rule
 
-### Entity Relationship
+**`widget_id` is THE canonical identifier for a widget across all tables.**
+
+| Table | Column | Role |
+|-------|--------|------|
+| `canvas_widgets` | `widget_id` | Canonical widget ID |
+| `submissions` | `widget_id` | Same ID — links to canvas_widgets |
+| `widget_versions` | `widget_id` | Same ID — links to canvas_widgets |
+
+### Where does `widget_id` come from?
 
 ```
-User ─────┬──── Widget ──── WidgetVersion
-          │        │
-          │        ├──── RequestWidget ──── Request
-          │        │
-          │        └──── Comment
-          │
-          ├──── Request
-          ├──── ActivityLog
-          └──── CheckerList
-
-HeaderWidget (standalone, 2 rows)
-Product (standalone catalog)
+Widget created in Optimus (base slug stored)
+        │
+        ▼
+  Step 1: Derive full SMApp slug
+  (base_slug + suffix based on type + pnc)
+        │
+        │  product_rail + is_optimized  → base_spr_opt
+        │  product_rail + standard      → base_spr
+        │  collection_banner (scroll)   → base_crausel_w
+        │  collection_banner (stick)    → base_cm_hp
+        │  masthead                     → CONTAINS search (timestamp suffix)
+        │
+        ▼
+  Step 2: Lookup in smapp_widgets table (Metabase)
+  (exact match on derived slug, or CONTAINS for mastheads)
+        │
+   ┌────┴────┐
+   │ FOUND   │ NOT FOUND
+   ▼         ▼
+widget_id =  widget_id =
+SMApp ID     UUID (fallback)
+(e.g. 9338)  (new widget, not yet deployed)
 ```
 
-### Tables
+### Slug Derivation: Base → SMApp Slug
 
-| Table | Purpose | Key Fields |
-|-------|---------|------------|
-| **User** | All users (upserted on each request) | email (unique), role, name |
-| **Widget** | Central widget entity | type, slug (unique), title, status, pnc (JSON), config (JSON), products (JSON) |
-| **WidgetVersion** | Persistent undo history | widgetId, version, snapshot (JSON), changeLog |
-| **HeaderWidget** | 2 fixed rows for masthead | id (primaryMasthead / secondaryMasthead), config (JSON) |
-| **Request** | Approval workflow entries | status, submittedBy, rejectionReason, headerWidgets (JSON) |
-| **RequestWidget** | Join: request ↔ widget snapshot | requestId, widgetId, snapshot (JSON), result, error |
-| **Comment** | Per-widget discussion | widgetId, authorId, text |
-| **ActivityLog** | Audit trail | action, userId, targetId, details (JSON) |
-| **Product** | Local product catalog | itemCode (unique), name, brand, image, mrp, price |
-| **CheckerList** | Checker role assignments | userId (unique) |
+**Rule:** Supabase and Mirror store the SAME slug WITH suffix. If frontend sends a slug that already has suffix, `deriveSmappSlug()` returns it as-is (no double suffix). `SlugGenerator` constructor also strips existing suffix before building derived slugs.
 
-### JSON Fields Convention
+**`deriveSmappSlug(baseSlug, type, pnc)` handles this:**
 
-SQLite has no native JSON type. These fields are stored as `String` and parsed at the API layer:
+| Widget Type | PNC Condition | Suffix | Example |
+|---|---|---|---|
+| `product_rail` | `pnc.is_optimized = true` | `_spr_opt` | `base_spr_opt` |
+| `product_rail` | `pnc.is_optimized = false` | `_spr` | `base_spr` |
+| `collection_banner` | `displayMode = 'scroll'` | `_crausel_w` | `base_crausel_w` |
+| `collection_banner` | `displayMode = 'stick'` | `_cm_hp` | `base_cm_hp` |
+| `masthead` | any | `null` (CONTAINS search) | searches `base*` |
 
-- `Widget.pnc` — `{ rows: 1, is_optimized: true, has_multimedia: false }`
-- `Widget.config` — `{ pageType: "product_listing_page", filters: {...} }`
-- `Widget.products` — `["746", "5005", "2476"]`
-- `WidgetVersion.snapshot` — Full widget state at that version
-- `RequestWidget.snapshot` — Widget state frozen at submission time
-- `HeaderWidget.config` — Full masthead configuration
-- `ActivityLog.details` — `{ type: "product_rail", slug: "rice_mela_rail" }`
+**Priority order for `widget_id` in `createWidget()`:**
+1. Explicitly provided via `data.widgetId`
+2. `resolveSmappWidgetId(slug, type, pnc)` — derives full slug, queries Metabase
+3. Fallback: auto-generated UUID (widget not yet on backend)
+
+### `id` vs `widget_id`
+
+| Field | Purpose | Who sets it |
+|-------|---------|-------------|
+| `id` | Supabase internal row PK (UUID) | Supabase auto-generates |
+| `widget_id` | Canonical widget identifier | From SMApp (numeric) or UUID (new) |
+
+**All service queries use `widget_id`** (not `id`):
+- `getWidgetById()` → `.eq('widget_id', ...)`
+- `updateWidget()` → `.eq('widget_id', ...)`
+- `deleteWidget()` → `.eq('widget_id', ...)`
+- `findWidgetsByIds()` → `.in('widget_id', [...])`
+- `updateWidgetStatuses()` → `.in('widget_id', [...])`
+- `reorderWidgets()` → `.eq('widget_id', ...)`
+
+### SMApp Widget Lookup
+
+```
+Metabase DB: Samaan (id: 3)
+Table: smapp_widgets (id: 236)
+
+Key fields:
+  2906 = id (int8, PK)         → becomes widget_id
+  2910 = slug_name (varchar)   → matched with derived slug
+  2904 = widget_type (varchar)
+  19578 = heading_en (varchar)
+```
+
+Functions in `WidgetDataService.js`:
+- `deriveSmappSlug(baseSlug, type, pnc)` → computes full SMApp slug with suffix
+- `resolveSmappWidgetId(baseSlug, type, pnc)` → derives slug + looks up ID (exact or CONTAINS)
+- `lookupSmappWidgetId(fullSlug)` → exact slug match lookup
+- `batchLookupSmappWidgetIds(widgets[])` → batch lookup with slug derivation
 
 ---
 
-## API Routes
+## ID Convention Across All Tables
 
-All routes are prefixed with `/api/local/`.
+| Table | `id` | `widget_id` |
+|-------|------|-------------|
+| `canvas_widgets` | SERIAL (1, 2, 3...) | SMApp widget ID (from slug lookup) |
+| `submissions` | SERIAL (1, 2, 3...) | Same as canvas_widgets.widget_id |
+| `widget_versions` | SERIAL (1, 2, 3...) | Same as canvas_widgets.widget_id |
+| `user_roles` | SERIAL (1, 2, 3...) | — |
+| `locations` | UUID (auto) | — |
 
-### Widgets
-
-| Method | Route | Purpose |
-|--------|-------|---------|
-| GET | `/widgets` | List all (optional `?status=DRAFT&type=product_rail`) |
-| POST | `/widgets` | Create widget |
-| PATCH | `/widgets` | Bulk reorder `{ order: [{ id, sortOrder }] }` |
-| GET | `/widgets/:id` | Get widget with versions |
-| PUT | `/widgets/:id` | Full update |
-| PATCH | `/widgets/:id` | Partial update |
-| DELETE | `/widgets/:id` | Delete widget |
-| POST | `/widgets/:id/duplicate` | Clone widget |
-| GET | `/widgets/:id/versions` | Version history |
-
-### Requests (Approval Workflow)
-
-| Method | Route | Purpose |
-|--------|-------|---------|
-| GET | `/requests` | List requests (optional `?status=PENDING`) |
-| POST | `/requests` | Create request (DRAFT) |
-| POST | `/requests/:id/submit` | DRAFT → PENDING (validates widgets) |
-| POST | `/requests/:id/approve` | PENDING → APPROVED (CHECKER only) |
-| POST | `/requests/:id/reject` | PENDING → REJECTED (CHECKER only) |
-| POST | `/requests/:id/reopen` | APPROVED/REJECTED → DRAFT |
-
-### Users
-
-| Method | Route | Purpose |
-|--------|-------|---------|
-| GET | `/users/me` | Current user info |
-| GET | `/users/checkers` | List all checkers |
-| POST | `/users/checkers` | Add checker (SUPER_ADMIN) |
-| DELETE | `/users/checkers` | Remove checker (SUPER_ADMIN) |
-
-### Catalog
-
-| Method | Route | Purpose |
-|--------|-------|---------|
-| GET | `/catalog/search?q=rice&limit=20` | Search by name or code |
-| GET | `/catalog/batch?codes=746,5005` | Batch lookup |
-
-### Other
-
-| Method | Route | Purpose |
-|--------|-------|---------|
-| GET | `/activity?page=1&limit=50` | Paginated audit log |
-| GET | `/comments/widget/:id` | Comments for a widget |
-| POST | `/comments` | Add comment |
-| DELETE | `/comments/:id` | Delete comment (author only) |
-| GET | `/header-widgets` | Get header widget state |
-| PUT | `/header-widgets` | Update header widgets |
-| GET | `/health` | Server health check |
+> **Migration script:** `server/scripts/fix-canvas-id.sql` converts canvas_widgets.id from UUID to SERIAL.
 
 ---
 
-> **Auth & Role Assignment** has moved to **[AUTH-Flow.md](./AUTH-Flow.md)** | Config: `src/config/Feature/AuthConfig.js`
+## Database Schema (Supabase PostgreSQL)
+
+### `canvas_widgets` — 16 columns
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | SERIAL (PK) | Auto-increment row ID (1, 2, 3...) |
+| `widget_id` | VARCHAR | **Canonical ID** — from SMApp (numeric) or UUID (if not yet deployed) |
+| `type` | VARCHAR | `product_rail`, `collection_banner`, `masthead` |
+| `slug` | VARCHAR | Human-readable identifier |
+| `env` | VARCHAR | `PROD` or `UAT` |
+| `title` | VARCHAR | English title |
+| `title_hi` | VARCHAR | Hindi title |
+| `status` | VARCHAR | `DRAFT`, `PENDING`, `APPROVED`, `REJECTED`, `DEPLOYED` |
+| `sort_order` | INT | Display position |
+| `pnc` | JSONB | Properties: `{ rows, is_optimized, has_multimedia }` |
+| `config` | JSONB | Widget-specific configuration |
+| `products` | JSONB | Product code array: `["368", "369"]` |
+| `author` | VARCHAR | Creator email |
+| `is_deleted` | BOOLEAN | Soft delete flag |
+| `created_at` | TIMESTAMPTZ | Auto |
+| `updated_at` | TIMESTAMPTZ | Auto |
+
+### `submissions` — 22 columns
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | SERIAL (PK) | Auto-increment row ID (1, 2, 3...) |
+| `request_id` | INT | From PostgreSQL sequence (`nextval_request_id`) |
+| `widget_id` | VARCHAR | **Same as canvas_widgets.widget_id** (SMApp ID from slug lookup) |
+| `widget_type` | VARCHAR | Widget type at submission time |
+| `slug` | VARCHAR | Slug at submission time |
+| `title` | VARCHAR | Title at submission time |
+| `title_hi` | VARCHAR | Hindi title |
+| `item_titles_hi` | JSONB | Hindi titles for carousel/collection items |
+| `request_status` | VARCHAR | `PENDING`, `APPROVED`, `REJECTED`, `DEPLOYED` |
+| `env` | VARCHAR | `PROD` or `UAT` |
+| `products_count` | INT | Number of products |
+| `pnc` | JSONB | PNC snapshot |
+| `hierarchy` | JSONB | Slug hierarchy for backend creation |
+| `rejection_reason` | VARCHAR | Reason if rejected |
+| `header_widgets` | JSONB | Header widget state if included |
+| `request_type` | VARCHAR | Always `Homepage Update` |
+| `sort_order` | INT | Widget position in request |
+| `result` | VARCHAR | Deploy result |
+| `error_msg` | VARCHAR | Deploy error message |
+| `history` | JSONB | Audit trail: `[{ action, by, at }]` |
+| `created_at` | TIMESTAMPTZ | Auto |
+| `updated_at` | TIMESTAMPTZ | Auto |
+
+### `widget_versions` — 9 columns
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | SERIAL (PK) | Auto-increment row ID (1, 2, 3...) |
+| `widget_id` | VARCHAR | **Same as canvas_widgets.widget_id** (SMApp ID from slug lookup) |
+| `widget_slug` | VARCHAR | Slug at version time |
+| `env` | VARCHAR | Environment |
+| `version` | INT | Version number (incremental per widget) |
+| `snapshot` | JSONB | Full widget state at this version |
+| `changed_by` | VARCHAR | User email |
+| `change_log` | VARCHAR | Change description |
+| `created_at` | TIMESTAMPTZ | Auto |
+
+### `user_roles` — 10 columns
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | SERIAL | Row PK |
+| `email` | VARCHAR | User email (unique with env) |
+| `name` | VARCHAR | Display name |
+| `role` | VARCHAR | `CHECKER` |
+| `env` | VARCHAR | `PROD` or `UAT` |
+| `is_active` | BOOLEAN | Active flag |
+| `added_at` | TIMESTAMPTZ | When added |
+| `added_by` | VARCHAR | Admin who added |
+| `created_at` | TIMESTAMPTZ | Auto |
+| `updated_at` | TIMESTAMPTZ | Auto |
+
+### `locations` — 13 columns
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Row PK |
+| `key` | VARCHAR | Short code: `jh`, `mum` |
+| `env` | VARCHAR | `PROD` or `UAT` |
+| `level_tag` | VARCHAR | `state` or `city` |
+| `level_property` | VARCHAR | `jharkhand`, `mumbai` |
+| `slug_suffix` | VARCHAR | `_jh`, `_mum` |
+| `label` | VARCHAR | Display name |
+| `type` | VARCHAR | `state` or `city` |
+| `is_default` | BOOLEAN | Protected from toggle/delete |
+| `is_enabled` | BOOLEAN | Active flag |
+| `is_custom` | BOOLEAN | User-created |
+| `created_at` | TIMESTAMPTZ | Auto |
+| `updated_at` | TIMESTAMPTZ | Auto |
 
 ---
 
-## Widget Lifecycle
+## Activity / Audit Trail
 
+**No separate `activity_log` table.** All audit data lives in `submissions.history` JSONB column:
+
+```json
+[
+  { "action": "submit", "by": "maker@example.com", "at": "2026-04-04T10:00:00Z" },
+  { "action": "approve", "by": "checker@example.com", "at": "2026-04-04T11:00:00Z" },
+  { "action": "deploy", "by": "admin@example.com", "at": "2026-04-04T12:00:00Z" }
+]
 ```
-Canvas (DRAFT)
-    │
-    ▼
-Create Widget ──▶ POST /api/local/widgets
-    │                    │
-    ▼                    ▼
-Edit / Preview       DB: Widget (DRAFT)
-    │                    │
-    ▼                    ▼
-Submit ──────────▶ POST /api/local/requests
-    │              POST /api/local/requests/:id/submit
-    ▼                    │
-PENDING                  ▼
-    │              DB: Widget (PENDING), Request (PENDING)
-    ▼
-Checker Reviews
-    │
-    ├─▶ Approve ──▶ POST /api/local/requests/:id/approve
-    │                    │
-    │                    ▼
-    │              DB: Widget (APPROVED), Request (APPROVED)
-    │                    │
-    │                    ▼
-    │              Deploy to Django (/api/app/widget/) ← unchanged
-    │
-    └─▶ Reject ───▶ POST /api/local/requests/:id/reject
-                         │
-                         ▼
-                   DB: Widget (REJECTED), Request (REJECTED)
-                         │
-                         ▼
-                   Maker re-edits → resubmits
-```
+
+The `/api/local/activity` endpoint reads and flattens these history arrays.
 
 ---
 
 ## Request Workflow
 
 ```
-                    ┌────────────────────┐
-                    │      DRAFT         │
-                    │  (Maker creates)   │
-                    └────────┬───────────┘
-                             │ submit
-                             ▼
-                    ┌────────────────────┐
-              ┌─────│     PENDING        │─────┐
-              │     │  (Checker reviews) │     │
-              │     └────────────────────┘     │
-              │ approve                 reject │
-              ▼                                ▼
-    ┌──────────────────┐           ┌──────────────────┐
-    │    APPROVED       │           │    REJECTED       │
-    │  (Deploy ready)   │           │  (Maker re-edits) │
-    └──────────────────┘           └──────────────────┘
-              │                                │
-              └────────── reopen ──────────────┘
-                             │
-                             ▼
-                         DRAFT (cycle)
+              ┌─────────────────────┐
+              │      PENDING        │
+              │  (Maker submits)    │
+              └─────────┬──────────┘
+                        │
+              ┌─────────┴──────────┐
+         approve               reject
+              │                    │
+              ▼                    ▼
+    ┌──────────────────┐  ┌──────────────────┐
+    │    APPROVED       │  │    REJECTED       │
+    └──────────────────┘  └──────────────────┘
+              │                    │
+              └──── reopen ────────┘
+                        │
+                        ▼
+                    PENDING (can be re-approved/rejected)
+                        │
+              (if approved)
+                        ▼
+                    DEPLOYED (via /kinetic/deploy-sync)
 ```
+
+### Deploy Sync — Mirror ID Update
+
+After browser deploy (DeploymentService → Django API), `deploy-sync` is called:
+
+```
+Browser Deploy (DeploymentService.js)
+    │
+    ▼ Creates widget in Django → mirror gets slug + ID (e.g., 9352)
+    │
+    ▼ POST /kinetic/deploy-sync { requestId, widgetId, slugs }
+    │
+    ▼ SubmissionService.syncDeploy():
+        1. Lookup mirror ID by slug → lookupSmappWidgetId(slug) → 9352
+        2. Update submissions.widget_id = 9352
+        3. Update canvas_widgets.widget_id = 9352
+        4. Update widget_versions.widget_id = 9352
+        5. Set request_status = DEPLOYED
+        6. Append 'deploy' to history
+```
+
+### Config Column
+
+`submissions.config` stores widget-specific configuration (stateProducts, scrollItems, carouselItems, pageType, etc.) so that Preview and Deploy can access full widget data from the queue.
+
+```json
+{
+  "stateProducts": { "global": "90513,90518" },
+  "pageType": "product_listing_page",
+  "start_time": "2026-04-06T00:00:00",
+  "end_time": "2027-04-06T23:59:00"
+}
+```
+
+### Queue Display Order
+
+Requests are sorted **descending by created_at** — latest submissions appear first in the queue.
+
+### Atomic Approval (DB-level CAS)
+
+No in-memory locks (useless on Vercel serverless). Instead:
+```sql
+UPDATE submissions SET request_status = 'APPROVED'
+WHERE request_id = ? AND request_status = 'PENDING'
+```
+If 0 rows affected → concurrent update detected → 409 Conflict.
 
 ---
 
-## Scripts Reference
+## Role-Based Access Control
 
-| Script | Command | Purpose |
-|--------|---------|---------|
-| `npm run dev` | `concurrently vite + nodemon` | Start both frontend + backend |
-| `npm run dev:client` | `vite` | Frontend only |
-| `npm run dev:server` | `nodemon server/index.js` | Backend only |
-| `npm run db:generate` | `prisma generate` | Regenerate Prisma client |
-| `npm run db:migrate` | `prisma migrate dev` | Run database migrations |
-| `npm run db:seed` | `node server/prisma/seed.js` | Seed catalog + admin + headers |
-| `npm run db:studio` | `prisma studio` | Visual DB browser |
+| Role | Who | Can do |
+|------|-----|--------|
+| `SUPER_ADMIN` | Hardcoded: `satyam.gupta@apnamart.in`, `satyam` | Everything + auto-approve |
+| `CHECKER` | Hardcoded: `manoj.kumar` + `user_roles` table | Approve, reject, reopen, deploy, manage locations/headers |
+| `MAKER` | Everyone else | Create widgets, submit requests |
 
 ---
 
-## File Structure
+## Services Layer
 
-```
-server/
-├── index.js                  ← Express app (port 3001)
-├── prisma/
-│   ├── schema.prisma         ← Database schema
-│   ├── client.js             ← Prisma singleton
-│   ├── seed.js               ← Import catalog, create admin + headers
-│   ├── optimus.db            ← SQLite database (gitignored)
-│   └── migrations/           ← Auto-generated by Prisma
-├── middleware/
-│   ├── auth.js               ← Email → server-side role resolution + upsert
-│   ├── validate.js           ← Server-side widget validation
-│   └── errorHandler.js       ← Centralized error responses
-└── routes/
-    ├── widgets.js             ← Widget CRUD, duplicate, reorder, versions
-    ├── requests.js            ← Submit, approve, reject, reopen
-    ├── users.js               ← /me, checker management
-    ├── catalog.js             ← Product search, batch lookup
-    ├── activity.js            ← Paginated audit log
-    ├── comments.js            ← Widget comments
-    └── headerWidgets.js       ← Header widget slots
-
-src/services/
-└── LocalApiService.js        ← Frontend API client (fetch wrapper)
-```
+| Service | File | Purpose |
+|---------|------|---------|
+| `SupabaseService` | `server/services/SupabaseService.js` | Supabase client init |
+| `WidgetDataService` | `server/services/WidgetDataService.js` | Widgets, versions, checkers, locations, products, **SMApp widget lookup** |
+| `SubmissionService` | `server/services/SubmissionService.js` | Submissions, request status, history, deploy sync |
+| `DriveService` | `server/services/DriveService.js` | Google Drive media uploads |
 
 ---
 
-## Migration from Google Sheets
+## External Integrations
 
-| Google Sheet Feature | Local DB Replacement |
-|---------------------|---------------------|
-| Request Queue sheet | `Request` + `RequestWidget` tables |
-| Approval Users sheet | `CheckerList` table |
-| Audit Log sheet | `ActivityLog` table |
-| Catalog sheet | `Product` table |
-| Widget state (React) | `Widget` table |
-| Undo history (memory) | `WidgetVersion` table |
+| System | URL | Purpose |
+|--------|-----|---------|
+| Supabase | `SUPABASE_URL` env var | PostgreSQL database |
+| Metabase | `mirror.apnamart.in` | Product catalog + SMApp widget ID lookup |
+| Django Backend | `samaan.apnamart.in` (PROD), `smapi-cu.apnamart.in` (UAT) | Widget deployment |
+| Google Drive | Apps Script endpoint | Media uploads |
 
-The `GoogleSheetService.js` methods map 1:1 to `LocalApiService.js` methods. Frontend code can switch between them.
+### Metabase Tables Used
+
+| Table | DB | Table ID | Purpose |
+|-------|-----|----------|---------|
+| `smpcm_product` | Samaan (3) | 154 | Product catalog search |
+| `smapp_widgets` | Samaan (3) | 236 | **Widget ID lookup by slug** |

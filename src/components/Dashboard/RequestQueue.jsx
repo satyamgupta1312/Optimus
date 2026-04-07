@@ -187,7 +187,7 @@ const RequestQueue = ({ onClose, onApprove, onReject }) => {
                 filtered = data;
             }
 
-            const sorted = [...filtered].reverse();
+            const sorted = [...filtered];
             setRequests(sorted);
 
             const initialSelection = {};

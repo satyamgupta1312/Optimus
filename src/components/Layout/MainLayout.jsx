@@ -252,7 +252,7 @@ const MainLayout = () => {
                     )}
 
                     {/* Workflow Actions */}
-                    {(user?.role === 'MAKER' || isSuperAdmin) && (pageStatus === 'DRAFT' || pageStatus === 'REJECTED') && (
+                    {(user?.role === 'MAKER' || user?.role === 'CHECKER' || isSuperAdmin) && (pageStatus === 'DRAFT' || pageStatus === 'REJECTED') && (
                         <button
                             onClick={openSubmitModal}
                             className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2"

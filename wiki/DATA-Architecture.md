@@ -336,7 +336,7 @@ If 0 rows affected → concurrent update detected → 409 Conflict.
 | Role | Who | Can do |
 |------|-----|--------|
 | `SUPER_ADMIN` | Hardcoded: `satyam.gupta@apnamart.in`, `satyam` | Everything + auto-approve |
-| `CHECKER` | Hardcoded: `manoj.kumar` + `user_roles` table | Approve, reject, reopen, deploy, manage locations/headers |
+| `CHECKER` | Hardcoded: `manoj.kumar` + `user_roles` table | Create widgets, submit, approve, reject, reopen, deploy, manage locations/headers |
 | `MAKER` | Everyone else | Create widgets, submit requests |
 
 ---
